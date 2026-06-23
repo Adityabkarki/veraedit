@@ -1,0 +1,48 @@
+# ViraEdit Worker — Dockerfile
+# Same base as Dockerfile.api but runs Celery workers.
+# Windows note: Celery MUST use --pool=solo on Windows host.
+# Inside Docker (Linux), solo pool still used for stability.
+
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+# Force solo pool — prevents multiprocessing issues in containers
+ENV CELERY_WORKER_POOL=solo
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    curl \
+    build-essential \
+    git \
+    libsndfile1 \
+    libportaudio2 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN useradd -m -u 1000 viraedit
+WORKDIR /app
+
+COPY apps/api/requirements.txt ./requirements.txt
+RUN pip install --upgrade pip --quiet && \
+    pip install --no-cache-dir -r requirements.txt
+
+COPY apps/api/ ./
+
+RUN mkdir -p logs uploads renders temp && \
+    chown -R viraedit:viraedit /app
+
+USER viraedit
+
+# Default: transcription queue. Override via docker-compose command.
+CMD ["celery", "-A", "workers.celery_app", "worker", \
+     "--queues=transcription", \
+     "--concurrency=1", \
+     "--pool=solo", \
+     "--loglevel=info"]

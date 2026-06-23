@@ -1,0 +1,247 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Design tokens ───────────────────────────────────────────────────────── */
+:root {
+  /* Background layers */
+  --bg-base:        #0A0A0B;
+  --bg-surface:     #111113;
+  --bg-elevated:    #1A1A1E;
+  --bg-overlay:     #242428;
+
+  /* Accent — Nepali flag crimson */
+  --accent-primary: #C41E3A;
+  --accent-glow:    #E8284A;
+  --accent-muted:   #3D0912;
+
+  /* Text */
+  --text-primary:   #F2F2F3;
+  --text-secondary: #8B8B96;
+  --text-disabled:  #4A4A52;
+
+  /* Status */
+  --status-success: #22C55E;
+  --status-warning: #F59E0B;
+  --status-error:   #EF4444;
+  --status-info:    #3B82F6;
+
+  /* Timeline track colors */
+  --track-video:    #3B82F6;
+  --track-audio:    #8B5CF6;
+  --track-captions: #F59E0B;
+  --track-music:    #10B981;
+  --track-overlay:  #EC4899;
+
+  /* Radius */
+  --radius: 0.5rem;
+}
+
+/* ── Base reset ──────────────────────────────────────────────────────────── */
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+  height: 100%;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Scrollbar styling ───────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-surface);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--bg-overlay);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-disabled);
+}
+
+/* ── Focus ring ──────────────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+/* ── Selection ───────────────────────────────────────────────────────────── */
+::selection {
+  background-color: var(--accent-muted);
+  color: var(--text-primary);
+}
+
+/* ── Utility layer ───────────────────────────────────────────────────────── */
+@layer utilities {
+  /* Noto Sans Devanagari — only use this class for video caption text
+     rendering, never for general UI elements. */
+  .font-nepali {
+    font-family: var(--font-nepali), 'Noto Sans Devanagari', sans-serif;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* ── Edit toolbox tile hover previews ───────────────────────────────────── */
+@keyframes tb-zoom-in {
+  from { transform: scale(1); }
+  to { transform: scale(1.18); }
+}
+@keyframes tb-zoom-punch {
+  0%, 100% { transform: scale(1); }
+  45% { transform: scale(1.22); }
+  55% { transform: scale(1.12); }
+}
+@keyframes tb-dissolve {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 0.85; }
+}
+@keyframes tb-fade {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 0.75; }
+}
+@keyframes tb-wipe {
+  0% { left: 0; }
+  100% { left: 100%; }
+}
+@keyframes tb-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+}
+@keyframes tb-caption-pop {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+}
+@keyframes tb-caption-word {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+@keyframes tb-caption-slide {
+  0% { transform: translateY(30%); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+@keyframes tb-overlay-slide {
+  0% { transform: translateX(-25%); opacity: 0; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+@keyframes tb-broll-scan {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 100% 100%; }
+}
+@keyframes tb-music-bar {
+  0%, 100% { transform: scaleY(0.25); }
+  50% { transform: scaleY(1); }
+}
+@keyframes tb-vignette-pulse {
+  0%, 100% { box-shadow: inset 0 0 18px 6px rgba(0, 0, 0, 0.45); }
+  50% { box-shadow: inset 0 0 36px 12px rgba(0, 0, 0, 0.75); }
+}
+@keyframes tb-color-shift {
+  0%, 100% { filter: hue-rotate(0deg) saturate(1); }
+  50% { filter: hue-rotate(25deg) saturate(1.35); }
+}
+@keyframes tb-sfx-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50% { transform: scale(1.15); opacity: 1; }
+}
+@keyframes tb-pulse {
+  0%, 100% { opacity: 0.65; }
+  50% { opacity: 1; }
+}
+@keyframes tb-pacing-flash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+@keyframes tb-pip-pop {
+  0%, 100% { transform: scale(0.9); opacity: 0.7; }
+  50% { transform: scale(1); opacity: 1; }
+}
+@keyframes tb-zoom-ring {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50% { transform: scale(1.15); opacity: 1; }
+}
+
+.tb-preview-zoom-in { animation: tb-zoom-in 1.4s ease-in-out infinite alternate; }
+.tb-preview-zoom-punch { animation: tb-zoom-punch 0.7s ease-in-out infinite; }
+.tb-preview-dissolve { animation: tb-dissolve 1.2s ease-in-out infinite; }
+.tb-preview-fade { animation: tb-fade 1.1s ease-in-out infinite; }
+.tb-preview-wipe { animation: tb-wipe 0.9s ease-in-out infinite; position: absolute; }
+.tb-preview-shake { animation: tb-shake 0.35s linear infinite; }
+.tb-preview-caption-pop { animation: tb-caption-pop 0.8s ease-in-out infinite; }
+.tb-preview-caption-word { animation: tb-caption-word 0.9s ease-in-out infinite; }
+.tb-preview-caption-slide { animation: tb-caption-slide 0.7s ease-out infinite alternate; }
+.tb-preview-overlay-slide { animation: tb-overlay-slide 0.75s ease-out infinite alternate; }
+.tb-preview-broll-scan {
+  background: repeating-linear-gradient(
+    135deg,
+    transparent 0 6px,
+    rgba(255, 255, 255, 0.06) 6px 12px
+  );
+  background-size: 200% 200%;
+  animation: tb-broll-scan 1.5s linear infinite;
+}
+.tb-preview-music-bar { animation: tb-music-bar 0.55s ease-in-out infinite; transform-origin: bottom; }
+.tb-preview-vignette { animation: tb-vignette-pulse 1.3s ease-in-out infinite; }
+.tb-preview-color-grade { animation: tb-color-shift 1.6s ease-in-out infinite; }
+.tb-preview-sfx-pulse { animation: tb-sfx-pulse 0.5s ease-in-out infinite; }
+.tb-preview-pulse { animation: tb-pulse 1s ease-in-out infinite; }
+.tb-preview-pacing { animation: tb-pacing-flash 0.55s ease-in-out infinite; }
+.tb-preview-pip { animation: tb-pip-pop 1s ease-in-out infinite; }
+.tb-preview-zoom-ring { animation: tb-zoom-ring 1s ease-in-out infinite; }
+
+/* Motion graphics on canvas */
+@keyframes motion-data-bar-grow {
+  from { width: 0; }
+  to { width: 72%; }
+}
+@keyframes motion-conflict-pulse {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+@keyframes motion-conflict-border {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.25); }
+}
+.motion-gfx-data-bar {
+  width: 72%;
+  animation: motion-data-bar-grow 0.8s ease-out forwards;
+}
+.motion-gfx-conflict-pulse {
+  animation: motion-conflict-pulse 1.4s ease-in-out infinite;
+}
+.motion-gfx-conflict-border {
+  animation: motion-conflict-border 1.4s ease-in-out infinite;
+}
+
+/* Caption FX — AE-style text animators */
+@keyframes cap-fx-pop-keyframes {
+  0% { transform: scale(0.72); opacity: 0; }
+  55% { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes cap-fx-slide-keyframes {
+  from { transform: translateY(28px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.cap-fx-pop-in {
+  animation: cap-fx-pop-keyframes 0.38s cubic-bezier(0.22, 1.1, 0.36, 1) both;
+}
+.cap-fx-slide-in {
+  animation: cap-fx-slide-keyframes 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}

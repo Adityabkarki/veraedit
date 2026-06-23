@@ -1,0 +1,117 @@
+# Development override — layer on top of docker-compose.yml
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+#
+# Adds:
+#  - FastAPI with hot-reload (bind mount source)
+#  - Celery workers with auto-restart
+#  - Mailpit for email testing
+#  - More verbose logging
+
+services:
+
+  # ── API — FastAPI with hot-reload ─────────────────────────────
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.api
+    container_name: viraedit-api-dev
+    restart: unless-stopped
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql+asyncpg://viraedit:viraedit_dev_password@postgres:5432/viraedit
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin123
+      S3_BUCKET_NAME: viraedit-media
+      LOG_LEVEL: DEBUG
+      LOG_FORMAT: pretty
+    ports:
+      - "8000:8000"
+    volumes:
+      # Source mount for hot-reload
+      - ../../apps/api:/app
+      - ../../logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - viraedit
+
+  # ── Celery Workers (dev) ──────────────────────────────────────
+  worker-transcription:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.worker
+    container_name: viraedit-worker-transcription
+    restart: unless-stopped
+    command: celery -A workers.celery_app worker --queues=transcription --concurrency=1 --pool=solo --loglevel=info
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql+asyncpg://viraedit:viraedit_dev_password@postgres:5432/viraedit
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    volumes:
+      - ../../apps/api:/app
+      - ../../logs:/app/logs
+    depends_on:
+      - api
+    networks:
+      - viraedit
+
+  worker-analysis:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.worker
+    container_name: viraedit-worker-analysis
+    restart: unless-stopped
+    command: celery -A workers.celery_app worker --queues=analysis --concurrency=1 --pool=solo --loglevel=info
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql+asyncpg://viraedit:viraedit_dev_password@postgres:5432/viraedit
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    volumes:
+      - ../../apps/api:/app
+      - ../../logs:/app/logs
+    depends_on:
+      - api
+    networks:
+      - viraedit
+
+  worker-render:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.worker
+    container_name: viraedit-worker-render
+    restart: unless-stopped
+    command: celery -A workers.celery_app worker --queues=render --concurrency=1 --pool=solo --loglevel=info
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql+asyncpg://viraedit:viraedit_dev_password@postgres:5432/viraedit
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    volumes:
+      - ../../apps/api:/app
+      - ../../logs:/app/logs
+    depends_on:
+      - api
+    networks:
+      - viraedit
+
+  # Override postgres to show more logs in dev
+  postgres:
+    environment:
+      POSTGRES_LOG_STATEMENT: "none"
+
+  # Override redis to enable keyspace notifications for dev
+  redis:
+    command: redis-server --appendonly yes --notify-keyspace-events KEA

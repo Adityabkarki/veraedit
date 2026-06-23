@@ -1,0 +1,101 @@
+services:
+
+  # ── PostgreSQL + pgvector ─────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: viraedit-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: viraedit
+      POSTGRES_PASSWORD: viraedit_dev_password
+      POSTGRES_DB: viraedit
+    ports:
+      - "5433:5432"
+    volumes:
+      # Named volume — required on Windows (bind mounts break PostgreSQL)
+      - postgres_data:/var/lib/postgresql/data
+      # SQL run once on first startup to enable extensions
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U viraedit -d viraedit"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - viraedit
+
+  # ── Redis ─────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: viraedit-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - viraedit
+
+  # ── MinIO (S3-compatible object storage) ─────────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: viraedit-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web console (http://localhost:9001)
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - viraedit
+
+  # ── MinIO bucket init (runs once, then exits) ─────────────────
+  minio-init:
+    image: minio/mc:latest
+    container_name: viraedit-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 minioadmin minioadmin123 &&
+        mc mb --ignore-existing local/viraedit-media &&
+        mc mb --ignore-existing local/viraedit-renders &&
+        mc mb --ignore-existing local/viraedit-temp &&
+        mc anonymous set download local/viraedit-renders &&
+        echo 'MinIO buckets ready.' &&
+        exit 0
+      "
+    networks:
+      - viraedit
+
+# ── Named volumes — Windows-safe ──────────────────────────────
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local
+
+# ── Internal network ──────────────────────────────────────────
+networks:
+  viraedit:
+    driver: bridge

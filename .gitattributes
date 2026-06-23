@@ -1,0 +1,55 @@
+# ViraEdit — Git Line Ending Config
+# All text files use LF (Unix) line endings.
+# .bat and .ps1 MUST use CRLF — Windows requires it.
+
+* text=auto eol=lf
+
+# Windows scripts — MUST be CRLF
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+
+# Source files — LF
+*.py   text eol=lf
+*.ts   text eol=lf
+*.tsx  text eol=lf
+*.js   text eol=lf
+*.jsx  text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+*.sql  text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.ini  text eol=lf
+*.cfg  text eol=lf
+*.env  text eol=lf
+*.env.example text eol=lf
+*.txt  text eol=lf
+*.sh   text eol=lf
+*.css  text eol=lf
+*.html text eol=lf
+*.svg  text eol=lf
+
+# Docker
+Dockerfile    text eol=lf
+*.dockerfile  text eol=lf
+.dockerignore text eol=lf
+
+# Binaries — no line ending conversion
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.webp binary
+*.mp4  binary
+*.mp3  binary
+*.wav  binary
+*.ttf  binary
+*.otf  binary
+*.woff binary
+*.woff2 binary
+*.pdf  binary
+*.zip  binary
+*.gz   binary

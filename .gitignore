@@ -1,0 +1,89 @@
+# ViraEdit .gitignore
+
+# ── Environment ───────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ── Python ────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+.mypy_cache/
+.dmypy.json
+.pyre/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+nosetests.xml
+coverage.xml
+*.cover
+
+# ── Node.js ───────────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# ── Next.js ───────────────────────────────────────────────────
+.next/
+out/
+.vercel
+
+# ── Build outputs ─────────────────────────────────────────────
+dist/
+build/
+*.tsbuildinfo
+next-env.d.ts
+
+# ── Logs ─────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── Media / uploads ───────────────────────────────────────────
+uploads/
+renders/
+fonts_temp/
+# Keep test fixtures but ignore large video files
+tests/fixtures/*.mp4
+tests/fixtures/*.mp3
+tests/fixtures/*.wav
+!tests/fixtures/sample_*
+
+# ── OS ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+
+# ── IDE ───────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.code-workspace
+
+# ── Build state (local only) ──────────────────────────────────
+# Tracked in %USERPROFILE%\.viraedit_build_state.json
+
+# Local test/render media artifacts (not committed)
+/rendered_check.mp4
+/sample_nepali.mp4
+/sample_speech.wav
+*.mp4
+*.wav

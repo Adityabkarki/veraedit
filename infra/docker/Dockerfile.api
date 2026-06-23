@@ -1,0 +1,59 @@
+# ViraEdit API — Dockerfile
+# Python 3.11 + FFmpeg + all AI/ML dependencies
+# Runs on Linux inside Docker (WSL2 on Windows host)
+
+FROM python:3.11-slim
+
+# Prevent Python from writing .pyc files and buffering stdout
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # FFmpeg — video processing
+    ffmpeg \
+    # curl — health checks and downloads
+    curl \
+    # Build tools — needed for some Python packages (e.g. psutil, pyannote)
+    build-essential \
+    # Git — needed for some pip installs
+    git \
+    # Audio processing
+    libsndfile1 \
+    libportaudio2 \
+    # OpenCV dependencies
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    # PostgreSQL client
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user for security
+RUN useradd -m -u 1000 viraedit
+WORKDIR /app
+
+# Install Python dependencies
+COPY apps/api/requirements.txt ./requirements.txt
+RUN pip install --upgrade pip --quiet && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY apps/api/ ./
+
+# Create necessary directories
+RUN mkdir -p logs uploads renders temp && \
+    chown -R viraedit:viraedit /app
+
+USER viraedit
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+EXPOSE 8000
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

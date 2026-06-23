@@ -1,0 +1,89 @@
+# ViraEdit API — Python Dependencies
+# Install: pip install -r requirements.txt
+
+# ── Web Framework ─────────────────────────────────────────────
+fastapi==0.115.0
+uvicorn[standard]==0.31.0
+python-multipart==0.0.12
+
+# ── Database ──────────────────────────────────────────────────
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+alembic==1.14.0
+psycopg2-binary==2.9.10
+pgvector==0.3.5
+
+# ── Cache / Queue ─────────────────────────────────────────────
+redis[hiredis]==5.1.1
+celery[redis]==5.4.0
+kombu==5.4.2
+
+# ── Object Storage ────────────────────────────────────────────
+boto3==1.35.0
+botocore==1.35.0
+
+# ── Auth ──────────────────────────────────────────────────────
+pyjwt==2.9.0
+bcrypt==4.2.0
+passlib[bcrypt]==1.7.4
+python-jose[cryptography]==3.3.0
+
+# ── Config ────────────────────────────────────────────────────
+pydantic==2.9.2
+pydantic-settings==2.6.0
+python-dotenv==1.0.1
+
+# ── HTTP Client ───────────────────────────────────────────────
+httpx==0.27.2
+aiohttp==3.10.10
+
+# ── AI — OpenAI (analysis/editing) + ElevenLabs (Scribe STT) ──
+openai==1.54.0
+elevenlabs==2.50.0
+
+# ── AI — Anthropic (optional, premium features) ───────────────
+anthropic==0.37.0
+
+# ── AI — Local Ollama ─────────────────────────────────────────
+ollama==0.3.3
+
+# ── Transcription (local fallback) ───────────────────────────
+
+# ── Audio Processing ──────────────────────────────────────────
+pydub==0.25.1
+soundfile==0.12.1
+librosa==0.10.2
+
+# ── Video Processing ──────────────────────────────────────────
+# FFmpeg must be installed separately (winget install Gyan.FFmpeg)
+scenedetect[opencv]==0.6.4
+opencv-python-headless==4.10.0.84
+
+# ── Speaker Diarization ───────────────────────────────────────
+pyannote.audio==3.3.2
+
+# ── Style Transfer ────────────────────────────────────────────
+yt-dlp==2024.12.13
+easyocr==1.7.2
+scikit-image==0.24.0
+scipy==1.14.1
+
+# ── Logging & Observability ───────────────────────────────────
+structlog==24.4.0
+
+# ── Utilities ────────────────────────────────────────────────
+python-magic-bin==0.4.14; sys_platform == "win32"
+python-magic==0.4.27; sys_platform != "win32"
+pillow==11.0.0
+numpy==2.1.3
+aiofiles==24.1.0
+tenacity==9.0.0
+
+# ── Testing ──────────────────────────────────────────────────
+pytest==8.3.3
+pytest-asyncio==0.24.0
+pytest-cov==6.0.0
+httpx==0.27.2
+factory-boy==3.3.1
+freezegun==1.5.1
+respx==0.21.1

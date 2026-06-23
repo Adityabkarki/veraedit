@@ -1,0 +1,58 @@
+# ViraEdit .dockerignore
+# Keeps Docker build context small and fast
+
+# Node modules
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+
+# Python
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/.pytest_cache/
+**/venv/
+**/.venv/
+**/*.egg-info/
+**/dist/
+**/build/
+**/.coverage
+**/htmlcov/
+
+# Git
+.git/
+.gitignore
+
+# Environment files (never in Docker image)
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+**/*.log
+
+# Upload/render temp files
+uploads/
+renders/
+fonts_temp/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Claude Code skill files
+.claude/
+
+# Test fixtures (large video files)
+tests/fixtures/*.mp4
+tests/fixtures/*.mp3
+tests/fixtures/*.wav

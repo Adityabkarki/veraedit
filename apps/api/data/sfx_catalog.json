@@ -1,0 +1,222 @@
+{
+  "license": "Mixkit License \u2014 free for commercial use (https://mixkit.co/license/)",
+  "items": [
+    {
+      "slug": "whoosh",
+      "name": "Fast whoosh",
+      "category": "whoosh",
+      "mixkit_id": 1490,
+      "duration_ms": 350,
+      "tags": [
+        "transition",
+        "cut",
+        "swipe"
+      ],
+      "tool_ids": [
+        "sfx_on_cut",
+        "sfx_whoosh_cut"
+      ],
+      "file_name": "whoosh.mp3",
+      "source_url": "https://assets.mixkit.co/active_storage/sfx/1490/1490-preview.mp3"
+    },
+    {
+      "slug": "whoosh_arrow",
+      "name": "Arrow whoosh",
+      "category": "whoosh",
+      "mixkit_id": 1491,
+      "duration_ms": 320,
+      "tags": [
+        "transition",
+        "arrow"
+      ],
+      "tool_ids": [],
+      "file_name": "whoosh_arrow.mp3",
+      "source_url": "https://assets.mixkit.co/active_storage/sfx/1491/1491-preview.mp3"
+    },
+    {
+      "slug": "whoosh_cinematic",
+      "name": "Cinematic whoosh",
+      "category": "whoosh",
+      "mixkit_id": 1492,
+      "duration_ms": 400,
+      "tags": [
+        "transition",
+        "film"
+      ],
+      "tool_ids": [],
+      "file_name": "whoosh_cinematic.mp3",
+      "source_url": "https://assets.mixkit.co/active_storage/sfx/1492/1492-preview.mp3"
+    },
+    {
+      "slug": "whoosh_rocket",
+      "name": "Rocket whoosh",
+      "category": "whoosh",
+      "mixkit_id": 1714,
+      "duration_ms": 450,
+      "tags": [
+        "transition",
+        "fast"
+      ],
+      "tool_ids": [],
+      "file_name": "whoosh_rocket.mp3",
+      "source_url": "https://assets.mixkit.co/active_storage/sfx/1714/1714-preview.mp3"
+    },
+    {
+      "slug": "shutter_click",
+      "name": "Camera shutter",
+      "category": "camera",
+      "mixkit_id": 1133,
+      "duration_ms": 150,
+      "tags": [
+        "camera",
+        "photo"
+      ],
+      "tool_ids": [
+        "sfx_shutter_click"
+      ],
+      "file_name": "shutter_click.mp3",
+      "source_url": "https://assets.mixkit.co/active_storage/sfx/1133/1133-preview.mp3"
+    },
+    {
+      "slug": "camera_flash",
+      "name": "Camera flash",
+      "category": "camera",
+      "mixkit_id": 1430,
+      "duration_ms": 200,
+      "tags": [
+        "camera",
+        "flash"
+      ],
+      "tool_ids": [],
+      "file_name": "camera_flash.mp3",
+      "source_url": "https://assets.mixkit.co/active_storage/sfx/1430/1430-preview.mp3"
+    },
+    {
+      "slug": "sub_bass",
+      "name": "Sub-bass hit",
+      "category": "impact",
+      "mixkit_id": 2760,
+      "duration_ms": 320,
+      "tags": [
+        "bass",
+        "emphasis",
+        "punch"
+      ],
+      "tool_ids": [
+        "sfx_sub_bass_thud"
+      ],
+      "file_name": "sub_bass.mp3",
+      "source_url": "https://assets.mixkit.co/active_storage/sfx/2760/2760-preview.mp3"
+    },
+    {
+      "slug": "impact_hit",
+      "name": "Short impact",
+      "category": "impact",
+      "mixkit_id": 2580,
+      "duration_ms": 180,
+      "tags": [
+        "hit",
+        "punch"
+      ],
+      "tool_ids": [
+        "sfx_impact_hit"
+      ],
+      "file_name": "impact_hit.mp3",
+      "source_url": "https://assets.mixkit.co/active_storage/sfx/2580/2580-preview.mp3"
+    },
+    {
+      "slug": "impact_cinematic",
+      "name": "Cinematic hit",
+      "category": "impact",
+      "mixkit_id": 994,
+      "duration_ms": 500,
+      "tags": [
+        "hit",
+        "trailer"
+      ],
+      "tool_ids": [],
+      "file_name": "impact_cinematic.mp3",
+      "source_url": "https://assets.mixkit.co/active_storage/sfx/994/994-preview.mp3"
+    },
+    {
+      "slug": "pop",
+      "name": "UI pop",
+      "category": "ui",
+      "mixkit_id": 2358,
+      "duration_ms": 120,
+      "tags": [
+        "pop",
+        "notification"
+      ],
+      "tool_ids": [
+        "sfx_pop"
+      ],
+      "file_name": "pop.mp3",
+      "source_url": "https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3"
+    },
+    {
+      "slug": "notification",
+      "name": "Notification ding",
+      "category": "ui",
+      "mixkit_id": 213,
+      "duration_ms": 250,
+      "tags": [
+        "ding",
+        "alert"
+      ],
+      "tool_ids": [
+        "sfx_notification"
+      ],
+      "file_name": "notification.mp3",
+      "source_url": "https://assets.mixkit.co/active_storage/sfx/213/213-preview.mp3"
+    },
+    {
+      "slug": "swipe",
+      "name": "Swipe",
+      "category": "transition",
+      "mixkit_id": 2568,
+      "duration_ms": 280,
+      "tags": [
+        "swipe",
+        "mobile"
+      ],
+      "tool_ids": [
+        "sfx_swipe"
+      ],
+      "file_name": "swipe.mp3",
+      "source_url": "https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3"
+    },
+    {
+      "slug": "glitch",
+      "name": "Glitch tick",
+      "category": "tech",
+      "mixkit_id": 2842,
+      "duration_ms": 200,
+      "tags": [
+        "glitch",
+        "digital"
+      ],
+      "tool_ids": [
+        "sfx_glitch"
+      ],
+      "file_name": "glitch.mp3",
+      "source_url": "https://assets.mixkit.co/active_storage/sfx/2842/2842-preview.mp3"
+    },
+    {
+      "slug": "riser",
+      "name": "Short riser",
+      "category": "transition",
+      "mixkit_id": 3024,
+      "duration_ms": 600,
+      "tags": [
+        "riser",
+        "build"
+      ],
+      "tool_ids": [
+        "sfx_riser"
+      ],
+      "file_name": "riser.mp3",
+      "source_url": "https://assets.mixkit.co/active_storage/sfx/3024/3024-preview.mp3"
+    }
+  ]
+}
