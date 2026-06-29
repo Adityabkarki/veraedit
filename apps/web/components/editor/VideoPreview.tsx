@@ -4,9 +4,18 @@
  * VideoPreview — centre panel: video player only (AI edits live in the right panel).
  */
 
+import { useEditorStore, type AspectRatio } from '@/stores/editorStore'
 import { PanelTooltip } from '@/components/editor/PanelTooltip'
 import { VideoPlayer } from '@/components/editor/player/VideoPlayer'
 import { useAssetStore } from '@/stores/assetStore'
+
+const ASPECT_OPTIONS: { label: string; value: AspectRatio }[] = [
+  { label: '16:9', value: '16:9' },
+  { label: '9:16', value: '9:16' },
+  { label: '1:1',  value: '1:1'  },
+  { label: '4:3',  value: '4:3'  },
+  { label: '21:9', value: '21:9' },
+]
 
 interface VideoPreviewProps {
   src?: string
@@ -18,6 +27,8 @@ export function VideoPreview({ src }: VideoPreviewProps) {
   const durationMin = useAssetStore((s) =>
     s.asset?.durationSeconds ? s.asset.durationSeconds / 60 : 0,
   )
+  const aspectRatio = useEditorStore((s) => s.aspectRatio)
+  const setAspectRatio = useEditorStore((s) => s.setAspectRatio)
 
   return (
     <div
@@ -37,8 +48,25 @@ export function VideoPreview({ src }: VideoPreviewProps) {
         </p>
       )}
 
+      {/* Aspect ratio selector */}
+      <div className="flex-shrink-0 flex items-center justify-center gap-1 px-3 py-1.5 border-b border-bg-overlay">
+        {ASPECT_OPTIONS.map((opt) => (
+          <button
+            key={opt.value}
+            onClick={() => setAspectRatio(opt.value)}
+            className={`px-2 py-0.5 text-[11px] leading-none rounded font-medium transition-colors ${
+              aspectRatio === opt.value
+                ? 'bg-accent text-white'
+                : 'text-text-secondary hover:text-text-primary hover:bg-bg-overlay'
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
       <div className="flex-1 min-h-0 overflow-hidden">
-        <VideoPlayer src={videoSrc} />
+        <VideoPlayer src={videoSrc} aspectRatio={aspectRatio} />
       </div>
     </div>
   )

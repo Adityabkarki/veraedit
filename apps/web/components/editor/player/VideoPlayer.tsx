@@ -14,7 +14,7 @@
  * video content, never for UI chrome.
  */
 
-import { useRef, useEffect, useCallback, useMemo } from 'react'
+import { useRef, useEffect, useCallback, useMemo, useState } from 'react'
 import { usePlayerStore } from '@/stores/playerStore'
 import { useTimelineStore }               from '@/stores/timelineStore'
 import { CaptionOverlay }    from '@/components/editor/player/CaptionOverlay'
@@ -41,6 +41,15 @@ import { BrollPreviewUpload } from '@/components/editor/player/BrollPreviewUploa
 
 interface VideoPlayerProps {
   src?: string
+  aspectRatio?: string
+}
+
+const ASPECT_MAP: Record<string, string> = {
+  '16:9': '16 / 9',
+  '9:16': '9 / 16',
+  '1:1':  '1 / 1',
+  '4:3':  '4 / 3',
+  '21:9': '21 / 9',
 }
 
 function formatTime(s: number): string {
@@ -50,10 +59,12 @@ function formatTime(s: number): string {
   return `${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
 }
 
-export function VideoPlayer({ src }: VideoPlayerProps) {
+export function VideoPlayer({ src, aspectRatio }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const syncingFromVideo = useRef(false)
   const playedSfxRef = useRef<Set<string>>(new Set())
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   const {
     isPlaying, currentTime, duration, volume, muted, playbackRate, previewEnd,
@@ -240,6 +251,21 @@ export function VideoPlayer({ src }: VideoPlayerProps) {
     setActiveCaptionText(null)
   }, [src, setActiveCaptionText])
 
+  // ── Fullscreen change listener ──────────────────────────────────────────
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', handler)
+    return () => document.removeEventListener('fullscreenchange', handler)
+  }, [])
+
+  const handleToggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen()
+    } else {
+      document.exitFullscreen()
+    }
+  }, [])
+
   const progress = timelineDuration > 0 ? currentTime / timelineDuration : 0
 
   const handleTogglePlay = useCallback(() => {
@@ -247,67 +273,75 @@ export function VideoPlayer({ src }: VideoPlayerProps) {
     togglePlay()
   }, [isPlaying, togglePlay, clearPreviewRange])
 
+  const ratioCss = aspectRatio ? ASPECT_MAP[aspectRatio] ?? undefined : undefined
+
   return (
     <div
+      ref={containerRef}
       data-testid="video-player"
       className="flex flex-col h-full bg-black"
     >
       {/* ── Video / placeholder canvas ────────────────────────────────────── */}
-      <div className="flex-1 relative flex items-center justify-center min-h-0 overflow-hidden">
-        {src ? (
-          <VideoLayoutFrame>
-            <video
-              ref={videoRef}
-              src={src}
-              preload="metadata"
-              playsInline
-              className="w-full h-full object-contain transition-opacity duration-75"
-              style={{
-                filter: videoFilter !== 'none' ? videoFilter : undefined,
-                opacity: videoOpacity,
-                transform: videoScale !== 1 ? `scale(${videoScale})` : undefined,
-                transformOrigin: 'center center',
-              }}
-              onTimeUpdate={onTimeUpdate}
-              onLoadedMetadata={onLoadedMetadata}
-              onEnded={onEnded}
-              data-testid="video-element"
-            />
-          </VideoLayoutFrame>
-        ) : (
-          /* Placeholder — shown when no video is loaded */
-          <div
-            data-testid="player-placeholder"
-            className="flex flex-col items-center justify-center gap-3 text-text-disabled w-full h-full"
-          >
-            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" aria-hidden="true">
-              <rect x="4" y="10" width="40" height="28" rx="3" stroke="currentColor" strokeWidth="1.5"/>
-              <circle cx="24" cy="24" r="8" stroke="currentColor" strokeWidth="1.5"/>
-              <path d="M21 21L29 24L21 27V21Z" fill="currentColor"/>
-            </svg>
-            <span className="text-sm">No video loaded</span>
-          </div>
-        )}
-
-        {/* Caption overlay — uses Noto Sans Devanagari (font-nepali) */}
-        <CaptionOverlay />
-        <VisualOverlayLayer />
-        {vignetteStrength > 0 && (
-          <div
-            data-testid="video-vignette-overlay"
-            className="absolute inset-0 pointer-events-none z-[15]"
-            style={{
-              background: `radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,${Math.min(0.85, vignetteStrength * 2)}) 100%)`,
-            }}
-            aria-hidden="true"
-          />
-        )}
-        <BrollPreviewUpload />
+      <div className="flex-1 relative flex items-center justify-center min-h-0 overflow-hidden bg-black">
         <div
-          data-testid="time-display"
-          className="absolute bottom-2 left-2 font-mono text-xs text-white bg-black/60 px-2 py-0.5 rounded pointer-events-none"
+          className="relative max-w-full max-h-full"
+          style={ratioCss ? { aspectRatio: ratioCss, width: '100%', height: 'auto' } : undefined}
         >
-          {formatTime(currentTime)} / {formatTime(timelineDuration)}
+          {src ? (
+            <VideoLayoutFrame>
+              <video
+                ref={videoRef}
+                src={src}
+                preload="metadata"
+                playsInline
+                className="w-full h-full object-contain transition-opacity duration-75"
+                style={{
+                  filter: videoFilter !== 'none' ? videoFilter : undefined,
+                  opacity: videoOpacity,
+                  transform: videoScale !== 1 ? `scale(${videoScale})` : undefined,
+                  transformOrigin: 'center center',
+                }}
+                onTimeUpdate={onTimeUpdate}
+                onLoadedMetadata={onLoadedMetadata}
+                onEnded={onEnded}
+                data-testid="video-element"
+              />
+            </VideoLayoutFrame>
+          ) : (
+            /* Placeholder — shown when no video is loaded */
+            <div
+              data-testid="player-placeholder"
+              className="flex flex-col items-center justify-center gap-3 text-text-disabled w-full h-full"
+            >
+              <svg width="48" height="48" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+                <rect x="4" y="10" width="40" height="28" rx="3" stroke="currentColor" strokeWidth="1.5"/>
+                <circle cx="24" cy="24" r="8" stroke="currentColor" strokeWidth="1.5"/>
+                <path d="M21 21L29 24L21 27V21Z" fill="currentColor"/>
+              </svg>
+              <span className="text-sm">No video loaded</span>
+            </div>
+          )}
+
+          {/* Caption overlay — uses Noto Sans Devanagari (font-nepali) */}
+          <CaptionOverlay />
+          <VisualOverlayLayer />
+          {vignetteStrength > 0 && (
+            <div
+              data-testid="video-vignette-overlay"
+              className="absolute inset-0 pointer-events-none z-[15]"
+              style={{
+                background: `radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,${Math.min(0.85, vignetteStrength * 2)}) 100%)`,
+              }}
+              aria-hidden="true"
+            />
+          )}
+          <BrollPreviewUpload />
+          <div
+            data-testid="time-display"
+            className="absolute bottom-2 left-2 font-mono text-xs text-white bg-black/60 px-2 py-0.5 rounded pointer-events-none"
+          >
+            {formatTime(currentTime)} / {formatTime(timelineDuration)}
+          </div>
         </div>
       </div>
 
@@ -431,16 +465,25 @@ export function VideoPlayer({ src }: VideoPlayerProps) {
           {/* Speed control */}
           <SpeedControl />
 
-          {/* Fullscreen placeholder */}
+          {/* Fullscreen */}
           <button
             data-testid="player-fullscreen"
-            aria-label="Fullscreen"
+            onClick={handleToggleFullscreen}
+            aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+            title={isFullscreen ? 'Exit fullscreen (F)' : 'Fullscreen (F)'}
             className="p-1.5 rounded text-text-secondary hover:text-text-primary hover:bg-bg-overlay transition-colors"
           >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-              <path d="M1 5V2H4M10 2H13V5M13 9V12H10M4 12H1V9"
-                stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
+            {isFullscreen ? (
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                <path d="M2 2v3h3M12 2v3h3M12 12v-3h3M2 12v-3h3"
+                  stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                <path d="M1 5V2H4M10 2H13V5M13 9V12H10M4 12H1V9"
+                  stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            )}
           </button>
         </div>
       </div>

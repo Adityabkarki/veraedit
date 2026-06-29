@@ -38,10 +38,16 @@ import { UndoToast }     from '@/components/editor/timeline/UndoToast'
 import { EffectRangeOverlay } from '@/components/editor/timeline/EffectRangeOverlay'
 
 
-import { TRACK_HEIGHT_PX, TIMELINE_HEADER_WIDTH_PX } from '@/lib/timelineLayout'
+import {
+  TRACK_HEIGHT_PX,
+  RULER_HEIGHT_PX,
+  TIMELINE_HEADER_WIDTH_PX,
+  timelineTracksContentHeightPx,
+} from '@/lib/timelineLayout'
 import { tracksWithContent } from '@/lib/timelineLayers'
 
 const TRACK_HEIGHT      = TRACK_HEIGHT_PX
+const RULER_HEIGHT      = RULER_HEIGHT_PX
 const HEADER_WIDTH      = TIMELINE_HEADER_WIDTH_PX
 const CONTENT_PADDING_R = 120  // px extra right space past the last clip
 
@@ -122,6 +128,7 @@ export function Timeline() {
   )
   const totalWidth = totalDuration * pixelsPerSecond + CONTENT_PADDING_R
   const tracksHeight = visibleTracks.length * TRACK_HEIGHT
+  const tracksContentHeight = timelineTracksContentHeightPx(visibleTracks.length)
 
   // Sync scrollX state when the horizontal scroll container scrolls
   const onHorizontalScroll = useCallback(() => {
@@ -428,15 +435,23 @@ export function Timeline() {
         <div
           ref={verticalScrollRef}
           data-testid="timeline-tracks-scroll"
-          className="flex flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
+          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
         >
-          <div className="flex min-w-full min-h-min">
+          <div
+            data-testid="timeline-tracks-content"
+            className="flex min-w-full"
+            style={{ height: tracksContentHeight, minHeight: tracksContentHeight }}
+          >
             {/* Left: track headers (scroll vertically with lanes) */}
             <div
-              className="flex-shrink-0 flex flex-col border-r border-bg-overlay z-10 bg-bg-surface sticky left-0"
-              style={{ width: HEADER_WIDTH }}
+              data-testid="timeline-track-headers"
+              className="flex-shrink-0 flex flex-col border-r border-bg-overlay z-10 bg-bg-surface"
+              style={{ width: HEADER_WIDTH, height: tracksContentHeight }}
             >
-              <div className="h-6 bg-bg-elevated border-b border-bg-overlay flex-shrink-0" />
+              <div
+                className="bg-bg-elevated border-b border-bg-overlay flex-shrink-0"
+                style={{ height: RULER_HEIGHT }}
+              />
               {visibleTracks.map((track) => (
                 <div
                   key={track.id}
@@ -452,10 +467,16 @@ export function Timeline() {
             <div
               ref={scrollRef}
               data-testid="timeline-horizontal-scroll"
-              className="flex-1 min-w-0 overflow-x-auto overflow-y-hidden"
+              className="flex-1 min-w-0 overflow-x-auto overflow-y-visible"
+              style={{ height: tracksContentHeight }}
               onScroll={onHorizontalScroll}
+              onWheel={(e) => {
+                if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return
+                e.preventDefault()
+                verticalScrollRef.current?.scrollBy({ top: e.deltaY, behavior: 'auto' })
+              }}
             >
-              <div style={{ width: totalWidth }}>
+              <div style={{ width: totalWidth, height: tracksContentHeight }}>
                 <TimelineRuler totalDuration={totalDuration} />
 
                 <div

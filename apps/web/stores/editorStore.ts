@@ -30,6 +30,8 @@ export type LeftTab    = 'media' | 'transcript' | 'brand'
 export type SaveStatus = 'saved' | 'saving' | 'unsaved' | 'error'
 /** Top-level layout mode — changes which panels are visible */
 export type EditorMode = 'editor' | 'shorts' | 'chapters' | 'promo'
+/** Video preview aspect ratio */
+export type AspectRatio = '16:9' | '9:16' | '1:1' | '4:3' | '21:9'
 
 export interface EditorState {
   /** Width in px of the left (media/scenes/etc) panel */
@@ -54,6 +56,9 @@ export interface EditorState {
    */
   tooltipsDismissed: Record<string, boolean>
 
+  /** Video preview aspect ratio (persisted) */
+  aspectRatio: AspectRatio
+
   // ── Actions ─────────────────────────────────────────────────────────────
 
   setEditorMode:      (mode: EditorMode) => void
@@ -65,6 +70,7 @@ export interface EditorState {
   dismissTooltip:     (panel: string) => void
   dismissAllTooltips: () => void
   resetLayout:        () => void
+  setAspectRatio:     (ratio: AspectRatio) => void
 }
 
 // ── Initial state (exported for test resets) ──────────────────────────────────
@@ -77,6 +83,7 @@ export const initialEditorState = {
   activeLeftTab:   'media' as LeftTab,
   saveStatus:      'saved' as SaveStatus,
   tooltipsDismissed: {} as Record<string, boolean>,
+  aspectRatio:     '16:9' as AspectRatio,
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -139,6 +146,9 @@ export const useEditorStore = create<EditorState>()(
           },
         }),
 
+      setAspectRatio: (ratio) =>
+        set({ aspectRatio: ratio }),
+
       resetLayout: () =>
         set({
           leftPanelWidth:  LEFT_PANEL_DEFAULT,
@@ -159,6 +169,7 @@ export const useEditorStore = create<EditorState>()(
         timelineHeight:    s.timelineHeight,
         activeLeftTab:     s.activeLeftTab,
         tooltipsDismissed: s.tooltipsDismissed,
+        aspectRatio:       s.aspectRatio,
       }),
     }
   )

@@ -5,6 +5,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { Timeline } from '@/components/editor/Timeline'
+import { timelineTracksContentHeightPx } from '@/lib/timelineLayout'
+import { tracksWithContent } from '@/lib/timelineLayers'
 import {
   useTimelineStore,
   useEditorStore,
@@ -130,6 +132,23 @@ describe('Timeline — toolbar', () => {
   it('renders vertical tracks scroll container', () => {
     render(<Timeline />)
     expect(screen.getByTestId('timeline-tracks-scroll')).toBeInTheDocument()
+  })
+
+  it('sizes track headers and clip lanes to the same content height', () => {
+    render(<Timeline />)
+    const { tracks, clips } = useTimelineStore.getState()
+    const visibleCount = tracksWithContent(tracks, clips).length
+    const expectedHeight = timelineTracksContentHeightPx(visibleCount)
+
+    expect(screen.getByTestId('timeline-tracks-content')).toHaveStyle({
+      height: `${expectedHeight}px`,
+    })
+    expect(screen.getByTestId('timeline-horizontal-scroll')).toHaveStyle({
+      height: `${expectedHeight}px`,
+    })
+    expect(screen.getByTestId('timeline-track-headers')).toHaveStyle({
+      height: `${expectedHeight}px`,
+    })
   })
 
   it('snap button is aria-pressed=true by default', () => {
