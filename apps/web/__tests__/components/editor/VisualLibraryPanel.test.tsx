@@ -50,7 +50,6 @@ describe('VisualLibraryPanel — structure', () => {
   it('renders brand/visual tabs (style transfer is in left Style tab)', () => {
     render(<VisualLibraryPanel />)
     expect(screen.getByTestId('visual-tab-templates')).toBeInTheDocument()
-    expect(screen.getByTestId('visual-tab-elements')).toBeInTheDocument()
     expect(screen.getByTestId('visual-tab-brand')).toBeInTheDocument()
     expect(screen.getByTestId('brand-open-style-tab')).toBeInTheDocument()
   })
@@ -67,11 +66,6 @@ describe('VisualLibraryPanel — structure', () => {
 // ── Tab switching ─────────────────────────────────────────────────────────────
 
 describe('VisualLibraryPanel — tab switching', () => {
-  it('clicking Elements tab shows elements content', () => {
-    render(<VisualLibraryPanel />)
-    fireEvent.click(screen.getByTestId('visual-tab-elements'))
-    expect(screen.getByTestId('elements-tab')).toBeInTheDocument()
-  })
   it('clicking Brand tab shows brand kit content', () => {
     render(<VisualLibraryPanel />)
     fireEvent.click(screen.getByTestId('visual-tab-brand'))
@@ -79,8 +73,8 @@ describe('VisualLibraryPanel — tab switching', () => {
   })
   it('switching tabs updates store', () => {
     render(<VisualLibraryPanel />)
-    fireEvent.click(screen.getByTestId('visual-tab-elements'))
-    expect(useVisualLibraryStore.getState().activeTab).toBe('elements')
+    fireEvent.click(screen.getByTestId('visual-tab-brand'))
+    expect(useVisualLibraryStore.getState().activeTab).toBe('brand')
   })
   it('link opens style transfer in right panel', () => {
     render(<VisualLibraryPanel projectId="proj-1" />)

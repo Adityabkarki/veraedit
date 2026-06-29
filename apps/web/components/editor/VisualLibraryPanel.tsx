@@ -19,7 +19,6 @@ import { useVisualLibraryStore } from '@/stores/visualLibraryStore'
 import type { VisualTab }        from '@/stores/visualLibraryStore'
 import { TemplatesTab } from '@/components/editor/visual/TemplatesTab'
 import { ClonedTemplatesSection } from '@/components/editor/ClonedTemplatesSection'
-import { ElementsTab }  from '@/components/editor/visual/ElementsTab'
 import { BrandKitTab }  from '@/components/editor/visual/BrandKitTab'
 import { openStyleTransfer } from '@/lib/openStyleTransfer'
 import { OverlayEditPanel } from '@/components/editor/visual/OverlayEditPanel'
@@ -30,7 +29,6 @@ interface VisualLibraryPanelProps {
 
 const TABS: { id: VisualTab; label: string; icon: string }[] = [
   { id: 'templates', label: 'Templates', icon: '⬛' },
-  { id: 'elements',  label: 'Elements',  icon: '◐'  },
   { id: 'brand',     label: 'Brand',     icon: '🎨' },
 ]
 
@@ -88,7 +86,6 @@ export function VisualLibraryPanel({ projectId = '' }: VisualLibraryPanelProps) 
             <ClonedTemplatesSection />
           </div>
         )}
-        {activeTab === 'elements'  && <ElementsTab  />}
         {activeTab === 'brand'     && <BrandKitTab  />}
       </div>
 
