@@ -16,6 +16,7 @@
 
 import { useCallback, useState, useRef } from 'react'
 import { useTimelineStore } from '@/stores/timelineStore'
+import { useUIStore } from '@/stores/uiStore'
 import { useVisualLibraryStore } from '@/stores/visualLibraryStore'
 import { syncOverlayClipFromTimeline } from '@/lib/visualTimelineSync'
 import { openCaptionEditor, syncCaptionClipFromTimeline } from '@/lib/captionTimelineSync'
@@ -337,18 +338,25 @@ export function Clip({ clip, track }: ClipProps) {
         onClick={(e) => {
           e.stopPropagation()
           selectClip(clip.id)
+
+          const ui = useUIStore.getState()
+
           if (
             (clip.trackId === 'overlay' || clip.trackId.startsWith('overlay-')) &&
             !isBrollClip(clip) &&
             !isImageClip(clip)
           ) {
             useVisualLibraryStore.getState().startEditOverlay(clip.id)
+            ui.setRightPanelMode('overlay-element')
+            if (!ui.aiPanelOpen) useUIStore.setState({ aiPanelOpen: true })
           }
-          if (clip.trackId === 'captions') {
+          if (clip.trackId === 'captions' || isCaptionEffectClip(clip)) {
             openCaptionEditor(clip.id)
           }
           if (clip.trackId === 'effects') {
             useEffectsStore.getState().startEditingEffect(clip.id)
+            ui.setRightPanelMode('keyframes')
+            if (!ui.aiPanelOpen) useUIStore.setState({ aiPanelOpen: true })
           }
           if (isBroll) {
             openBrollEditor(clip.id)

@@ -7,7 +7,7 @@ import { useUIStore } from '@/stores/uiStore'
 import { useEffectsStore } from '@/stores/effectsStore'
 import { useVisualLibraryStore } from '@/stores/visualLibraryStore'
 
-const RIGHT_CLIP_PANEL_MODES = new Set(['image', 'broll', 'camera'])
+const RIGHT_CLIP_PANEL_MODES = new Set(['image', 'broll', 'camera', 'overlay-element', 'keyframes'])
 
 /** Close timeline strip editors (overlay, image, B-roll, caption FX, camera, effects). */
 export function dismissTimelineClipPanel(): void {

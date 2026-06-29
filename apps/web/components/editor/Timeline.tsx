@@ -36,13 +36,7 @@ import { Playhead }      from '@/components/editor/timeline/Playhead'
 import { SnapIndicator } from '@/components/editor/timeline/SnapIndicator'
 import { UndoToast }     from '@/components/editor/timeline/UndoToast'
 import { EffectRangeOverlay } from '@/components/editor/timeline/EffectRangeOverlay'
-import { EffectKeyframePanel } from '@/components/editor/timeline/EffectKeyframePanel'
-import { BrollClipPanel } from '@/components/editor/timeline/BrollClipPanel'
-import { ImageClipPanel } from '@/components/editor/timeline/ImageClipPanel'
-import { OverlayElementClipPanel } from '@/components/editor/timeline/OverlayElementClipPanel'
-import { CaptionEffectClipPanel } from '@/components/editor/timeline/CaptionEffectClipPanel'
-import { CameraZoomClipPanel } from '@/components/editor/timeline/CameraZoomClipPanel'
-import { SelectedClipTimingBar } from '@/components/editor/timeline/SelectedClipTimingBar'
+
 
 import { TRACK_HEIGHT_PX, TIMELINE_HEADER_WIDTH_PX } from '@/lib/timelineLayout'
 import { tracksWithContent } from '@/lib/timelineLayers'
@@ -511,13 +505,6 @@ export function Timeline() {
           </div>
         </div>
 
-        <EffectKeyframePanel />
-        <BrollClipPanel />
-        <ImageClipPanel />
-        <OverlayElementClipPanel />
-        <CaptionEffectClipPanel />
-        <CameraZoomClipPanel />
-        <SelectedClipTimingBar />
       </div>
 
       {/* Undo toast — rendered outside timeline so it floats over the full editor */}

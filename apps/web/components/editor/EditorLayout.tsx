@@ -39,6 +39,8 @@ import { VideoSpendPanel } from '@/components/editor/VideoSpendPanel'
 import { BrollEditPanel } from '@/components/editor/broll/BrollEditPanel'
 import { ImageEditPanel } from '@/components/editor/image/ImageEditPanel'
 import { CameraZoomEditPanel } from '@/components/editor/camera/CameraZoomEditPanel'
+import { OverlayElementEditPanel } from '@/components/editor/overlay/OverlayElementEditPanel'
+import { EffectKeyframeEditPanel } from '@/components/editor/keyframes/EffectKeyframeEditPanel'
 import { useAssetStore } from '@/stores/assetStore'
 import { shouldPollAssetStatus } from '@/hooks/useEditorPipelinePoll'
 
@@ -192,6 +194,10 @@ export function EditorLayout({
                   ? <ImageEditPanel />
                   : rightPanelMode === 'camera'
                   ? <CameraZoomEditPanel />
+                  : rightPanelMode === 'overlay-element'
+                  ? <OverlayElementEditPanel />
+                  : rightPanelMode === 'keyframes'
+                  ? <EffectKeyframeEditPanel />
                   : <AIPanel projectId={projectId} />}
               </div>
             </>
