@@ -18,11 +18,10 @@ describe('LeftPanel — structure', () => {
     expect(screen.getByTestId('left-panel')).toBeInTheDocument()
   })
 
-  it('renders all 4 tab buttons', () => {
+  it('renders all tab buttons', () => {
     render(<LeftPanel />)
     expect(screen.getByTestId('left-tab-media')).toBeInTheDocument()
-    expect(screen.getByTestId('left-tab-scenes')).toBeInTheDocument()
-    expect(screen.getByTestId('left-tab-shorts')).toBeInTheDocument()
+    expect(screen.getByTestId('left-tab-transcript')).toBeInTheDocument()
     expect(screen.getByTestId('left-tab-brand')).toBeInTheDocument()
   })
 
@@ -40,8 +39,7 @@ describe('LeftPanel — default tab', () => {
 
   it('other tabs are not selected by default', () => {
     render(<LeftPanel />)
-    expect(screen.getByTestId('left-tab-scenes')).toHaveAttribute('aria-selected', 'false')
-    expect(screen.getByTestId('left-tab-shorts')).toHaveAttribute('aria-selected', 'false')
+    expect(screen.getByTestId('left-tab-transcript')).toHaveAttribute('aria-selected', 'false')
     expect(screen.getByTestId('left-tab-brand')).toHaveAttribute('aria-selected', 'false')
   })
 
@@ -52,23 +50,10 @@ describe('LeftPanel — default tab', () => {
 })
 
 describe('LeftPanel — tab switching', () => {
-  it('clicking Scenes tab activates it in store', () => {
+  it('clicking Transcript tab activates it in store', () => {
     render(<LeftPanel />)
-    fireEvent.click(screen.getByTestId('left-tab-scenes'))
-    expect(useEditorStore.getState().activeLeftTab).toBe('scenes')
-  })
-
-  it('clicking Scenes tab makes it aria-selected', () => {
-    render(<LeftPanel />)
-    fireEvent.click(screen.getByTestId('left-tab-scenes'))
-    expect(screen.getByTestId('left-tab-scenes')).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByTestId('left-tab-media')).toHaveAttribute('aria-selected', 'false')
-  })
-
-  it('clicking Shorts tab shows shorts content', () => {
-    render(<LeftPanel />)
-    fireEvent.click(screen.getByTestId('left-tab-shorts'))
-    expect(screen.getByTestId('left-panel-content-shorts')).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('left-tab-transcript'))
+    expect(useEditorStore.getState().activeLeftTab).toBe('transcript')
   })
 
   it('clicking Brand tab activates brand in store', () => {
@@ -79,21 +64,14 @@ describe('LeftPanel — tab switching', () => {
 })
 
 describe('LeftPanel — empty states', () => {
-  it('media empty state mentions "No media files"', () => {
-    render(<LeftPanel />)
-    expect(screen.getByText(/No media files/i)).toBeInTheDocument()
+  it('media empty state shows upload zone when project is open', () => {
+    render(<LeftPanel projectId="proj-1" />)
+    expect(screen.getByText(/Paste a social URL/i)).toBeInTheDocument()
   })
 
-  it('scenes tab shows the scenes panel (ScenesPanel component)', () => {
-    useEditorStore.setState({ activeLeftTab: 'scenes' })
+  it('media empty state prompts to open a project without projectId', () => {
     render(<LeftPanel />)
-    expect(screen.getByTestId('scenes-panel')).toBeInTheDocument()
-  })
-
-  it('shorts tab shows the shorts tab (ShortsTab component)', () => {
-    useEditorStore.setState({ activeLeftTab: 'shorts' })
-    render(<LeftPanel />)
-    expect(screen.getByTestId('shorts-tab')).toBeInTheDocument()
+    expect(screen.getByText(/Open a project to import media/i)).toBeInTheDocument()
   })
 
   it('brand tab shows the visual library panel', () => {
@@ -101,24 +79,13 @@ describe('LeftPanel — empty states', () => {
     render(<LeftPanel />)
     expect(screen.getByTestId('visual-library-panel')).toBeInTheDocument()
   })
-
-  it('style tab shows style transfer panel when projectId provided', () => {
-    useEditorStore.setState({ activeLeftTab: 'style' })
-    render(<LeftPanel projectId="proj-1" />)
-    expect(screen.getByTestId('style-transfer-tab')).toBeInTheDocument()
-  })
-
-  it('renders Style tab button', () => {
-    render(<LeftPanel />)
-    expect(screen.getByTestId('left-tab-style')).toBeInTheDocument()
-  })
 })
 
 describe('LeftPanel — pre-selected tab from store', () => {
-  it('starts on shorts when store has activeLeftTab = shorts', () => {
-    useEditorStore.setState({ activeLeftTab: 'shorts' })
+  it('starts on transcript when store has activeLeftTab = transcript', () => {
+    useEditorStore.setState({ activeLeftTab: 'transcript' })
     render(<LeftPanel />)
-    expect(screen.getByTestId('left-tab-shorts')).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByTestId('left-panel-content-shorts')).toBeInTheDocument()
+    expect(screen.getByTestId('left-tab-transcript')).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByTestId('left-panel-content-transcript')).toBeInTheDocument()
   })
 })

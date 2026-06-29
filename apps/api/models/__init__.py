@@ -9,6 +9,8 @@ from .cost import Cost
 from .embedding import Embedding, EMBEDDING_DIM
 from .project import ContentType, EditorMode, Project, ProjectStatus
 from .render import Render, RenderPlatform, RenderStatus
+from .template import Template
+from .job import Job, JobStatus, JobType
 from .highlight import Highlight
 from .scene import Scene
 from .sfx_library import SfxLibraryItem
@@ -37,6 +39,10 @@ __all__ = [
     "Render",
     "RenderPlatform",
     "RenderStatus",
+    "Template",
+    "Job",
+    "JobStatus",
+    "JobType",
     "Highlight",
     "Scene",
     "SfxLibraryItem",

@@ -98,10 +98,9 @@ export function putFileToUrl(
   return new Promise<boolean>((resolve) => {
     const xhr = new XMLHttpRequest()
     xhr.open('PUT', url, true)
-    // The pre-signed URL signs Content-Type, so the PUT MUST send exactly the
-    // same MIME the backend used (resolveMime) — always, even if file.type is
-    // empty. Otherwise MinIO rejects the upload with 403 SignatureDoesNotMatch.
-    xhr.setRequestHeader('Content-Type', resolveMime(file))
+    xhr.withCredentials = true
+    const mime = resolveMime(file)
+    xhr.setRequestHeader('Content-Type', mime)
 
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable && onProgress) {
@@ -115,9 +114,22 @@ export function putFileToUrl(
       }
     }
 
-    xhr.onload = () => resolve(xhr.status >= 200 && xhr.status < 300)
-    xhr.onerror = () => resolve(false)
-    xhr.onabort = () => resolve(false)
+    xhr.onload = () => {
+      const ok = xhr.status >= 200 && xhr.status < 300
+      if (!ok) {
+        console.error(
+          `[putFileToUrl] PUT failed: status=${xhr.status} response=${xhr.responseText?.slice(0, 200)}`
+        )
+      }
+      resolve(ok)
+    }
+    xhr.onerror = () => {
+      console.error(`[putFileToUrl] Network/CORS error — cannot reach ${new URL(url).origin}`)
+      resolve(false)
+    }
+    xhr.onabort = () => {
+      resolve(false)
+    }
 
     if (signal) {
       if (signal.aborted) {

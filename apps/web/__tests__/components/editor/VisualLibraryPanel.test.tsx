@@ -82,10 +82,10 @@ describe('VisualLibraryPanel — tab switching', () => {
     fireEvent.click(screen.getByTestId('visual-tab-elements'))
     expect(useVisualLibraryStore.getState().activeTab).toBe('elements')
   })
-  it('link opens style transfer via editor store', () => {
+  it('link opens style transfer in right panel', () => {
     render(<VisualLibraryPanel projectId="proj-1" />)
     fireEvent.click(screen.getByTestId('brand-open-style-tab'))
-    expect(useEditorStore.getState().activeLeftTab).toBe('style')
+    expect(useUIStore.getState().rightPanelMode).toBe('style')
   })
 })
 

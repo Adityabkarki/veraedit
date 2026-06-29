@@ -13,119 +13,219 @@ description: >
   ALWAYS use this skill when the user says "continue" if ViraEdit context exists.
 ---
 
-# ViraEdit Build Skill
-# Nepali-First · Windows · Zero-Touch Building
+# ViraEdit — Master Overview
 
-## Core Identity
+## Platform Vision
+ViraEdit is a self-hosted, full-stack AI video editing platform built for non-editors. It targets podcasters, consultancy firms, and IT companies who need to produce short clips, chapter videos, branded reels, and social-ready content without depending on external tools. It combines a Next.js frontend with a Python FastAPI backend.
 
-You are building ViraEdit for a Nepali content creator on Windows.
-Every decision must account for:
+---
 
-1. **Nepali language first** — transcription, analysis, captions, UI hints all in Nepali
-2. **Windows compatibility** — paths use backslashes, scripts use .bat/.ps1, 
-   Python uses venv not virtualenv, FFmpeg installed via winget or choco
-3. **Intuitive UI** — if a first-time user can't figure it out in 10 seconds, redesign it
-4. **Local machine** — everything runs on the user's Windows PC via Docker Desktop
+## Where Skills Live
+All SKILL.md and reference files are in `.claude/skills/viraedit/`.
 
-## On Each "Continue"
+The build state tracker is at `.claude/skills/viraedit/scripts/build_state.py`.
 
-1. Read `%USERPROFILE%\.viraedit_state.json` for current epic
-2. Announce: "Building [Epic ID]: [Epic Name]"
-3. List tasks to complete
-4. Build everything — code, tests, error logging
-5. Provide Windows-specific run instructions
-6. Update state file
-7. End with: "✅ Done. Next: [Epic ID] — [name]. Type 'continue'."
+---
 
-## State File Location (Windows)
-`C:\Users\[YourName]\.viraedit_state.json`
+## Canonical Tech Stack
 
-## Reference Files
+### Frontend
+- **Framework:** Next.js 15 (App Router) + TypeScript
+- **Styling:** Tailwind CSS + shadcn/ui (class-variance-authority, Radix primitives)
+- **State:** Zustand for editor state; React Query for server state
+- **HTTP:** Fetch API wrapped in lib/ utilities
+- **Testing:** Vitest + React Testing Library + MSW
+- **Editor Canvas:** Custom React components (no Fabric.js)
+- **Video Playback:** Native `<video>` with React wrapper
 
-Read before building each phase:
-- `references/nepali-ai.md` — Nepali language AI models and prompting
-- `references/architecture.md` — Full system architecture
-- `references/phase-map.md` — All epics, stories, tasks
-- `references/windows-setup.md` — Windows-specific setup and gotchas
-- `references/ui-principles.md` — Intuitive UI rules
-- `references/editorial-intelligence.md` — Editorial AI rules
-- `references/testing-guide.md` — Test patterns
-- `references/error-patterns.md` — Error handling
+### Backend API
+- **Runtime:** Python 3.11+ FastAPI (async)
+- **ORM:** SQLAlchemy 2.0 (async) + Alembic migrations
+- **Database:** PostgreSQL 16 + pgvector
+- **Job Queue:** Celery + Redis (4 queues: transcription, analysis, render, ai)
+- **Auth:** JWT (access + refresh tokens)
+- **File Storage:** MinIO (S3-compatible, pre-signed URL upload)
+- **WebSocket:** Redis pub/sub → FastAPI WebSocket forwarder
+- **Logging:** structlog (pretty dev, JSON prod)
+- **Testing:** pytest + pytest-asyncio + httpx + respx
 
-## Windows-Specific Rules
+### AI Services (all in apps/api)
+- **Transcription:** ElevenLabs Scribe v2 (primary), Groq Whisper (fallback)
+- **LLM Analysis:** Groq Llama 3.3 70B (primary), OpenAI GPT-4o-mini (fallback), Anthropic Claude (premium)
+- **Audio:** librosa, pydub, noisereduce
+- **Video/Scene:** FFmpeg (system), opencv-python, PySceneDetect
+- **Style Transfer:** yt-dlp, easyocr, scikit-image
+- **Speaker Diarization:** pyannote.audio
+- **Local LLM:** Ollama (optional, fully offline fallback)
+- **Image Gen:** Not yet implemented (future: Groq or local diffusers)
 
-ALWAYS use Windows-compatible code:
-- File paths: use `pathlib.Path` in Python (handles both / and \)
-- Scripts: provide both `.bat` (simple) and `.ps1` (PowerShell) versions
-- FFmpeg: assume installed at `C:\ffmpeg\bin\ffmpeg.exe` or in PATH
-- Docker: use Docker Desktop for Windows
-- Node: installed via winget or nodejs.org installer
-- Python: use `python` not `python3`, use `venv` not `virtualenv`
-- Line endings: configure `.gitattributes` for LF on all text files
-- Ports: check Windows Defender Firewall notes for local ports
+### Infrastructure
+- Docker Compose (PostgreSQL, Redis, MinIO — services only)
+- No Docker for API/worker (run natively on Windows for GPU access)
+- Nginx (optional, for production)
 
-## Nepali Language Rules
+---
 
-ALWAYS account for Nepali in:
-- Transcription: use Groq Whisper (supports Nepali) with `language="ne"` hint
-- LLM prompts: instruct model that content is in Nepali
-- Scene analysis: understand Nepali cultural context and idioms
-- Captions: render Devanagari script correctly (Unicode, proper font)
-- Caption font: use Mukta, Laila, or Noto Sans Devanagari
-- Hook detection: Nepali storytelling patterns differ from English
-- UI labels: provide Nepali translations for all key labels (bilingual)
+## Project Folder Structure
 
-## UI Intuition Rules
+```
+veraedit/
+├── .claude/
+│   └── skills/viraedit/          # ← All agent skills live here
+│       ├── SKILL.md              # This file — master overview
+│       ├── CLAUDE.md             # Agent instructions & hard rules
+│       ├── references/           # Architecture, phase-map, style-transfer, etc.
+│       │   ├── architecture.md
+│       │   ├── phase-map.md          # All epics 0–5 with tasks
+│       │   ├── tech-decisions.md
+│       │   ├── style-transfer.md
+│       │   ├── windows-setup.md
+│       │   └── ... (14 reference files)
+│       └── scripts/
+│           └── build_state.py    # Tracks current epic
+├── apps/
+│   ├── web/                      # Next.js 15 frontend
+│   │   ├── app/                  # App Router pages
+│   │   │   ├── (app)/            # Authenticated app layout
+│   │   │   ├── (auth)/           # Login/signup
+│   │   │   ├── page.tsx          # Landing
+│   │   │   └── layout.tsx
+│   │   ├── components/
+│   │   │   ├── editor/           # Timeline, canvas, toolbar
+│   │   │   ├── caption-editor/   # Caption style picker
+│   │   │   └── brand/            # Brand kit UI
+│   │   ├── hooks/                # Custom React hooks
+│   │   ├── stores/               # Zustand stores
+│   │   ├── lib/                  # Utilities, API client layer
+│   │   └── __tests__/
+│   └── api/                      # Python FastAPI (single service)
+│       ├── routers/              # Route handlers (auth, projects, assets, etc.)
+│       ├── tasks/                # Celery task definitions (transcribe, analyze, etc.)
+│       ├── services/             # Business logic (storage, cost, etc.)
+│       ├── models/               # SQLAlchemy ORM models
+│       ├── schemas/              # Pydantic request/response schemas
+│       ├── ws/                   # WebSocket manager + Redis forwarder
+│       ├── alembic/              # DB migrations
+│       ├── main.py               # FastAPI app entry point
+│       ├── config.py             # Pydantic Settings (env vars)
+│       ├── database.py           # Async engine + session factory
+│       ├── celery_app.py         # Celery app + routing
+│       └── storage.py            # MinIO pre-signed URL service
+├── packages/
+│   └── timeline/                 # Shared timeline engine (pure TS)
+├── infra/
+│   └── docker/
+│       ├── docker-compose.yml    # PostgreSQL, Redis, MinIO
+│       ├── docker-compose.dev.yml
+│       └── Dockerfile.api / worker
+├── scripts/                      # .bat + .ps1 Windows helpers
+├── tests/                        # Python tests (unit, integration, e2e, fixtures)
+├── package.json                  # Turborepo root
+└── turbo.json
+```
 
-Every UI decision must pass this test:
-"Can a Nepali YouTuber who has never used video editing software
-figure this out without reading any documentation?"
+---
 
-If no → redesign it.
+## API Contract (Frontend ↔ FastAPI)
 
-Specific rules:
-- Every button has an icon AND a text label (never icon-only)
-- Every action has an undo (show Ctrl+Z hint after every action)
-- Onboarding tooltip on first visit for every panel
-- Empty states tell the user exactly what to do next
-- Progress always visible (never leave user wondering "is it working?")
-- Errors in plain language with a "Fix it" button where possible
-- Nepali language option in UI (toggle between English and Nepali labels)
+All async jobs follow this pattern:
 
-## Competitor DNA Rules
+1. Frontend calls `POST /api/jobs` → `{ jobId }`
+2. API enqueues in Celery → returns `{ jobId, status: "pending" }`
+3. Celery task runs (calls AI services, FFmpeg, etc.)
+4. Progress updates sent via WebSocket (Redis pub/sub → WS forwarder)
+5. Frontend polls `GET /api/tasks/:taskId` or listens on WebSocket
+6. Result stored in MinIO / DB; frontend receives result URL
 
-Read `references/competitor-dna.md` before building ANY UI component.
+Pre-signed upload flow:
 
-Every UI component must pass the 6-tool test:
-- Descript user: can they edit by clicking transcript text?
-- Opus Clip user: can they see viral scores and export shorts immediately?
-- CapCut user: is the first action obvious with zero instructions?
-- VEED user: is the layout clean and balanced?
-- Canva user: can they drag visual templates onto the timeline?
-- Riverside user: is there an AI Producer panel for podcasts?
+1. Client → `POST /api/assets` → API creates Asset record, returns pre-signed PUT URL
+2. Client → `PUT <minio_url>` → file uploaded directly to MinIO (no API bottleneck)
+3. Client → `POST /api/assets/confirm` → API verifies object exists, sets status=UPLOADED
 
-## 6 UI Modes to Implement
+---
 
-Build these modes as layout variants (not separate pages):
+## Environment Variables (`.env` root)
 
-1. **Podcast Mode** — Transcript dominant, AI Producer panel, speaker colors
-2. **Shorts Mode** — Virality cards dominant, 9:16 preview, platform scores
-3. **Visual Creator Mode** — Template library, canvas, properties panel
-4. **Full Editor Mode** — Standard 4-panel NLE layout
-5. **Tutorial Mode** — B-roll track prominent, chapter markers, visual hints
-6. **Quick Export Mode** — Ultra-simple: captions only → export
+```env
+# Database
+DATABASE_URL=postgresql+asyncpg://viraedit:viraedit_dev_password@localhost:5432/viraedit
 
-Mode switching:
-- Auto-detected from content type during onboarding
-- Manual switch via mode selector in header
-- Each mode persists per project
-- Smooth animated transition between modes
+# Redis
+REDIS_URL=redis://localhost:6379/0
 
-## Onboarding "Switch" Detection
+# Object Storage (MinIO / S3)
+S3_ENDPOINT_URL=http://localhost:9000
+S3_ACCESS_KEY_ID=minioadmin
+S3_SECRET_ACCESS_KEY=minioadmin123
+S3_BUCKET_MEDIA=viraedit-media
+S3_BUCKET_RENDERS=viraedit-renders
+S3_BUCKET_TEMP=viraedit-temp
 
-During onboarding Step 2, ask which tool they're switching FROM.
-Use the answer to customize:
-- Default mode
-- First panel shown
-- First tooltip text
-- Sample project content
+# Auth (JWT)
+JWT_SECRET_KEY=dev-secret-change-in-production-please
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=15
+JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
+
+# AI — Groq (primary LLM + transcription)
+GROQ_API_KEY=...
+
+# AI — ElevenLabs Scribe (primary STT)
+ELEVENLABS_API_KEY=...
+ELEVENLABS_STT_MODEL=scribe_v2
+
+# AI — OpenAI (text analysis fallback)
+OPENAI_API_KEY=...
+
+# AI — Anthropic (premium only)
+ANTHROPIC_API_KEY=...
+
+# Celery (Windows)
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_WORKER_POOL=solo
+
+# Nepali STT (hard-coded — always "ne")
+WHISPER_LANGUAGE=ne
+
+# Fonts (Devanagari — for video caption rendering only)
+DEVANAGARI_FONT_PATH=C:/Windows/Fonts/NotoSansDevanagari-Regular.ttf
+
+# Frontend
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+---
+
+## Implementation Order (10 Ordered Modules)
+
+The build is driven by `skills-order.json`. Each entry references a skill file.
+The agent reads `build_state.py` to find the current module index, then loads the corresponding skill file.
+
+| # | Module | Skill File | What it delivers |
+|---|--------|------------|------------------|
+| 01 | Ingestion | `01-ingestion.md` | Accept URL/file upload; download + extract |
+| 02 | Style Cloning | `02-style-cloning.md` | Analyze reference video; extract style template |
+| 03 | Captions | `03-captions.md` | Transcription; Nepali + English; animated captions |
+| 04 | Text Editor | `04-text-editor.md` | Edit transcript → auto-cut video, silence/filler removal |
+| 05 | AI Enhancements | `05-ai-enhancements.md` | Color grading, audio leveling, background removal, B-roll |
+| 06 | Image Gen | `06-image-gen.md` | LLM-based image generation inside editor |
+| 07 | Reframe & Export | `07-reframe-export.md` | Auto-reframe; multi-platform export; auto-zoom |
+| 08 | Smart Clips | `08-smart-clips.md` | Long video → viral clips; chapter detection; highlights |
+| 09 | Brand Workspace | `09-brand-workspace.md` | Per-workspace brand kit: fonts, colors, logos, templates |
+| 10 | Deployment | `10-deployment.md` | Docker Compose + Nginx + VPS deploy; workers; storage |
+
+Read `skills-order.json`, `build_state.py`, and the current module's skill file.
+Existing `references/phase-map.md` can supplement with detailed tasks.
+
+---
+
+## Hard Rules (from CLAUDE.md)
+
+1. All file paths use `pathlib.Path` — never hardcoded backslashes
+2. Celery workers always use `--pool=solo` on Windows
+3. FFmpeg always receives `path.as_posix()` — not `str(path)`
+4. Noto Sans Devanagari font — only in caption rendering, not UI
+5. Whisper always called with `language="ne"`
+6. Every function has at least one test
+7. Every error message is human-readable English
+8. All runnable scripts provided as `.bat` files

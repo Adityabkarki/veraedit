@@ -13,14 +13,14 @@ beforeEach(() => {
 })
 
 describe('openStyleTransfer', () => {
-  it('switches left panel to style tab', () => {
+  it('sets the right panel mode to style', () => {
     openStyleTransfer()
-    expect(useEditorStore.getState().activeLeftTab).toBe('style')
+    expect(useUIStore.getState().rightPanelMode).toBe('style')
   })
 
-  it('opens the sidebar', () => {
-    useUIStore.setState({ sidebarOpen: false })
+  it('opens the AI panel when closed', () => {
+    useUIStore.setState({ aiPanelOpen: false })
     openStyleTransfer()
-    expect(useUIStore.getState().sidebarOpen).toBe(true)
+    expect(useUIStore.getState().aiPanelOpen).toBe(true)
   })
 })

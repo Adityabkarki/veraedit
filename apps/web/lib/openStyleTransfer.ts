@@ -1,11 +1,11 @@
 /**
- * Open the Style Transfer panel in the left sidebar.
+ * Open the Style Transfer panel in the right panel.
  */
 
-import { useEditorStore } from '@/stores/editorStore'
 import { useUIStore } from '@/stores/uiStore'
 
 export function openStyleTransfer() {
-  useEditorStore.getState().setActiveLeftTab('style')
-  useUIStore.setState({ sidebarOpen: true })
+  const { aiPanelOpen, setRightPanelMode, toggleAIPanel } = useUIStore.getState()
+  setRightPanelMode('style')
+  if (!aiPanelOpen) toggleAIPanel()
 }

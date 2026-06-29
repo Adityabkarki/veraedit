@@ -1,0 +1,72 @@
+[
+  {
+    "id": "01",
+    "name": "ingestion",
+    "title": "Video Ingestion",
+    "file": "01-ingestion.md",
+    "description": "Accept URL (Instagram/TikTok/YouTube) or file upload; download + extract"
+  },
+  {
+    "id": "02",
+    "name": "style-cloning",
+    "title": "Style Cloning",
+    "file": "02-style-cloning.md",
+    "description": "Analyze reference video; extract style, components, layout; output template"
+  },
+  {
+    "id": "03",
+    "name": "captions",
+    "title": "Captions",
+    "file": "03-captions.md",
+    "description": "Whisper-based transcription; Nepali + English; animated caption styles"
+  },
+  {
+    "id": "04",
+    "name": "text-editor",
+    "title": "Text-Based Editor",
+    "file": "04-text-editor.md",
+    "description": "Edit transcript → auto-cut video, silence/filler removal"
+  },
+  {
+    "id": "05",
+    "name": "ai-enhancements",
+    "title": "AI Enhancements",
+    "file": "05-ai-enhancements.md",
+    "description": "Auto color grading, audio leveling, background removal, B-roll insertion"
+  },
+  {
+    "id": "06",
+    "name": "image-gen",
+    "title": "Image Generation",
+    "file": "06-image-gen.md",
+    "description": "LLM-based image generation inside the editor"
+  },
+  {
+    "id": "07",
+    "name": "reframe-export",
+    "title": "Reframe & Export",
+    "file": "07-reframe-export.md",
+    "description": "Auto-reframe 16:9↔9:16↔1:1; multi-platform export; auto-zoom"
+  },
+  {
+    "id": "08",
+    "name": "smart-clips",
+    "title": "Smart Clips",
+    "file": "08-smart-clips.md",
+    "description": "Long video → smart viral clips; chapter detection; podcast highlight finder"
+  },
+  {
+    "id": "09",
+    "name": "brand-workspace",
+    "title": "Brand Workspace",
+    "file": "09-brand-workspace.md",
+    "description": "Per-workspace brand kit: fonts, colors, logo, caption styles, templates"
+  },
+  {
+    "id": "10",
+    "name": "deployment",
+    "title": "Deployment",
+    "file": "10-deployment.md",
+    "description": "Docker Compose + Nginx + VPS deploy; queue workers; storage"
+  }
+]

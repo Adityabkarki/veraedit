@@ -18,6 +18,7 @@
 import { useVisualLibraryStore } from '@/stores/visualLibraryStore'
 import type { VisualTab }        from '@/stores/visualLibraryStore'
 import { TemplatesTab } from '@/components/editor/visual/TemplatesTab'
+import { ClonedTemplatesSection } from '@/components/editor/ClonedTemplatesSection'
 import { ElementsTab }  from '@/components/editor/visual/ElementsTab'
 import { BrandKitTab }  from '@/components/editor/visual/BrandKitTab'
 import { openStyleTransfer } from '@/lib/openStyleTransfer'
@@ -79,7 +80,14 @@ export function VisualLibraryPanel({ projectId = '' }: VisualLibraryPanelProps) 
         role="tabpanel"
         className="flex-1 overflow-hidden flex flex-col"
       >
-        {activeTab === 'templates' && <TemplatesTab />}
+        {activeTab === 'templates' && (
+          <div className="flex flex-col h-full overflow-hidden">
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <TemplatesTab />
+            </div>
+            <ClonedTemplatesSection />
+          </div>
+        )}
         {activeTab === 'elements'  && <ElementsTab  />}
         {activeTab === 'brand'     && <BrandKitTab  />}
       </div>

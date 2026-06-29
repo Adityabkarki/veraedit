@@ -26,10 +26,10 @@ export const TIMELINE_DEFAULT    = 260
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type LeftTab    = 'media' | 'transcript' | 'scenes' | 'shorts' | 'highlights' | 'brand' | 'style'
+export type LeftTab    = 'media' | 'transcript' | 'brand'
 export type SaveStatus = 'saved' | 'saving' | 'unsaved' | 'error'
 /** Top-level layout mode — changes which panels are visible */
-export type EditorMode = 'editor' | 'shorts'
+export type EditorMode = 'editor' | 'shorts' | 'chapters' | 'promo'
 
 export interface EditorState {
   /** Width in px of the left (media/scenes/etc) panel */

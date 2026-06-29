@@ -26,7 +26,7 @@ from config import settings
 from exceptions import ViraEditError
 from logging_config import configure_logging
 from middleware import LanguageDetectionMiddleware, LoggingMiddleware, RequestIDMiddleware
-from routers import assets, auth, costs, health, projects, renders, sfx, shorts, styles, tasks, timelines
+from routers import assets, auth, costs, health, ingest, projects, renders, sfx, shorts, style_clone, styles, tasks, templates, timelines
 from ws.forwarder import run_redis_forwarder
 from ws.manager import ws_manager
 from ws.router import router as ws_router
@@ -346,6 +346,9 @@ app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(projects.router)
 app.include_router(assets.router)
+app.include_router(ingest.router)
+app.include_router(templates.router)
+app.include_router(style_clone.router)
 app.include_router(timelines.router)
 app.include_router(styles.router)
 app.include_router(styles.toolbox_router)

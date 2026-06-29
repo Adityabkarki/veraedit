@@ -26,7 +26,10 @@ import { VideoPreview }   from '@/components/editor/VideoPreview'
 import { AIPanel }        from '@/components/editor/AIPanel'
 import { Timeline }       from '@/components/editor/Timeline'
 import { ShortsMode }           from '@/components/editor/ShortsMode'
+import { ScenesPanel }          from '@/components/editor/ScenesPanel'
+import { HighlightsTab }        from '@/components/editor/HighlightsTab'
 import { EffectsRightPanel }      from '@/components/editor/effects/EffectsRightPanel'
+import { StyleTransferTab }       from '@/components/editor/visual/StyleTransferTab'
 import { SubtitleEditorPanel }    from '@/components/editor/SubtitleEditorPanel'
 import { AIProducerPanel }        from '@/components/editor/AIProducerPanel'
 import { KeyboardShortcutsModal } from '@/components/editor/KeyboardShortcutsModal'
@@ -101,8 +104,26 @@ export function EditorLayout({
         </div>
       )}
 
+      {/* ── Chapters mode — full-screen scene management ─────────────────── */}
+      {editorMode === 'chapters' && (
+        <div className="flex-1 overflow-hidden min-h-0">
+          <div className="h-full overflow-y-auto bg-bg-surface">
+            <ScenesPanel projectId={projectId} />
+          </div>
+        </div>
+      )}
+
+      {/* ── Promo mode — full-screen highlights ──────────────────────────── */}
+      {editorMode === 'promo' && (
+        <div className="flex-1 overflow-hidden min-h-0">
+          <div className="h-full overflow-y-auto bg-bg-surface">
+            <HighlightsTab projectId={projectId} />
+          </div>
+        </div>
+      )}
+
       {/* ── Standard NLE (Editor mode) ──────────────────────────────────────── */}
-      {editorMode !== 'shorts' && (
+      {editorMode === 'editor' && (
       <>
 
       {/* ── Main three-column area ───────────────────────────────────────────
@@ -163,6 +184,8 @@ export function EditorLayout({
                   ? <AIProducerPanel />
                   : rightPanelMode === 'effects'
                   ? <EffectsRightPanel projectId={projectId} />
+                  : rightPanelMode === 'style'
+                  ? <StyleTransferTab projectId={projectId} />
                   : rightPanelMode === 'broll'
                   ? <BrollEditPanel />
                   : rightPanelMode === 'image'

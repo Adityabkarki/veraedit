@@ -34,22 +34,38 @@ beforeEach(() => {
 // ── ModeSelector ──────────────────────────────────────────────────────────────
 
 describe('ModeSelector', () => {
-  it('renders editor and shorts mode buttons', () => {
+  it('renders all four mode buttons', () => {
     render(<ModeSelector />)
     expect(screen.getByTestId('mode-btn-editor')).toBeInTheDocument()
     expect(screen.getByTestId('mode-btn-shorts')).toBeInTheDocument()
+    expect(screen.getByTestId('mode-btn-chapters')).toBeInTheDocument()
+    expect(screen.getByTestId('mode-btn-promo')).toBeInTheDocument()
   })
 
   it('editor mode is selected by default', () => {
     render(<ModeSelector />)
     expect(screen.getByTestId('mode-btn-editor')).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByTestId('mode-btn-shorts')).toHaveAttribute('aria-selected', 'false')
+    expect(screen.getByTestId('mode-btn-chapters')).toHaveAttribute('aria-selected', 'false')
+    expect(screen.getByTestId('mode-btn-promo')).toHaveAttribute('aria-selected', 'false')
   })
 
   it('clicking Shorts mode sets editorMode to shorts', () => {
     render(<ModeSelector />)
     fireEvent.click(screen.getByTestId('mode-btn-shorts'))
     expect(useEditorStore.getState().editorMode).toBe('shorts')
+  })
+
+  it('clicking Chapters mode sets editorMode to chapters', () => {
+    render(<ModeSelector />)
+    fireEvent.click(screen.getByTestId('mode-btn-chapters'))
+    expect(useEditorStore.getState().editorMode).toBe('chapters')
+  })
+
+  it('clicking Promo mode sets editorMode to promo', () => {
+    render(<ModeSelector />)
+    fireEvent.click(screen.getByTestId('mode-btn-promo'))
+    expect(useEditorStore.getState().editorMode).toBe('promo')
   })
 
   it('clicking Editor mode sets editorMode to editor', () => {
@@ -60,9 +76,9 @@ describe('ModeSelector', () => {
   })
 
   it('active mode button has aria-selected=true', () => {
-    useEditorStore.setState({ editorMode: 'shorts' })
+    useEditorStore.setState({ editorMode: 'chapters' })
     render(<ModeSelector />)
-    expect(screen.getByTestId('mode-btn-shorts')).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByTestId('mode-btn-chapters')).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByTestId('mode-btn-editor')).toHaveAttribute('aria-selected', 'false')
   })
 })

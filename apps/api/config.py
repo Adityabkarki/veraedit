@@ -97,6 +97,10 @@ class Settings(BaseSettings):
     # ── AI — Anthropic (optional: premium hook rewrites) ──────────────────────
     ANTHROPIC_API_KEY: str = Field(default="")
 
+    # ── AI — Google Gemini (vision style analysis, image gen) ───────────────
+    GEMINI_API_KEY: str = Field(default="")
+    GEMINI_VISION_MODEL: str = Field(default="gemini-2.0-flash")
+
     # ── AI Budget ─────────────────────────────────────────────────────────────
     AI_COST_LIMIT_USD_PER_HOUR: float = Field(default=2.00)  # hard limit
     AI_COST_WARN_USD_PER_HOUR: float = Field(default=1.60)   # warning threshold

@@ -25,7 +25,9 @@ import { useRef, useCallback, useMemo } from 'react'
 import { useDismissClipEditorOnEscape } from '@/hooks/useDismissClipEditorOnEscape'
 import { useTimelineStore, PPS_MIN, PPS_MAX, PPS_DEFAULT } from '@/stores/timelineStore'
 import { useEffectsStore }  from '@/stores/effectsStore'
+import { useUIStore }       from '@/stores/uiStore'
 import { insertStyleToolAt, parseStyleToolDrag } from '@/lib/styleToolboxSync'
+import { allocateStackedTrack, BROLL_FAMILY, IMAGES_FAMILY } from '@/lib/timelineLayers'
 import { PanelTooltip } from '@/components/editor/PanelTooltip'
 import { TimelineRuler } from '@/components/editor/timeline/TimelineRuler'
 import { TrackHeader }   from '@/components/editor/timeline/TrackHeader'
@@ -105,6 +107,7 @@ export function Timeline() {
   } = useTimelineStore()
 
   const { toggleDrawer, isOpen: drawerOpen, editingEffectClipId } = useEffectsStore()
+  const rightPanelMode = useUIStore((s) => s.rightPanelMode)
 
   const hasClipEditorOpen =
     selectedClipIds.length > 0 || editingEffectClipId != null
@@ -155,26 +158,111 @@ export function Timeline() {
     [clearSelection, pixelsPerSecond, setPlayheadTime]
   )
 
-  const onStyleToolDrop = useCallback(
-    (e: React.DragEvent) => {
-      const payload = parseStyleToolDrag(e.dataTransfer.getData('text/plain'))
-      if (!payload) return
-      e.preventDefault()
-      const area = e.currentTarget.getBoundingClientRect()
-      const x = e.clientX - area.left
-      const t = Math.max(0, x / pixelsPerSecond)
-      setPlayheadTime(t)
-      insertStyleToolAt(payload.toolId, payload.toolName, t)
-    },
-    [pixelsPerSecond, setPlayheadTime],
-  )
-
   const onDragOver = useCallback((e: React.DragEvent) => {
-    if (e.dataTransfer.types.includes('text/plain')) {
+    if (
+      e.dataTransfer.types.includes('text/plain') ||
+      e.dataTransfer.types.includes('application/x-veraedit-media')
+    ) {
       e.preventDefault()
       e.dataTransfer.dropEffect = 'copy'
     }
   }, [])
+
+  const MEDIA_DRAG_TYPE = 'application/x-veraedit-media'
+
+  const onDrop = useCallback(
+    (e: React.DragEvent) => {
+      const area = e.currentTarget.getBoundingClientRect()
+      const x = e.clientX - area.left
+      const t = Math.max(0, x / pixelsPerSecond)
+
+      // 1. Style tool drop
+      const stylePayload = parseStyleToolDrag(e.dataTransfer.getData('text/plain'))
+      if (stylePayload) {
+        e.preventDefault()
+        setPlayheadTime(t)
+        insertStyleToolAt(stylePayload.toolId, stylePayload.toolName, t)
+        return
+      }
+
+      // 2. Media library drop (video / audio / image)
+      const raw = e.dataTransfer.getData(MEDIA_DRAG_TYPE)
+      if (!raw) return
+      e.preventDefault()
+      setPlayheadTime(t)
+
+      let data: { id: string; type: string; url: string; name: string }
+      try { data = JSON.parse(raw) } catch { return }
+
+      const { tracks, clips } = useTimelineStore.getState()
+      const id = `media-${Date.now().toString(36)}`
+
+      if (data.type === 'audio') {
+        let nextTracks = tracks
+        if (!tracks.some((tr) => tr.id === 'music')) {
+          nextTracks = [
+            ...nextTracks,
+            { id: 'music', label: 'Music', color: '#10B981', muted: false, locked: false, visible: true },
+          ]
+        }
+        useTimelineStore.setState({
+          tracks: nextTracks,
+          clips: [
+            ...clips,
+            {
+              id,
+              trackId: 'music',
+              startTime: t,
+              duration: 10,
+              label: `Music: ${data.name}`,
+              type: 'music' as const,
+              effects: { mediaUrl: data.url, musicBed: true, isPlaceholder: false },
+            },
+          ],
+          lastEditAction: `Added ${data.name}`,
+          selectedClipIds: [id],
+        })
+        return
+      }
+
+      const duration = data.type === 'image' ? 5 : 10
+      const family = data.type === 'image' ? IMAGES_FAMILY : BROLL_FAMILY
+      const visualType = data.type === 'image' ? 'image_slot' : 'broll_overlay'
+
+      const { tracks: nextTracks, trackId } = allocateStackedTrack(
+        tracks, clips, t, duration, family,
+      )
+      useTimelineStore.setState({
+        tracks: nextTracks,
+        clips: [
+          ...clips,
+          {
+            id,
+            trackId,
+            startTime: t,
+            duration,
+            label: data.name,
+            type: 'overlay' as const,
+            effects: {
+              visualType,
+              overlayMode: 'fullscreen' as const,
+              widthPct: 100,
+              heightPct: 100,
+              xPct: 50,
+              yPct: 50,
+              mediaUrl: data.url,
+              mediaKind: data.type === 'image' ? ('image' as const) : ('video' as const),
+              isPlaceholder: false,
+              displayValue: '',
+            },
+          },
+        ],
+        lastEditAction: `Added ${data.name}`,
+        selectedClipIds: [id],
+      })
+    },
+    [pixelsPerSecond, setPlayheadTime],
+  )
 
   // Zoom slider: PPS_MIN–PPS_MAX px/s
   const onZoomSlider = useCallback(
@@ -306,6 +394,33 @@ export function Timeline() {
             Effects
           </button>
 
+          {/* Style button */}
+          <button
+            data-testid="style-button"
+            onClick={() => {
+              const { aiPanelOpen, rightPanelMode, setRightPanelMode, toggleAIPanel } =
+                useUIStore.getState()
+              if (rightPanelMode === 'style') {
+                setRightPanelMode('ai')
+              } else {
+                setRightPanelMode('style')
+                if (!aiPanelOpen) toggleAIPanel()
+              }
+            }}
+            aria-label="Style templates"
+            aria-pressed={rightPanelMode === 'style'}
+            title="Style Templates"
+            className={[
+              'flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors',
+              rightPanelMode === 'style'
+                ? 'bg-accent text-white'
+                : 'text-text-secondary hover:text-text-primary hover:bg-bg-overlay border border-bg-overlay',
+            ].join(' ')}
+          >
+            <span aria-hidden="true">🎨</span>
+            Style
+          </button>
+
           <div className="h-4 w-px bg-bg-overlay mx-1" />
 
           <div className="flex-1" />
@@ -354,7 +469,7 @@ export function Timeline() {
                   className="relative"
                   style={{ height: tracksHeight }}
                   onDragOver={onDragOver}
-                  onDrop={onStyleToolDrop}
+                  onDrop={onDrop}
                 >
                   <Playhead
                     trackCount={visibleTracks.length}

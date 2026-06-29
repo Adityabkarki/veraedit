@@ -180,14 +180,9 @@ describe('editorStore — setTimelineHeight', () => {
 // ── Tab + status actions ──────────────────────────────────────────────────────
 
 describe('editorStore — setActiveLeftTab', () => {
-  it('switches to scenes', () => {
-    useEditorStore.getState().setActiveLeftTab('scenes')
-    expect(useEditorStore.getState().activeLeftTab).toBe('scenes')
-  })
-
-  it('switches to shorts', () => {
-    useEditorStore.getState().setActiveLeftTab('shorts')
-    expect(useEditorStore.getState().activeLeftTab).toBe('shorts')
+  it('switches to transcript', () => {
+    useEditorStore.getState().setActiveLeftTab('transcript')
+    expect(useEditorStore.getState().activeLeftTab).toBe('transcript')
   })
 
   it('switches to brand', () => {
@@ -196,7 +191,7 @@ describe('editorStore — setActiveLeftTab', () => {
   })
 
   it('switches back to media', () => {
-    useEditorStore.getState().setActiveLeftTab('scenes')
+    useEditorStore.getState().setActiveLeftTab('transcript')
     useEditorStore.getState().setActiveLeftTab('media')
     expect(useEditorStore.getState().activeLeftTab).toBe('media')
   })
@@ -270,9 +265,9 @@ describe('editorStore — resetLayout', () => {
   })
 
   it('does not reset activeLeftTab', () => {
-    useEditorStore.getState().setActiveLeftTab('shorts')
+    useEditorStore.getState().setActiveLeftTab('brand')
     useEditorStore.getState().resetLayout()
-    expect(useEditorStore.getState().activeLeftTab).toBe('shorts')
+    expect(useEditorStore.getState().activeLeftTab).toBe('brand')
   })
 
   it('does not reset tooltipsDismissed', () => {

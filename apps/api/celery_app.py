@@ -50,6 +50,8 @@ celery_app = Celery(
         "tasks.regenerate",
         "tasks.render_task",           # EP-1.5: FFmpeg render queue
         "tasks.style_extract_task",    # EP-2.8: Style transfer AI queue
+        "tasks.ingest_tasks",          # Module 01: Video ingestion
+        "tasks.style_clone_task",      # Module 02: Style cloning
     ],
 )
 
@@ -96,6 +98,8 @@ celery_app.conf.update(
         "render_video":                {"queue": "render"},
         "tasks.style_extract_task.*":  {"queue": "ai"},
         "style_extract":               {"queue": "ai"},
+        "tasks.ingest.*":              {"queue": "default"},
+        "tasks.style_clone.*":       {"queue": "ai"},
     },
 
     # Default queue for unrouted tasks

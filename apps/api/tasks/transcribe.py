@@ -29,11 +29,15 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import text
+
 import structlog
 from celery import Task
 
 from celery_app import celery_app
 from config import settings
+from ws.events import PipelineStage
+from ws.publisher import emit_pipeline_error, emit_pipeline_progress
 
 log = structlog.get_logger("viraedit.tasks.transcribe")
 
@@ -229,9 +233,6 @@ def _mark_transcription_failed(
 
     Returns True if status was updated to ERROR.
     """
-    from ws.events import PipelineStage
-    from ws.publisher import emit_pipeline_error
-
     with engine.begin() as conn:
         status, full_text, _ = _load_asset_transcript_state(conn, asset_id)
         st = (status or "").upper()
@@ -405,9 +406,6 @@ def transcribe_asset(self: Task, asset_id: str, force: bool = False) -> dict[str
             "asset_id": asset_id,
             "reason": "transcript_exists_requeued_analysis",
         }
-
-    from ws.events import PipelineStage
-    from ws.publisher import emit_pipeline_progress
 
     emit_pipeline_progress(
         project_id,

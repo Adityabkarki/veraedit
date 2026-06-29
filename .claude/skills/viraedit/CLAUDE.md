@@ -7,19 +7,25 @@ Running locally on Windows 10/11 at C:\Users\adity\viraedit
 
 ## Read Before Every Response
 Read all files in .claude/skills/viraedit/ before doing anything.
-Start with SKILL.md, then read the relevant reference files for the current epic.
+Start with SKILL.md and skills-order.json.
 
 ## Current Build State
-Check .claude/skills/viraedit/scripts/build_state.py to find
-which epic was last completed and what to build next.
+Check scripts/build_state.py to find which module is current.
 
 ## When User Says "continue"
-1. Read build_state.py - find current_epic value
-2. Read phase-map.md - find all tasks for that epic
-3. Build every task completely. No skipping.
-4. Write tests and run them. Fix failures before moving on.
-5. Update build_state.py to next epic
-6. End with: "Done. Next: [Epic ID]. Type continue."
+1. Read skills-order.json — the ordered list of 10 modules
+2. Read scripts/build_state.py — find current_module_index
+3. Look up the module at that index in skills-order.json
+4. Read the skill file for that module (e.g., 03-captions.md)
+5. Build everything for that module. No skipping.
+6. Write tests and run them. Fix failures before moving on.
+7. Run: python scripts/build_state.py next  (advances index)
+8. End with: "Done. Next: [module title]. Type continue."
+
+## Reference Files (still available)
+phase-map.md, architecture.md, tech-decisions.md, and other
+references in ./references/ contain detailed task breakdowns
+that can supplement each module. Use them as needed.
 
 ## LANGUAGE RULES — READ CAREFULLY
 

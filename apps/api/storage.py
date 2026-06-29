@@ -300,6 +300,30 @@ class StorageService:
         except Exception as exc:
             log.warning("object_delete_failed", storage_key=storage_key, error=str(exc))
 
+    async def put_object(
+        self,
+        storage_key: str,
+        data: bytes,
+        mime_type: str = "application/octet-stream",
+        bucket: str = BUCKET_MEDIA,
+    ) -> None:
+        """Upload raw bytes directly to MinIO (used by ingestion upload endpoint)."""
+        def _put() -> None:
+            client = self._get_client()
+            client.put_object(
+                Bucket=bucket,
+                Key=storage_key,
+                Body=data,
+                ContentType=mime_type,
+            )
+
+        try:
+            await asyncio.to_thread(_put)
+            log.debug("object_put", storage_key=storage_key, bucket=bucket, size=len(data))
+        except Exception as exc:
+            log.error("object_put_failed", storage_key=storage_key, error=str(exc))
+            raise StorageError("Could not store the uploaded file. Please try again.") from exc
+
     async def delete_prefix(self, prefix: str, bucket: str = BUCKET_MEDIA) -> int:
         """
         Delete all objects whose keys start with `prefix`.

@@ -137,7 +137,7 @@ describe('ScenesPanel — structure', () => {
 
   it('shows the scene count', () => {
     render(<ScenesPanel />)
-    expect(screen.getByText(new RegExp(`${INITIAL_SCENES.length} scene`))).toBeInTheDocument()
+    expect(screen.getByText(new RegExp(`${INITIAL_SCENES.length} chapter`))).toBeInTheDocument()
   })
 })
 
@@ -186,30 +186,10 @@ describe('ScenesPanel — click to select + seek', () => {
 
 // ── LeftPanel tab routing ─────────────────────────────────────────────────────
 
-describe('LeftPanel — Scenes tab routes to ScenesPanel', () => {
-  it('switching to Scenes tab shows scene items', () => {
-    useEditorStore.setState({ activeLeftTab: 'scenes' })
+describe('LeftPanel — Brand tab routes to VisualLibraryPanel', () => {
+  it('switching to Brand tab shows brand panel', () => {
+    useEditorStore.setState({ activeLeftTab: 'brand' })
     render(<LeftPanel />)
-    expect(screen.getByTestId('scenes-panel')).toBeInTheDocument()
-  })
-
-  it('Scenes tab shows badge with scene count', () => {
-    render(<LeftPanel />)
-    const badge = screen.getByTestId('tab-badge-scenes')
-    expect(badge).toHaveTextContent(String(INITIAL_SCENES.length))
-  })
-})
-
-describe('LeftPanel — Shorts tab routes to ShortsTab', () => {
-  it('switching to Shorts tab shows the shorts container', () => {
-    useEditorStore.setState({ activeLeftTab: 'shorts' })
-    render(<LeftPanel />)
-    expect(screen.getByTestId('shorts-tab')).toBeInTheDocument()
-  })
-
-  it('Shorts tab shows badge with shorts count', () => {
-    render(<LeftPanel />)
-    const badge = screen.getByTestId('tab-badge-shorts')
-    expect(badge).toHaveTextContent(String(INITIAL_SHORTS.length))
+    expect(screen.getByTestId('visual-library-panel')).toBeInTheDocument()
   })
 })
