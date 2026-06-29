@@ -83,8 +83,14 @@ export function computeOverlayMotion(
 
   const local = time - start
   const duration = Math.max(0.1, clip.duration)
-  const inDur = Math.min(0.55, duration * 0.22)
-  const outDur = Math.min(0.55, duration * 0.22)
+  const inDur = Math.min(
+    clip.effects?.entranceDuration ?? Math.min(0.55, duration * 0.22),
+    duration * 0.5,
+  )
+  const outDur = Math.min(
+    clip.effects?.exitDuration ?? Math.min(0.55, duration * 0.22),
+    duration * 0.5,
+  )
   const outStart = duration - outDur
 
   const entrance = (clip.effects?.overlayEntrance ?? 'fade_in') as OverlayMotionPreset

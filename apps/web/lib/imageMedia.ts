@@ -131,6 +131,45 @@ export function clearImageMedia(clipId: string): void {
     mediaKind: 'image',
     isPlaceholder: true,
     mediaFileName: undefined,
+    backgroundRemoved: false,
   })
   useTimelineStore.setState({ lastEditAction: 'Removed image media' })
+}
+
+/**
+ * Run in-browser background removal and swap the clip to a transparent PNG.
+ */
+export async function removeBackgroundFromImageClip(
+  clipId: string,
+  onProgress?: (progress: import('@/lib/backgroundRemoval').BackgroundRemovalProgress) => void,
+): Promise<void> {
+  const { clips } = useTimelineStore.getState()
+  const clip = clips.find((c) => c.id === clipId)
+  const src = clip?.effects?.mediaUrl
+  if (!clip || !src) {
+    throw new Error('Add an image before removing the background.')
+  }
+
+  const { removeImageBackground } = await import('@/lib/backgroundRemoval')
+  const oldUrl = src
+  const blob = await removeImageBackground(src, onProgress)
+  const newUrl = URL.createObjectURL(blob)
+
+  if (oldUrl.startsWith('blob:')) {
+    URL.revokeObjectURL(oldUrl)
+  }
+
+  const baseName =
+    clip.effects?.mediaFileName?.replace(/\.[^.]+$/, '') ??
+    clip.label.replace(/\s+/g, '-').slice(0, 24) ??
+    'Image'
+
+  useTimelineStore.getState().updateOverlayClip(clipId, {
+    mediaUrl: newUrl,
+    mediaKind: 'image',
+    isPlaceholder: false,
+    backgroundRemoved: true,
+    mediaFileName: `${baseName}-nobg.png`,
+  })
+  useTimelineStore.setState({ lastEditAction: 'Removed image background' })
 }

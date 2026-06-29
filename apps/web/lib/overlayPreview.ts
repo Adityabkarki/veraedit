@@ -28,6 +28,9 @@ export function activePreviewOverlays(clips: Clip[], time: number): Clip[] {
 
 /** Higher lanes draw above lower lanes in the preview stack. */
 export function overlayPreviewZIndex(clip: Clip): number {
+  if (clip.effects?.layerOrder != null) {
+    return clip.effects.layerOrder
+  }
   if (isFamilyTrack(clip.trackId, 'overlay')) {
     const match = clip.trackId.match(/^overlay(?:-(\d+))?$/)
     const lane = match?.[1] ? Number.parseInt(match[1], 10) : 1

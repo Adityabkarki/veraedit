@@ -12,6 +12,7 @@ import { useVisualLibraryStore } from '@/stores/visualLibraryStore'
 import type { Clip } from '@/stores/timelineStore'
 import { isBrollClip, isImageClip } from '@/lib/mediaClips'
 import { computeOverlayMotion } from '@/lib/overlayAnimations'
+import { buildImagePreviewStyles } from '@/lib/imagePreviewStyles'
 import {
   activePreviewOverlays,
   overlayPreviewZIndex,
@@ -70,10 +71,11 @@ function ImageSlotOverlay({ clip }: { clip: Clip }) {
   }
 
   if (url) {
+    const imgStyles = buildImagePreviewStyles(clip)
     return (
       <div data-testid={`visual-overlay-${clip.id}`} className="w-full h-full">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={url} alt="" className="w-full h-full object-contain drop-shadow-lg" />
+        <img src={url} alt="" className="w-full h-full drop-shadow-lg" style={imgStyles} />
       </div>
     )
   }
@@ -391,6 +393,34 @@ function EmojiElementOverlay({ clip }: { clip: Clip }) {
   )
 }
 
+interface ScaleCorner {
+  id: string
+  cx: number
+  cy: number
+  positionClass: string
+  cursorClass: string
+}
+
+const SCALE_CORNERS: ScaleCorner[] = [
+  { id: 'se', cx: 1,  cy: 1,  positionClass: '-bottom-1.5 -right-1.5', cursorClass: 'cursor-nwse-resize' },
+  { id: 'sw', cx: -1, cy: 1,  positionClass: '-bottom-1.5 -left-1.5',  cursorClass: 'cursor-nesw-resize' },
+  { id: 'ne', cx: 1,  cy: -1, positionClass: '-top-1.5 -right-1.5',    cursorClass: 'cursor-nesw-resize' },
+  { id: 'nw', cx: -1, cy: -1, positionClass: '-top-1.5 -left-1.5',     cursorClass: 'cursor-nwse-resize' },
+]
+
+interface ResizeState {
+  startX: number
+  startY: number
+  origW: number
+  origH: number
+  origScale: number
+  origX: number
+  origY: number
+  lockAspect: boolean
+  cx: number
+  cy: number
+}
+
 function PositionedOverlay({
   clip,
   children,
@@ -415,18 +445,21 @@ function PositionedOverlay({
   const rotation = clip.effects?.rotation ?? 0
   const isImageOverlay = isImageClip(clip)
   const isChartOverlay = isChartOrProcessClip(clip)
+  const imageHidden = isImageOverlay && clip.effects?.imageVisible === false
+  const imageLocked = isImageOverlay && clip.effects?.imageLocked === true
+  const imageOpacity = isImageOverlay ? (clip.effects?.imageOpacity ?? 100) / 100 : 1
   const { opacity: motionOpacity, motionTransform } = computeOverlayMotion(clip, currentTime)
-  const isResizable = interactive && mode !== 'fullscreen' && !isChartOverlay
-  const resizeRef = useRef<{ startX: number; startY: number; origW: number; origH: number; origScale: number } | null>(null)
+  const isResizable = interactive && mode !== 'fullscreen' && !isChartOverlay && !imageLocked
+  const resizeRef = useRef<ResizeState | null>(null)
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
-      if (!interactive) return
+      if (!interactive || imageLocked) return
       e.stopPropagation()
       dragRef.current = { startX: e.clientX, startY: e.clientY, origX: x, origY: y }
       ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
     },
-    [interactive, x, y],
+    [interactive, imageLocked, x, y],
   )
 
   const onPointerMove = useCallback(
@@ -449,8 +482,8 @@ function PositionedOverlay({
   }, [])
 
   const onScaleDown = useCallback(
-    (e: React.PointerEvent) => {
-      if (!interactive) return
+    (cx: number, cy: number) => (e: React.PointerEvent) => {
+      if (!interactive || imageLocked) return
       e.stopPropagation()
       resizeRef.current = {
         startX: e.clientX,
@@ -458,31 +491,54 @@ function PositionedOverlay({
         origW: widthPct ?? 30,
         origH: heightPct ?? 20,
         origScale: scale,
+        origX: x,
+        origY: y,
+        lockAspect: clip.effects?.lockAspectRatio ?? true,
+        cx,
+        cy,
       }
       ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
     },
-    [interactive, widthPct, heightPct, scale],
+    [interactive, imageLocked, widthPct, heightPct, scale, x, y, clip.effects?.lockAspectRatio],
   )
 
   const onScaleMove = useCallback(
     (e: React.PointerEvent) => {
       if (!resizeRef.current || !containerRef.current?.parentElement) return
       const parent = containerRef.current.parentElement.getBoundingClientRect()
-      const dx = (e.clientX - resizeRef.current.startX) / parent.width
-      const dy = (e.clientY - resizeRef.current.startY) / parent.height
-      const delta = (dx + dy) / 2
+      const dxFrac = (e.clientX - resizeRef.current.startX) / parent.width
+      const dyFrac = (e.clientY - resizeRef.current.startY) / parent.height
       const vt = (clip.effects?.visualType ?? '').toLowerCase()
+      const isImageType = vt === 'conflict_box' || vt === 'image_slot' || vt === 'image_sticker' || vt === 'image_shape'
 
-      if (vt === 'conflict_box' || vt === 'image_slot' || vt === 'image_sticker' || vt === 'image_shape') {
+      if (isImageType || vt === 'arrow_flow') {
+        const r = resizeRef.current
+        const dx = dxFrac * 100
+        const dy = dyFrac * 100
+
+        let dw = r.cx * dx
+        let dh = r.cy * dy
+
+        if (r.lockAspect && r.origW > 0 && r.origH > 0) {
+          const aspect = r.origW / r.origH
+          if (Math.abs(dw) / aspect > Math.abs(dh)) {
+            dh = dw / aspect
+          } else {
+            dw = dh * aspect
+          }
+        }
+
+        const newW = Math.max(8, Math.min(95, r.origW + dw))
+        const newH = Math.max(8, Math.min(95, r.origH + dh))
+
         updateOverlayClip(clip.id, {
-          widthPct: Math.max(8, Math.min(95, resizeRef.current.origW + dx * 100)),
-          heightPct: Math.max(8, Math.min(95, resizeRef.current.origH + dy * 100)),
-        })
-      } else if (vt === 'arrow_flow') {
-        updateOverlayClip(clip.id, {
-          widthPct: Math.max(8, Math.min(70, resizeRef.current.origW + dx * 100)),
+          widthPct: newW,
+          heightPct: vt === 'arrow_flow' ? undefined : newH,
+          xPct: Math.max(0, Math.min(100, r.origX + (newW - r.origW) / 2)),
+          yPct: Math.max(0, Math.min(100, r.origY + (newH - r.origH) / 2)),
         })
       } else {
+        const delta = (dxFrac + dyFrac) / 2
         updateOverlayClip(clip.id, {
           scale: Math.max(0.4, Math.min(3, resizeRef.current.origScale + delta * 4)),
         })
@@ -505,7 +561,7 @@ function PositionedOverlay({
           height: '100%',
           transform: baseTransform,
           transformOrigin: 'center center',
-          opacity: motionOpacity,
+          opacity: imageHidden ? 0 : motionOpacity * imageOpacity,
         }
       : {
           left: `${x}%`,
@@ -513,15 +569,14 @@ function PositionedOverlay({
           width: widthPct ? `${widthPct}%` : undefined,
           height: heightPct ? `${heightPct}%` : undefined,
           transform: baseTransform,
-          opacity: motionOpacity,
+          opacity: imageHidden ? 0 : motionOpacity * imageOpacity,
         }
 
   return (
     <div
       ref={containerRef}
-      className={interactive ? 'absolute pointer-events-auto cursor-grab active:cursor-grabbing' : 'absolute pointer-events-none'}
+      className={interactive ? 'absolute pointer-events-auto' : 'absolute pointer-events-none'}
       style={style}
-      onPointerDown={onPointerDown}
       onPointerMove={(e) => {
         onPointerMove(e)
         onScaleMove(e)
@@ -529,14 +584,34 @@ function PositionedOverlay({
       onPointerUp={onPointerUp}
       data-testid={interactive ? `overlay-draggable-${clip.id}` : undefined}
     >
-      {children}
-      {interactive && isResizable && (
+      {/* Selection border */}
+      {interactive && !imageLocked && (
         <div
-          data-testid={`overlay-scale-handle-${clip.id}`}
-          className="absolute -bottom-1.5 -right-1.5 w-3 h-3 rounded-full bg-white border-2 border-accent cursor-nwse-resize shadow-md z-10"
-          onPointerDown={onScaleDown}
-          aria-label={isImageOverlay ? 'Resize image overlay' : 'Resize overlay'}
+          className="absolute -inset-[1.5px] rounded pointer-events-none border-2 border-accent/60 z-0"
+          aria-hidden="true"
         />
+      )}
+
+      <div
+        className={interactive && !imageLocked ? 'cursor-grab active:cursor-grabbing relative z-[1]' : 'relative z-[1]'}
+        onPointerDown={onPointerDown}
+      >
+        {children}
+      </div>
+
+      {/* Corner scale handles */}
+      {interactive && isResizable && (
+        <>
+          {SCALE_CORNERS.map((corner) => (
+            <div
+              key={corner.id}
+              data-testid={`overlay-scale-handle-${clip.id}-${corner.id}`}
+              className={`absolute ${corner.positionClass} w-3 h-3 rounded-full bg-white border-2 border-accent ${corner.cursorClass} shadow-md z-10`}
+              onPointerDown={onScaleDown(corner.cx, corner.cy)}
+              aria-label={`Scale ${corner.id}`}
+            />
+          ))}
+        </>
       )}
     </div>
   )

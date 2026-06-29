@@ -191,7 +191,7 @@ export function EditorLayout({
                   : rightPanelMode === 'broll'
                   ? <BrollEditPanel />
                   : rightPanelMode === 'image'
-                  ? <ImageEditPanel />
+                  ? <ImageEditPanel projectId={projectId} />
                   : rightPanelMode === 'camera'
                   ? <CameraZoomEditPanel />
                   : rightPanelMode === 'overlay-element'

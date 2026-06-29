@@ -103,6 +103,39 @@ export interface ClipEffects {
   overlayEntrance?: string
   /** Text/overlay exit motion */
   overlayExit?: string
+  /** Image layer — flip / lock / visibility */
+  flipX?: boolean
+  flipY?: boolean
+  lockAspectRatio?: boolean
+  imageLocked?: boolean
+  imageVisible?: boolean
+  /** Image appearance (0–100 or 0–200 where noted) */
+  imageOpacity?: number
+  brightness?: number
+  contrast?: number
+  saturation?: number
+  sharpness?: number
+  blurPx?: number
+  cornerRadius?: number
+  blendMode?: string
+  filterPreset?: string
+  filterIntensity?: number
+  borderWidth?: number
+  borderColor?: string
+  shadowEnabled?: boolean
+  shadowBlur?: number
+  shadowOffsetX?: number
+  shadowOffsetY?: number
+  shadowColor?: string
+  shadowOpacity?: number
+  entranceDuration?: number
+  exitDuration?: number
+  cropAspect?: string
+  maskShape?: string
+  storageKey?: string
+  layerOrder?: number
+  /** True after client-side background removal (PNG with alpha). */
+  backgroundRemoved?: boolean
   /** Chart/process inserted as fullscreen B-Roll layer */
   chartAsBroll?: boolean
 }

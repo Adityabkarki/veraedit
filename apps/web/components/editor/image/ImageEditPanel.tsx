@@ -1,16 +1,20 @@
 'use client'
 
 /**
- * ImageEditPanel — upload / link image overlays (not B-Roll).
+ * ImageEditPanel — image overlay media + full properties inspector.
  */
 
 import { useTimelineStore } from '@/stores/timelineStore'
 import { isImageClip } from '@/lib/mediaClips'
-import { OverlayMediaEditor } from '@/components/editor/media/OverlayMediaEditor'
 import { RightPanelHeader } from '@/components/editor/RightPanelHeader'
 import { useDismissClipEditorOnEscape } from '@/hooks/useDismissClipEditorOnEscape'
+import { ImagePropertiesPanel } from '@/components/editor/properties/ImagePropertiesPanel'
 
-export function ImageEditPanel() {
+interface ImageEditPanelProps {
+  projectId: string
+}
+
+export function ImageEditPanel({ projectId }: ImageEditPanelProps) {
   const clips = useTimelineStore((s) => s.clips)
   const selectedClipIds = useTimelineStore((s) => s.selectedClipIds)
 
@@ -28,10 +32,7 @@ export function ImageEditPanel() {
         className="flex flex-col h-full min-h-0 bg-bg-surface border-l border-bg-overlay"
       >
         <RightPanelHeader title="Image overlay" testId="image-edit-panel-close" />
-        <p className="p-4 text-xs text-text-disabled">
-          Select an <strong className="text-text-secondary">Image overlay</strong> clip on the timeline
-          to upload or link media.
-        </p>
+        <ImagePropertiesPanel projectId={projectId} />
       </div>
     )
   }
@@ -42,8 +43,8 @@ export function ImageEditPanel() {
       className="flex flex-col h-full min-h-0 bg-bg-surface border-l border-bg-overlay overflow-hidden"
     >
       <RightPanelHeader title="Image overlay" testId="image-edit-panel-close" />
-      <div className="flex-1 min-h-0 overflow-y-auto">
-        <OverlayMediaEditor clip={clip} purpose="image" variant="panel" />
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <ImagePropertiesPanel projectId={projectId} />
       </div>
     </div>
   )
