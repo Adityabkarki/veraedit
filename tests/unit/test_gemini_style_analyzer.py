@@ -41,7 +41,9 @@ class TestGeminiStyleAnalyzerHelpers:
             ],
         }
         v2 = _convert_v1_to_v2(v1)
-        assert v2["version"] == "2.0"
+        assert v2["version"] == "2.1"
+        assert "audio_profile" in v2
+        assert "director_notes" in v2
         assert len(v2["slots"]) == 2
         video_slot = v2["slots"][0]
         assert video_slot["requirement"]["shot_type"] == "talking_head"
@@ -78,13 +80,22 @@ async def test_analyze_reference_video_frame_fallback(monkeypatch, tmp_path):
 
     async def fake_fallback(path, project_id, *, source_url=None):
         return {
-            "version": "2.0",
+            "version": "2.1",
             "duration": 12,
             "aspect_ratio": "9:16",
             "color_palette": ["#000000"],
             "pacing": "medium",
             "visual_style": "ugc",
             "caption_style": {},
+            "audio_profile": {
+                "music_genre": "none",
+                "music_energy_arc": "builds steadily",
+                "has_sfx_hits": False,
+                "sfx_style": None,
+                "music_ducking_behavior": "no music",
+                "voice_emotion_arc": "consistently moderate",
+            },
+            "director_notes": [],
             "slots": [
                 {
                     "slot_id": "clip_1",
@@ -109,5 +120,5 @@ async def test_analyze_reference_video_frame_fallback(monkeypatch, tmp_path):
     monkeypatch.setattr(gemini_style_analyzer, "_analyze_with_frame_fallback", fake_fallback)
 
     result = await gemini_style_analyzer.analyze_reference_video(video, "proj-1")
-    assert result["version"] == "2.0"
+    assert result["version"] == "2.1"
     assert result["slots"][0]["requirement"]["shot_type"] == "talking_head"

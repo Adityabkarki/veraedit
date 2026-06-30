@@ -10,7 +10,12 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "apps", "api"))
 
-from processors.music_library import MUSIC_LIBRARY, pick_music_for_mood
+from processors.music_library import (
+    MUSIC_LIBRARY,
+    pick_music_for_audio_profile,
+    pick_music_for_mood,
+    should_duck_for_speech,
+)
 from processors.sizzle_assembler import build_music_filter
 
 
@@ -61,3 +66,18 @@ class TestMusicLibrary:
     def test_unknown_mood_falls_back_to_upbeat_pool(self):
         path = pick_music_for_mood("unknown_mood")
         assert path.name in MUSIC_LIBRARY["upbeat"]
+
+    def test_pick_music_for_audio_profile_maps_genre(self):
+        path = pick_music_for_audio_profile({
+            "music_genre": "epic trailer",
+            "music_energy_arc": "high throughout",
+        })
+        assert path is not None
+        assert path.name in MUSIC_LIBRARY["dramatic"]
+
+    def test_pick_music_for_audio_profile_none_when_no_music(self):
+        assert pick_music_for_audio_profile({"music_genre": "none"}) is None
+
+    def test_should_duck_for_speech(self):
+        assert should_duck_for_speech({"music_ducking_behavior": "music drops significantly under VO"})
+        assert not should_duck_for_speech({"music_ducking_behavior": "music stays constant"})

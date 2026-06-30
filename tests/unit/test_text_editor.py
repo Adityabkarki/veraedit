@@ -3,17 +3,31 @@ Unit tests for text_editor processor (Module 04).
 """
 import os
 import sys
+from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "apps", "api"))
 
 
-def test_cuts_to_keep_no_cuts():
-    from processors.text_editor import cuts_to_keep
+def test_apply_cuts_precise_no_cuts_keeps_full(monkeypatch, tmp_path):
+    from processors.text_editor import apply_cuts_precise, cuts_to_keep
 
     assert cuts_to_keep([], 10.0) == [{"start": 0.0, "end": 10.0}]
 
 
-def test_cuts_to_keep_removes_middle():
+def test_apply_cuts_delegates_to_precise(monkeypatch, tmp_path):
+    from processors import text_editor
+
+    called = {}
+
+    def fake_precise(inp, out, cuts, force_reencode=False):
+        called["force"] = force_reencode
+        Path(out).write_bytes(b"ok")
+        return str(out)
+
+    monkeypatch.setattr(text_editor, "apply_cuts_precise", fake_precise)
+    text_editor.apply_cuts("in.mp4", tmp_path / "out.mp4", [])
+    assert called["force"] is False
+
     from processors.text_editor import cuts_to_keep
 
     cuts = [{"start": 2.0, "end": 4.0}]

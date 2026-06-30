@@ -238,6 +238,15 @@ export function TranscriptEditor({ projectId }: { projectId?: string } = {}) {
         data-testid="transcript-editor"
         className="flex flex-col h-full bg-bg-surface overflow-hidden"
       >
+        {qualityMetrics?.language_warning && (
+          <div
+            data-testid="transcript-language-warning"
+            className="flex-shrink-0 px-3 py-2 text-[11px] border-b border-amber-500/30 bg-amber-500/10 text-amber-200"
+            role="status"
+          >
+            {qualityMetrics.language_warning}
+          </div>
+        )}
         {/* ── Toolbar ───────────────────────────────────────────────────── */}
         <div className="flex items-center gap-2 px-3 py-2 border-b border-bg-overlay flex-shrink-0">
           <h3 className="text-xs font-semibold text-text-primary flex-1">Transcript</h3>

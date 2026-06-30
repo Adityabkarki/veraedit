@@ -37,9 +37,43 @@ class TestStyleTemplateSchema:
                 }
             ],
         )
-        assert template.version == "2.0"
+        assert template.version == "2.1"
         assert template.slots[0].requirement is not None
         assert template.slots[0].requirement.shot_type == "talking_head"
+        assert template.audio_profile.music_genre == "none"
+        assert template.director_notes == []
+
+    def test_legacy_music_mood_migrates_to_audio_profile(self):
+        from schemas.template import StyleTemplate
+
+        template = StyleTemplate(
+            duration=10,
+            aspect_ratio="9:16",
+            music_mood="upbeat",
+            slots=[],
+        )
+        assert template.audio_profile.music_genre == "upbeat"
+
+    def test_audio_profile_and_director_notes(self):
+        from schemas.template import AudioProfile, StyleTemplate
+
+        template = StyleTemplate(
+            duration=30,
+            aspect_ratio="9:16",
+            audio_profile=AudioProfile(
+                music_genre="lofi hip-hop",
+                music_energy_arc="calm with one peak",
+                has_sfx_hits=True,
+                sfx_style="subtle whoosh on transitions",
+                music_ducking_behavior="music drops significantly under VO",
+                voice_emotion_arc="starts calm, becomes urgent",
+            ),
+            director_notes=["0.0s-3.5s: Hook with high energy direct-to-camera"],
+            slots=[],
+        )
+        assert template.version == "2.1"
+        assert template.audio_profile.has_sfx_hits is True
+        assert len(template.director_notes) == 1
 
     def test_text_overlay_slot_has_null_requirement(self):
         from schemas.template import TemplateSlot

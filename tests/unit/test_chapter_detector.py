@@ -56,7 +56,15 @@ class TestChapterDetectorSemantic:
     @pytest.mark.asyncio
     async def test_semantic_skipped_when_budget_exceeded(self, monkeypatch):
         budget.reset()
-        monkeypatch.setattr(budget, "total_usd", 999.0)
+        monkeypatch.setattr(budget, "should_use_local", lambda limit_usd=None: True)
+
+        async def _no_ollama(_prompt):
+            raise ValueError("ollama unavailable")
+
+        monkeypatch.setattr(
+            "processors.chapter_detector.ollama_json_completion",
+            _no_ollama,
+        )
         result = await detect_chapters_semantic(SAMPLE_TRANSCRIPT)
         assert result is None
 

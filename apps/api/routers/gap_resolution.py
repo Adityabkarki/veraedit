@@ -15,7 +15,12 @@ from sqlalchemy import select
 from dependencies import CurrentUser, DbDep, StorageDep
 from models import Brand, LibraryAsset, User
 from processors.asset_matcher import match_template_to_library
-from processors.gap_generator import generate_missing_image, generate_missing_video_concept
+from processors.gap_generator import (
+    _IMAGE_GEN_COST_USD,
+    generate_missing_image,
+    generate_missing_video_concept,
+)
+from services.ai_budget import budget
 from schemas.gap_resolution import GenerateSlotRequest, GenerateSlotResponse, MatchTemplateRequest
 from storage import make_library_storage_key
 
@@ -109,6 +114,12 @@ async def generate_slot(
             brand_context,
             req.aspect_ratio,
         )
+        budget.record(
+            _IMAGE_GEN_COST_USD,
+            action="image_gen",
+            workspace_id=str(user.id),
+            provider="gemini",
+        )
         asset_id = uuid.uuid4()
         storage_key = make_library_storage_key(str(user.id), str(asset_id), "generated.png")
         await storage.put_object(storage_key, image_bytes, mime_type="image/png")
@@ -142,6 +153,13 @@ async def generate_slot(
         brand_context,
         aspect_ratio=req.aspect_ratio,
         user_id=str(user.id),
+    )
+    budget.record(
+        _IMAGE_GEN_COST_USD,
+        action="image_gen",
+        workspace_id=str(user.id),
+        provider="gemini",
+        metadata={"slot_type": "video_placeholder"},
     )
     asset_id = uuid.UUID(result["asset_id"])
     asset = LibraryAsset(

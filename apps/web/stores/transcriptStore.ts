@@ -211,6 +211,7 @@ export interface ApiTranscript {
     quality_grade?: string
     needs_review?: boolean
     low_confidence_count?: number
+    language_warning?: string
   }
   model_used?:   string
 }

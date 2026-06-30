@@ -26,9 +26,17 @@ async def test_extract_shorts_for_platforms_mocked(monkeypatch, tmp_path):
 
     monkeypatch.setattr(shorts_extractor, "find_viral_moments", fake_find)
     monkeypatch.setattr(shorts_extractor, "get_duration", lambda _p: 60.0)
-    monkeypatch.setattr(shorts_extractor, "apply_cuts", lambda i, o, c: o.write_bytes(b"vid"))
+    monkeypatch.setattr(
+        shorts_extractor,
+        "apply_cuts_precise",
+        lambda i, o, c, force_reencode=False: o.write_bytes(b"vid"),
+    )
     monkeypatch.setattr(shorts_extractor, "render_captions", lambda i, o, w, style: o.write_bytes(b"cap"))
-    monkeypatch.setattr(shorts_extractor, "reframe_video", lambda i, o, w, h, mode: o.write_bytes(b"ref"))
+    monkeypatch.setattr(
+        shorts_extractor,
+        "reframe_video",
+        lambda i, o, w, h, mode: (o.write_bytes(b"ref") or str(o), None),
+    )
     monkeypatch.setattr(shorts_extractor, "export_for_platform", lambda i, o, p: o.write_bytes(b"exp"))
 
     video = tmp_path / "source.mp4"

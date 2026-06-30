@@ -126,6 +126,7 @@ def transcribe_task(
             "transcript_key": transcript_key,
             "srt_key": srt_key,
             "language": result.get("language"),
+            "language_warning": result.get("language_warning"),
             "word_count": len(result.get("words", [])),
             "full_text_preview": (result.get("full_text") or "")[:200],
             "words": result.get("words", []),

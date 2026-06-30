@@ -39,6 +39,41 @@ def pick_music_for_mood(mood: str) -> Path:
     return _ASSETS_ROOT / chosen
 
 
+def _genre_to_mood(genre: str, energy_arc: str = "") -> str | None:
+    """Map Phase 1 audio_profile fields to bundled library moods."""
+    text = f"{genre} {energy_arc}".lower()
+    if "none" in text or not text.strip():
+        return None
+    if any(word in text for word in ("epic", "trailer", "dramatic", "cinematic", "intense")):
+        return "dramatic"
+    if any(word in text for word in ("corporate", "business", "professional")):
+        return "corporate"
+    if any(word in text for word in ("calm", "lofi", "lo-fi", "ambient", "chill", "soft")):
+        return "calm"
+    if any(word in text for word in ("upbeat", "energetic", "hip", "pop", "dance", "happy")):
+        return "upbeat"
+    if "high throughout" in energy_arc.lower() or "builds" in energy_arc.lower():
+        return "upbeat"
+    return "upbeat"
+
+
+def pick_music_for_audio_profile(audio_profile: dict) -> Path | None:
+    """Pick bundled music from a Director's Blueprint audio_profile, if applicable."""
+    genre = str(audio_profile.get("music_genre", "none"))
+    energy_arc = str(audio_profile.get("music_energy_arc", ""))
+    mood = _genre_to_mood(genre, energy_arc)
+    if mood is None:
+        return None
+    path = pick_music_for_mood(mood)
+    return path if path.exists() else None
+
+
+def should_duck_for_speech(audio_profile: dict) -> bool:
+    """True when reference video ducked music under spoken dialogue."""
+    behavior = str(audio_profile.get("music_ducking_behavior", "")).lower()
+    return "drop" in behavior or "duck" in behavior
+
+
 def list_tracks_for_mood(mood: str) -> list[Path]:
     """All track paths for a mood (used in tests)."""
     tracks = MUSIC_LIBRARY.get(mood, MUSIC_LIBRARY["upbeat"])

@@ -17,7 +17,7 @@ from PIL import Image
 
 from config import settings
 from schemas.asset_tags import AssetTags
-from services.ai_budget import budget
+from services.ai_costs import COSTS
 from tasks.llm_json_utils import extract_json
 
 log = structlog.get_logger("viraedit.asset_tagger")
@@ -38,8 +38,8 @@ _TAGGING_PROMPT = """Analyze this visual asset and return ONLY valid JSON (no ma
   "tagging_confidence": 0.9
 }"""
 
-_IMAGE_TAG_COST_USD = 0.00015
-_VIDEO_TAG_COST_USD = 0.0003
+_IMAGE_TAG_COST_USD = COSTS["openai_gpt4o_mini_vision_call"]
+_VIDEO_TAG_COST_USD = COSTS["openai_gpt4o_mini_video_tag_call"]
 
 _DEFAULT_TAGS: dict = {
     "shot_type": "unknown",
@@ -138,7 +138,6 @@ async def tag_image_asset(image_path: Path) -> dict:
                 },
             ],
         )
-        budget.record(_IMAGE_TAG_COST_USD, task="asset_tag_image")
         return _normalize_tags(raw)
     except Exception as exc:
         log.error("tag_image_failed", path=str(image_path), error=str(exc))
@@ -170,7 +169,6 @@ async def tag_video_asset(video_path: Path, transcript_snippet: str = "") -> dic
         raw = await _vision_tag(
             [{"type": "text", "text": prompt}, *image_parts],
         )
-        budget.record(_VIDEO_TAG_COST_USD, task="asset_tag_video")
         return _normalize_tags(
             raw,
             duration_seconds=duration,

@@ -56,6 +56,7 @@ celery_app = Celery(
         "tasks.shorts_tasks",          # Phase 03: Platform shorts extraction
         "tasks.chapter_tasks",         # Phase 04: Chapter extraction
         "tasks.sizzle_tasks",          # Phase 05: Sizzle reel generation
+        "tasks.render_from_template_task",  # Phase 06: Template render
         "tasks.caption_tasks",         # Module 03: Captions STT + burn-in
         "tasks.cut_tasks",             # Module 04: Text-based cuts
     ],
@@ -110,6 +111,7 @@ celery_app.conf.update(
         "tasks.shorts.*":            {"queue": "render"},
         "tasks.chapters.*":          {"queue": "render"},
         "tasks.sizzle.*":            {"queue": "render"},
+        "tasks.render.from_template": {"queue": "render"},
         "tasks.caption.*":           {"queue": "transcription"},
         "tasks.cut.*":               {"queue": "render"},
     },

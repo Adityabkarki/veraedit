@@ -15,7 +15,7 @@ from celery_app import celery_app
 from processors.caption_renderer import render_captions
 from processors.music_library import pick_music_for_mood
 from processors.sizzle_assembler import add_background_music, assemble_sizzle_reel
-from processors.sizzle_finder import find_sizzle_moments
+from processors.sizzle_finder import find_sizzle_moments_with_energy
 from processors.storage_helpers import storage_sync
 from processors.transcriber import transcribe_video
 from services.job_sync import update_job_sync
@@ -79,7 +79,15 @@ def generate_sizzle_task(
         progress("finding_highlights")
         fragment_count = max(6, int(target_duration / 3))
         fragments = asyncio.run(
-            find_sizzle_moments(transcript, target_duration, fragment_count)
+            find_sizzle_moments_with_energy(
+                local_path,
+                transcript,
+                target_duration,
+                fragment_count,
+                project_id=project_id,
+                job_id=job_id,
+                workspace_id=project_id,
+            )
         )
         if not fragments:
             raise ValueError("No highlight fragments found in this video.")

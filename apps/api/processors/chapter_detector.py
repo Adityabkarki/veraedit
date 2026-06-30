@@ -5,6 +5,7 @@ Semantic GPT-4o-mini detection with rule-based pause fallback.
 """
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import structlog
@@ -12,6 +13,8 @@ from openai import AsyncOpenAI
 
 from config import settings
 from services.ai_budget import budget
+from services.ai_costs import estimate_text_call_cost
+from services.ai_fallback import call_with_local_fallback, ollama_json_completion
 from tasks.llm_json_utils import extract_json
 
 log = structlog.get_logger("viraedit.chapter_detector")
@@ -20,6 +23,10 @@ log = structlog.get_logger("viraedit.chapter_detector")
 async def detect_chapters_semantic(
     transcript: dict[str, Any],
     min_chapter_duration: float = 60.0,
+    *,
+    project_id: str | None = None,
+    job_id: str | None = None,
+    workspace_id: str | None = None,
 ) -> list[dict[str, Any]] | None:
     """Primary chapter detection via GPT-4o-mini transcript analysis."""
     segments = transcript.get("segments") or []
@@ -54,16 +61,47 @@ Rules:
 Transcript:
 {segments_text[:10000]}"""
 
-    estimated_cost = (len(prompt) / 4 / 1000) * 0.00015
-    budget.record(estimated_cost, task="chapter_detection")
+    estimated_cost = estimate_text_call_cost(prompt)
+    budget.record(
+        estimated_cost,
+        action="chapter_detect",
+        workspace_id=workspace_id or project_id,
+        project_id=project_id,
+        job_id=job_id,
+        provider="openai",
+        model=settings.OPENAI_MODEL_PRIMARY,
+    )
 
     if budget.should_use_local():
-        log.info("chapter_semantic_skipped_budget")
-        return None
+        log.info("chapter_semantic_using_local_fallback")
+
+        async def _primary() -> list[dict[str, Any]] | None:
+            return None
+
+        async def _fallback() -> list[dict[str, Any]] | None:
+            return await _ollama_chapters(prompt)
+
+        try:
+            chapters = await call_with_local_fallback(
+                _primary,
+                _fallback,
+                action_name="chapter detection",
+            )
+            return _validate_chapters(chapters, segments)
+        except RuntimeError as exc:
+            log.warning("chapter_local_fallback_failed", error=str(exc))
+            return None
 
     if not settings.OPENAI_API_KEY:
         return None
 
+    chapters = await _openai_chapters(prompt)
+    return _validate_chapters(chapters, segments) if chapters is not None else None
+
+
+async def _openai_chapters(prompt: str) -> list[dict[str, Any]] | None:
+    if not settings.OPENAI_API_KEY:
+        return None
     client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
     resp = await client.chat.completions.create(
         model=settings.OPENAI_MODEL_PRIMARY,
@@ -75,7 +113,22 @@ Transcript:
     chapters = extract_json(raw)
     if not isinstance(chapters, list):
         return None
+    return chapters
 
+
+async def _ollama_chapters(prompt: str) -> list[dict[str, Any]] | None:
+    chapters = await ollama_json_completion(prompt)
+    if not isinstance(chapters, list):
+        raise ValueError("Local model returned non-list JSON for chapters")
+    return chapters
+
+
+def _validate_chapters(
+    chapters: list[dict[str, Any]] | None,
+    segments: list[dict[str, Any]],
+) -> list[dict[str, Any]] | None:
+    if not chapters:
+        return None
     max_time = float(segments[-1].get("end", 0))
     return [
         ch for ch in chapters
@@ -150,13 +203,73 @@ def detect_chapters_fallback(
 async def detect_chapters(
     transcript: dict[str, Any],
     min_chapter_duration: float = 60.0,
+    *,
+    project_id: str | None = None,
+    job_id: str | None = None,
+    workspace_id: str | None = None,
 ) -> list[dict[str, Any]]:
     """Try semantic detection first; fall back to rule-based on failure or budget cap."""
     try:
-        result = await detect_chapters_semantic(transcript, min_chapter_duration)
+        result = await detect_chapters_semantic(
+            transcript,
+            min_chapter_duration,
+            project_id=project_id,
+            job_id=job_id,
+            workspace_id=workspace_id,
+        )
         if result:
             return result
     except Exception as exc:
         log.warning("chapter_semantic_failed", error=str(exc))
 
     return detect_chapters_fallback(transcript, min_chapter_duration)
+
+
+async def detect_chapters_with_energy(
+    video_path: str | Path,
+    transcript: dict[str, Any],
+    min_chapter_duration: float = 60.0,
+    *,
+    project_id: str | None = None,
+    job_id: str | None = None,
+    workspace_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """
+    Semantic chapter detection plus audio energy spikes as notable_moments
+    within chapters (does not over-fragment long-form content).
+    """
+    from processors.audio_energy import extract_energy_profile, find_energy_spikes
+
+    semantic_chapters = await detect_chapters(
+        transcript,
+        min_chapter_duration,
+        project_id=project_id,
+        job_id=job_id,
+        workspace_id=workspace_id,
+    )
+
+    try:
+        energy_profile = extract_energy_profile(video_path)
+        spikes = find_energy_spikes(energy_profile, threshold=0.75, min_gap_seconds=5.0)
+    except Exception as exc:
+        log.warning("chapter_energy_analysis_failed", error=str(exc))
+        return semantic_chapters
+
+    existing_boundaries = [
+        float(ch["start"]) for ch in semantic_chapters
+    ] + [float(ch["end"]) for ch in semantic_chapters]
+
+    for spike in spikes:
+        near_existing = any(
+            abs(spike["timestamp"] - boundary) < min_chapter_duration * 0.5
+            for boundary in existing_boundaries
+        )
+        if near_existing:
+            continue
+        for ch in semantic_chapters:
+            if float(ch["start"]) <= spike["timestamp"] <= float(ch["end"]):
+                ch.setdefault("notable_moments", [])
+                ch["notable_moments"].append(spike["timestamp"])
+                break
+
+    return semantic_chapters

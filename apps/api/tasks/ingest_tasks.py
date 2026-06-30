@@ -141,7 +141,9 @@ def _finish_ingest(
     return result
 
 
-@celery_app.task(bind=True, max_retries=2, name="tasks.ingest.ingest_url")
+@celery_app.task(
+    bind=True, max_retries=2, soft_time_limit=1800, time_limit=2100, name="tasks.ingest.ingest_url"
+)
 def ingest_url_task(self: Task, job_id: str, url: str, project_id: str) -> dict[str, Any]:
     _update_job_sync(job_id, status="processing")
     try:

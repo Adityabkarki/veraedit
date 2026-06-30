@@ -119,7 +119,17 @@ export function TemplateGapResolver({
 
   const acceptPartial = (slot: AnnotatedSlot) => {
     if (!slot.match) return
-    updateSlotMatch(slot.slot_id, { ...slot.match, status: 'matched' })
+    const accepted = { ...slot.match, status: 'matched' as const }
+    updateSlotMatch(slot.slot_id, accepted)
+    if (accepted.storage_key && accepted.asset_id) {
+      onSlotResolved(
+        slot.slot_id,
+        accepted.asset_id,
+        accepted.storage_key,
+        '',
+        false,
+      )
+    }
     toast.success('Partial match accepted for this slot.')
   }
 

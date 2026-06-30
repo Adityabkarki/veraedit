@@ -13,7 +13,7 @@ from celery import Task
 
 from celery_app import celery_app
 from processors.caption_renderer import render_captions
-from processors.chapter_detector import detect_chapters
+from processors.chapter_detector import detect_chapters_with_energy
 from processors.storage_helpers import storage_sync
 from processors.text_editor import apply_cuts, get_duration
 from processors.transcriber import transcribe_video
@@ -47,7 +47,16 @@ def extract_chapters_task(
         transcript = asyncio.run(transcribe_video(local_path))
 
         progress("detecting_chapters")
-        chapters = asyncio.run(detect_chapters(transcript, min_chapter_duration))
+        chapters = asyncio.run(
+            detect_chapters_with_energy(
+                local_path,
+                transcript,
+                min_chapter_duration,
+                project_id=project_id,
+                job_id=job_id,
+                workspace_id=project_id,
+            )
+        )
 
         total_duration = get_duration(local_path)
         output_chapters: list[dict] = []
@@ -98,6 +107,7 @@ def extract_chapters_task(
                 "start": float(ch["start"]),
                 "end": float(ch["end"]),
                 "duration": round(float(ch["end"]) - float(ch["start"]), 2),
+                "notable_moments": ch.get("notable_moments", []),
                 "key": chapter_key,
                 "url": url,
             })

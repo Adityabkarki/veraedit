@@ -104,6 +104,7 @@ class Settings(BaseSettings):
     # ── AI Budget ─────────────────────────────────────────────────────────────
     AI_COST_LIMIT_USD_PER_HOUR: float = Field(default=2.00)  # hard limit
     AI_COST_WARN_USD_PER_HOUR: float = Field(default=1.60)   # warning threshold
+    AI_BUDGET_HARD_LIMIT_SWITCH_LOCAL: float = Field(default=0.8)
 
     # ── Style extraction ───────────────────────────────────────────────────────
     # EasyOCR on CPU can stall 5–15 min per reference; OpenCV fallback is fast.

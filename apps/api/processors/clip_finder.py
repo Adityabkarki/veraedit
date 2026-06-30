@@ -2,6 +2,9 @@
 ViraEdit — Viral moment detection from transcript (Phase 03).
 
 Finds the best short-form clip candidates from word-level timestamps.
+
+Note: This module is rule-based (no cloud/local LLM). For Ollama fallback when
+the AI budget is exceeded, see chapter_detector and sizzle_finder.
 """
 from __future__ import annotations
 

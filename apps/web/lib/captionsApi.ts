@@ -26,6 +26,7 @@ export interface CaptionJobStatus {
     full_text_preview?: string
     words?: Array<{ word: string; start: number; end: number; confidence?: number }>
     segments?: Array<{ text: string; start: number; end: number }>
+    language_warning?: string
     output_key?: string
     url?: string
     style?: string

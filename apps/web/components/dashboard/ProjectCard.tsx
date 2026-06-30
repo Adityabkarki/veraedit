@@ -157,14 +157,24 @@ export function ProjectCard({ project }: ProjectCardProps) {
 
         {/* CTA */}
         {project.status === 'ready' && (
-          <Link
-            href={`/editor/${project.id}`}
-            className="mt-3 block w-full text-center py-2 rounded-lg
-                       bg-accent/10 text-accent text-xs font-medium
-                       hover:bg-accent/20 transition-colors"
-          >
-            Open Editor →
-          </Link>
+          <div className="mt-3 flex flex-col gap-2">
+            <Link
+              href={`/projects/${project.id}`}
+              className="block w-full text-center py-2 rounded-lg
+                         bg-accent text-white text-xs font-medium
+                         hover:bg-accent/90 transition-colors"
+            >
+              What do you want to make?
+            </Link>
+            <Link
+              href={`/editor/${project.id}`}
+              className="block w-full text-center py-2 rounded-lg
+                         bg-accent/10 text-accent text-xs font-medium
+                         hover:bg-accent/20 transition-colors"
+            >
+              Open full editor
+            </Link>
+          </div>
         )}
       </div>
     </article>

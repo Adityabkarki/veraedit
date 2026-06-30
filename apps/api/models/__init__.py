@@ -3,6 +3,7 @@ ViraEdit — ORM model registry.
 Import all models here so Alembic autogenerate can discover them.
 """
 from .base import Base, BaseModel
+from .ai_spend import AISpendRecord
 from .asset import Asset, AssetStatus, MediaType
 from .asset_library import LibraryAsset
 from .brand import Brand
@@ -27,6 +28,7 @@ __all__ = [
     "Base",
     "BaseModel",
     # Models
+    "AISpendRecord",
     "Asset",
     "AssetStatus",
     "MediaType",

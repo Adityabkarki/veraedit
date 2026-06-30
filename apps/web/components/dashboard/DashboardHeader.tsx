@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { Upload, LogOut, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/stores/authStore'
@@ -22,6 +23,13 @@ export function DashboardHeader({ onUpload }: DashboardHeaderProps) {
       </div>
 
       <div className="flex-1" />
+
+      <Link
+        href="/usage"
+        className="text-xs text-text-secondary hover:text-accent transition-colors hidden sm:block"
+      >
+        AI usage
+      </Link>
 
       <Button onClick={onUpload} size="sm" className="gap-2">
         <Upload className="w-4 h-4" aria-hidden />

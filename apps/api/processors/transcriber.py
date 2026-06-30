@@ -18,6 +18,22 @@ from config import settings
 
 log = logging.getLogger("viraedit.processors.transcriber")
 
+DEVANAGARI_WARNING_THRESHOLD = 0.3
+
+
+def _devanagari_language_warning(text: str, language: str) -> str | None:
+    """Flag likely language mismatch when Nepali was requested."""
+    if language.lower() not in ("ne", "nep"):
+        return None
+    devanagari_chars = sum(1 for c in text if "\u0900" <= c <= "\u097F")
+    total_chars = max(len(text), 1)
+    if devanagari_chars / total_chars < DEVANAGARI_WARNING_THRESHOLD:
+        return (
+            "Transcription completed but detected mostly non-Nepali text. "
+            "If your audio is in Nepali, the captions may need review."
+        )
+    return None
+
 
 async def transcribe_video(video_path: str | Path, language: str | None = None) -> dict[str, Any]:
     """
@@ -38,6 +54,9 @@ async def transcribe_video(video_path: str | Path, language: str | None = None) 
 
     if audio_path.exists():
         audio_path.unlink(missing_ok=True)
+
+    full_text = result.get("full_text") or ""
+    result["language_warning"] = _devanagari_language_warning(full_text, lang)
     return result
 
 
@@ -114,7 +133,6 @@ async def _transcribe_elevenlabs(audio_path: Path, language: str) -> dict[str, A
         "segments": segments,
         "full_text": data.get("text", ""),
     }
-
 
 def _transcribe_whisper_local(audio_path: Path, language: str) -> dict[str, Any]:
     """Local faster-whisper fallback when ElevenLabs is unavailable."""

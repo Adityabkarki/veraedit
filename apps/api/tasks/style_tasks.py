@@ -4,6 +4,7 @@ ViraEdit — Style intelligence Celery tasks (Phase 01).
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import json
 import time
 import uuid
@@ -66,7 +67,7 @@ def _persist_template(
     return template_id, template_key
 
 
-@celery_app.task(bind=True, name="tasks.style_intelligence.analyze", time_limit=300)
+@celery_app.task(bind=True, name="tasks.style_intelligence.analyze", time_limit=600)
 def analyze_style_task(
     self: Task,
     job_id: str,
@@ -81,9 +82,21 @@ def analyze_style_task(
 
     try:
         local_path = storage_sync.download_to_temp(video_key, job_id)
-        template = asyncio.run(
-            analyze_reference_video(local_path, project_id, source_url=source_url)
-        )
+
+        def _run_analysis() -> dict:
+            return asyncio.run(
+                analyze_reference_video(
+                    local_path,
+                    project_id,
+                    source_url=source_url,
+                    job_id=job_id,
+                    workspace_id=user_id,
+                )
+            )
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(_run_analysis)
+            template = future.result(timeout=300)
         template_id, template_key = _persist_template(
             template,
             job_id=job_id,
@@ -114,7 +127,7 @@ def analyze_style_task(
                 pass
 
 
-@celery_app.task(bind=True, name="tasks.style_intelligence.chain_download", time_limit=600)
+@celery_app.task(bind=True, name="tasks.style_intelligence.chain_download", time_limit=2100)
 def chain_download_then_analyze(
     self: Task,
     job_id: str,
@@ -126,7 +139,7 @@ def chain_download_then_analyze(
     """Poll ingest download job, then run Gemini style analysis."""
     update_job_sync(job_id, status="processing", result={"step": "downloading_reference"})
 
-    for _ in range(60):
+    for _ in range(360):
         dl_job = get_job_sync(download_job_id)
         if dl_job and dl_job.status.value == "done":
             video_key = (dl_job.result or {}).get("video_key")
@@ -144,3 +157,4 @@ def chain_download_then_analyze(
         time.sleep(5)
 
     update_job_sync(job_id, status="failed", error="Reference download timed out.")
+    raise TimeoutError("Reference download timed out after 30 minutes.")

@@ -12,7 +12,7 @@ from typing import Any
 from processors.caption_renderer import render_captions
 from processors.clip_finder import find_viral_moments
 from processors.reframer import PLATFORM_SPECS, export_for_platform, reframe_video
-from processors.text_editor import apply_cuts, get_duration
+from processors.text_editor import apply_cuts_precise, get_duration
 
 PLATFORM_DURATION_LIMITS = {
     platform: spec["max_duration"]
@@ -59,7 +59,7 @@ async def extract_shorts_for_platforms(
             cuts.append({"start": 0.0, "end": cand["start"]})
         if cand["end"] < total_duration - 0.1:
             cuts.append({"start": cand["end"], "end": total_duration})
-        apply_cuts(video, base_clip_path, cuts)
+        apply_cuts_precise(video, base_clip_path, cuts, force_reencode=True)
 
         captioned_path = clip_dir / "captioned.mp4"
         offset = cand["start"]
@@ -83,8 +83,11 @@ async def extract_shorts_for_platforms(
             captioned_path = base_clip_path
 
         reframed_path = clip_dir / "reframed_9x16.mp4"
+        reframe_warning: str | None = None
         try:
-            reframe_video(captioned_path, reframed_path, 1080, 1920, mode="face_track")
+            _, reframe_warning = reframe_video(
+                captioned_path, reframed_path, 1080, 1920, mode="face_track"
+            )
         except Exception:
             reframed_path = captioned_path
 
@@ -103,6 +106,7 @@ async def extract_shorts_for_platforms(
                 "score": cand["score"],
                 "duration": round(cand["end"] - cand["start"], 2),
                 "local_path": out_path.as_posix(),
+                "reframe_warning": reframe_warning,
             })
 
     return results

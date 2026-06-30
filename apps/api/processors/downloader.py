@@ -44,20 +44,36 @@ def download_video(url: str, job_id: str) -> Path:
     ffmpeg_dir = str(ffmpeg_path.parent) if ffmpeg_path.parent != Path(".") else None
 
     ydl_opts: dict = {
-        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+        "format": "bv*+ba/b",
         "merge_output_format": "mp4",
         "outtmpl": out_path.as_posix(),
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
         "playlistend": 1,
+        "socket_timeout": 30,
+        "retries": 10,
     }
     if ffmpeg_dir:
         ydl_opts["ffmpeg_location"] = ffmpeg_dir
 
     log.info("ingest_download_started", job_id=job_id, url=url)
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url])
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+    except yt_dlp.utils.DownloadError as exc:
+        error_msg = str(exc)
+        log.warning("ingest_download_failed", job_id=job_id, error=error_msg)
+        if "private" in error_msg.lower():
+            raise ValueError(
+                "This video is private or requires login to view."
+            ) from exc
+        if "unavailable" in error_msg.lower():
+            raise ValueError("This video is no longer available.") from exc
+        raise ValueError(
+            "Couldn't download this video. The platform may have changed how "
+            "it serves content — try a different link or upload the file directly."
+        ) from exc
 
     if not out_path.exists():
         candidates = sorted(
@@ -68,7 +84,9 @@ def download_video(url: str, job_id: str) -> Path:
         if candidates:
             out_path = candidates[0]
         else:
-            raise RuntimeError("Download finished but the video file was not found.")
+            raise ValueError(
+                "Download completed but no file was produced — please try again."
+            )
 
     log.info("ingest_download_complete", job_id=job_id, path=str(out_path))
     return out_path

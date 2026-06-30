@@ -20,6 +20,16 @@ export interface TemplateSlot {
   end: number
   label: string
   requirement: SlotRequirement | null
+  audio_cue?: string | null
+}
+
+export interface AudioProfile {
+  music_genre: string
+  music_energy_arc: string
+  has_sfx_hits: boolean
+  sfx_style?: string | null
+  music_ducking_behavior: string
+  voice_emotion_arc: string
 }
 
 export interface StyleTemplateV2 {
@@ -31,6 +41,8 @@ export interface StyleTemplateV2 {
   pacing: 'fast' | 'medium' | 'slow'
   visual_style: string
   caption_style: Record<string, unknown>
+  audio_profile: AudioProfile
+  director_notes: string[]
   music_mood?: string | null
   slots: TemplateSlot[]
   transitions: Array<{ at: number; effect: string }>

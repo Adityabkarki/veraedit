@@ -27,13 +27,35 @@ FILLERS_NE = {
 
 
 def apply_cuts(input_path: str | Path, output_path: str | Path, cuts: list[dict[str, Any]]) -> str:
-    """Remove cut ranges from video and concatenate kept segments."""
+    """Remove cut ranges from video and concatenate kept segments (fast stream copy)."""
+    return apply_cuts_precise(input_path, output_path, cuts, force_reencode=False)
+
+
+def apply_cuts_precise(
+    input_path: str | Path,
+    output_path: str | Path,
+    cuts: list[dict[str, Any]],
+    *,
+    force_reencode: bool = False,
+) -> str:
+    """
+    Remove cut ranges and concatenate kept segments.
+
+    When force_reencode=True, re-encodes each segment for frame-accurate cuts
+    (required for short hooks/sizzle). Otherwise uses -c copy for speed.
+    """
     in_path = Path(input_path)
     out_path = Path(output_path)
     duration = get_duration(in_path)
     keep = cuts_to_keep(cuts, duration)
     if not keep:
         raise ValueError("All segments would be removed. Keep at least one part of the video.")
+
+    codec_args = (
+        ["-c:v", "libx264", "-preset", "fast", "-c:a", "aac"]
+        if force_reencode
+        else ["-c", "copy"]
+    )
 
     tmp_dir = Path(tempfile.mkdtemp(prefix="viraedit_cuts_"))
     part_files: list[Path] = []
@@ -50,8 +72,7 @@ def apply_cuts(input_path: str | Path, output_path: str | Path, cuts: list[dict[
                     str(seg["start"]),
                     "-to",
                     str(seg["end"]),
-                    "-c",
-                    "copy",
+                    *codec_args,
                     part.as_posix(),
                     "-y",
                 ],

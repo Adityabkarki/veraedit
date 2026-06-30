@@ -14,9 +14,16 @@ import structlog
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from sqlalchemy import select
 
+from config import settings
 from dependencies import CurrentUser, DbDep, StorageDep
 from models import LibraryAsset, User
-from processors.asset_tagger import tag_image_asset, tag_video_asset
+from processors.asset_tagger import (
+    _IMAGE_TAG_COST_USD,
+    _VIDEO_TAG_COST_USD,
+    tag_image_asset,
+    tag_video_asset,
+)
+from services.ai_budget import budget
 from schemas.asset_tags import LibraryAssetOut
 from storage import (
     make_library_storage_key,
@@ -110,8 +117,22 @@ async def upload_library_asset(
         local_path.write_bytes(content)
         if asset_type == "video":
             tags = await tag_video_asset(local_path)
+            budget.record(
+                _VIDEO_TAG_COST_USD,
+                action="asset_tagging",
+                workspace_id=str(user.id),
+                provider="openai",
+                model=settings.OPENAI_MODEL_PRIMARY,
+            )
         else:
             tags = await tag_image_asset(local_path)
+            budget.record(
+                _IMAGE_TAG_COST_USD,
+                action="asset_tagging",
+                workspace_id=str(user.id),
+                provider="openai",
+                model=settings.OPENAI_MODEL_PRIMARY,
+            )
     finally:
         if local_path.exists():
             local_path.unlink()

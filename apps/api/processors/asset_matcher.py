@@ -65,10 +65,10 @@ def score_asset_against_requirement(asset_tags: dict, req: SlotRequirement) -> f
         score += 0.10
 
     final = round(score / weights_total, 3) if weights_total else 0.0
-    log.debug(
+    log.info(
         "asset_match_scored",
-        shot_type=asset_tags.get("shot_type"),
-        required_shot=req.shot_type,
+        slot_shot_type=req.shot_type,
+        asset_shot_type=asset_tags.get("shot_type"),
         score=final,
     )
     return final

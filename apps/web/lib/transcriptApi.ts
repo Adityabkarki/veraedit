@@ -9,7 +9,8 @@ export interface TranscriptQualityMetrics {
   low_confidence_count?: number
   quality_grade?: string
   word_count?: number
-  needs_review?: boolean
+    language_warning?: string
+    needs_review?: boolean
 }
 
 export interface TranscriptResponse {

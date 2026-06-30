@@ -19,11 +19,11 @@ from PIL import Image, ImageDraw
 from config import settings
 from processors.imagegen import image_path_to_video
 from processors.storage_helpers import storage_sync
-from services.ai_budget import budget
+from services.ai_costs import COSTS
 
 log = structlog.get_logger("viraedit.gap_generator")
 
-_IMAGE_GEN_COST_USD = 0.04
+_IMAGE_GEN_COST_USD = COSTS["gemini_image_generation"]
 _GEMINI_IMAGE_MODEL = "gemini-2.0-flash-exp-image-generation"
 
 
@@ -62,7 +62,6 @@ async def generate_missing_image(
                 f"High quality, suitable for a {aspect_ratio} social media video frame."
             )
             response = model.generate_content(prompt)
-            budget.record(_IMAGE_GEN_COST_USD, task="gap_generate_image")
 
             for part in response.parts:
                 inline = getattr(part, "inline_data", None)

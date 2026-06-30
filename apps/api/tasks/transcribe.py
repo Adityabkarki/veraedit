@@ -568,6 +568,14 @@ def transcribe_asset(self: Task, asset_id: str, force: bool = False) -> dict[str
 
     enriched_words, speakers_meta = enrich_transcript_for_storage(raw_words, seg_dicts)
     quality_metrics = compute_transcript_quality(enriched_words, seg_dicts)
+    from processors.transcriber import _devanagari_language_warning
+
+    lang_warning = _devanagari_language_warning(
+        transcript.full_text or "",
+        settings.WHISPER_LANGUAGE or "ne",
+    )
+    if lang_warning:
+        quality_metrics["language_warning"] = lang_warning
     quality_metrics.pop("stt_progress", None)
     words_json = json.dumps(enriched_words, ensure_ascii=False)
     speakers_json = json.dumps(speakers_meta, ensure_ascii=False)
