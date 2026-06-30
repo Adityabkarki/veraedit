@@ -20,6 +20,13 @@ class JobType(str, enum.Enum):
     INGEST_URL = "INGEST_URL"
     UPLOAD_FILE = "UPLOAD_FILE"
     STYLE_CLONE = "STYLE_CLONE"
+    STYLE_INTELLIGENCE = "STYLE_INTELLIGENCE"
+    TRANSCRIBE = "TRANSCRIBE"
+    RENDER_CAPTIONS = "RENDER_CAPTIONS"
+    APPLY_CUTS = "APPLY_CUTS"
+    EXTRACT_SHORTS = "EXTRACT_SHORTS"
+    EXTRACT_CHAPTERS = "EXTRACT_CHAPTERS"
+    GENERATE_SIZZLE = "GENERATE_SIZZLE"
 
 
 class JobStatus(str, enum.Enum):
@@ -43,7 +50,11 @@ class Job(BaseModel):
         nullable=False,
     )
     status: Mapped[JobStatus] = mapped_column(
-        Enum(JobStatus, name="job_status_enum"),
+        Enum(
+            JobStatus,
+            name="job_status_enum",
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
         default=JobStatus.QUEUED,
         nullable=False,
         index=True,

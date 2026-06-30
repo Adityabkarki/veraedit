@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from .cost import Cost
     from .embedding import Embedding
     from .highlight import Highlight
+    from .project_media import ProjectMedia
     from .render import Render
     from .short import Short
     from .suggestion import Suggestion
@@ -97,6 +98,9 @@ class Project(BaseModel):
     )
     costs: Mapped[List["Cost"]] = relationship(
         "Cost", back_populates="project", cascade="all, delete-orphan"
+    )
+    media_items: Mapped[List["ProjectMedia"]] = relationship(
+        "ProjectMedia", back_populates="project", cascade="all, delete-orphan"
     )
     embeddings: Mapped[List["Embedding"]] = relationship(
         "Embedding", back_populates="project", cascade="all, delete-orphan"

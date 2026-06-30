@@ -186,6 +186,7 @@ describe('ShortsMode — card interactions', () => {
       filename: 'test.mp4',
       durationSeconds: 120,
       status: 'ready',
+      storageKey: 'projects/test/assets/asset-1',
       videoUrl: 'http://example.com/v.mp4',
     })
     render(<ShortsMode projectId="proj-1" />)
@@ -207,6 +208,7 @@ describe('ShortsMode — card interactions', () => {
       filename: 'test.mp4',
       durationSeconds: 120,
       status: 'ready',
+      storageKey: 'projects/test/assets/asset-1',
       videoUrl: 'http://example.com/v.mp4',
     })
     render(<ShortsMode />)

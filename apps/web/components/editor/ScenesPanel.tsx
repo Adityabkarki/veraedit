@@ -13,6 +13,7 @@ import { RegenerateConfirmDialog } from '@/components/editor/RegenerateConfirmDi
 import { usePipelineRegenerate } from '@/lib/usePipelineRegenerate'
 import type { RegenerateErrorDetail } from '@/lib/pipelineApi'
 import { downloadShort, exportShortVideo } from '@/lib/shortsExport'
+import { ChapterExtractor } from '@/components/chapters/ChapterExtractor'
 
 function formatRange(start: number, end: number): string {
   const fmt = (s: number) => {
@@ -129,6 +130,10 @@ export function ScenesPanel({ projectId }: { projectId?: string }) {
           if (r.ok) setDialogOpen(false)
         }}
       />
+
+      {projectId && asset?.storageKey && (
+        <ChapterExtractor projectId={projectId} videoKey={asset.storageKey} />
+      )}
 
       <div className="px-3 py-2 border-b border-bg-overlay flex-shrink-0 space-y-2">
         <div className="flex items-center justify-between gap-2">

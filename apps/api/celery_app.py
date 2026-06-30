@@ -52,6 +52,12 @@ celery_app = Celery(
         "tasks.style_extract_task",    # EP-2.8: Style transfer AI queue
         "tasks.ingest_tasks",          # Module 01: Video ingestion
         "tasks.style_clone_task",      # Module 02: Style cloning
+        "tasks.style_tasks",           # Phase 01: Style intelligence
+        "tasks.shorts_tasks",          # Phase 03: Platform shorts extraction
+        "tasks.chapter_tasks",         # Phase 04: Chapter extraction
+        "tasks.sizzle_tasks",          # Phase 05: Sizzle reel generation
+        "tasks.caption_tasks",         # Module 03: Captions STT + burn-in
+        "tasks.cut_tasks",             # Module 04: Text-based cuts
     ],
 )
 
@@ -100,6 +106,12 @@ celery_app.conf.update(
         "style_extract":               {"queue": "ai"},
         "tasks.ingest.*":              {"queue": "default"},
         "tasks.style_clone.*":       {"queue": "ai"},
+        "tasks.style_intelligence.*": {"queue": "ai"},
+        "tasks.shorts.*":            {"queue": "render"},
+        "tasks.chapters.*":          {"queue": "render"},
+        "tasks.sizzle.*":            {"queue": "render"},
+        "tasks.caption.*":           {"queue": "transcription"},
+        "tasks.cut.*":               {"queue": "render"},
     },
 
     # Default queue for unrouted tasks

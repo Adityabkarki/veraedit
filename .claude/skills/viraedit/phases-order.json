@@ -1,0 +1,72 @@
+[
+  {
+    "id": "00",
+    "name": "foundation",
+    "title": "Foundation: Asset Library & Tagging",
+    "file": "phase-0-foundation/SKILL.md",
+    "description": "Build the tagged asset library that underpins all style matching"
+  },
+  {
+    "id": "01",
+    "name": "style-intelligence-v2",
+    "title": "Style Intelligence v2: The Director's Blueprint",
+    "file": "phase-1-style-intelligence/SKILL.md",
+    "description": "Gemini-powered deep style fingerprinting with audio/music profiling"
+  },
+  {
+    "id": "02",
+    "name": "asset-gap-resolution",
+    "title": "Asset Gap Resolution",
+    "file": "phase-2-asset-gap-resolution/SKILL.md",
+    "description": "Match assets to template slots; generate missing ones on demand"
+  },
+  {
+    "id": "03",
+    "name": "shorts-extraction",
+    "title": "Shorts/Reels Extraction",
+    "file": "phase-3-shorts-extraction/SKILL.md",
+    "description": "One-click platform-correct short-form video extraction"
+  },
+  {
+    "id": "04",
+    "name": "chapter-extraction",
+    "title": "Chapter Extraction",
+    "file": "phase-4-chapter-extraction/SKILL.md",
+    "description": "Standalone downloadable chapter clips from long videos"
+  },
+  {
+    "id": "05",
+    "name": "sizzle-trailer",
+    "title": "Sizzle Reel / Trailer / Highlight Generation",
+    "file": "phase-5-sizzle-trailer/SKILL.md",
+    "description": "Fast-cut highlight trailer from the most exciting moments"
+  },
+  {
+    "id": "06",
+    "name": "one-click-apply",
+    "title": "One-Click Apply",
+    "file": "phase-6-one-click-apply/SKILL.md",
+    "description": "End-to-end non-editor user flow tying all phases together"
+  },
+  {
+    "id": "07",
+    "name": "ai-spend-meter",
+    "title": "AI Spend Meter",
+    "file": "phase-7-ai-spend-meter/SKILL.md",
+    "description": "Live per-action, per-project AI cost visibility"
+  },
+  {
+    "id": "08",
+    "name": "fine-tuning-audit",
+    "title": "Fine-Tuning & Reliability Audit",
+    "file": "phase-8-fine-tuning-audit/SKILL.md",
+    "description": "Hardening pass on all existing modules with documented fixes"
+  },
+  {
+    "id": "09",
+    "name": "remotion-rendering",
+    "title": "Remotion-Based Caption & Motion Graphics Rendering",
+    "file": "phase-9-remotion-rendering/SKILL.md",
+    "description": "Upgrade typography with React-based Remotion rendering pipeline"
+  }
+]

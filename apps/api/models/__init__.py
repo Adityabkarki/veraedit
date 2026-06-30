@@ -4,10 +4,12 @@ Import all models here so Alembic autogenerate can discover them.
 """
 from .base import Base, BaseModel
 from .asset import Asset, AssetStatus, MediaType
+from .asset_library import LibraryAsset
 from .brand import Brand
 from .cost import Cost
 from .embedding import Embedding, EMBEDDING_DIM
 from .project import ContentType, EditorMode, Project, ProjectStatus
+from .project_media import ProjectMedia
 from .render import Render, RenderPlatform, RenderStatus
 from .template import Template
 from .job import Job, JobStatus, JobType
@@ -28,6 +30,7 @@ __all__ = [
     "Asset",
     "AssetStatus",
     "MediaType",
+    "LibraryAsset",
     "Brand",
     "Cost",
     "Embedding",
@@ -35,6 +38,7 @@ __all__ = [
     "ContentType",
     "EditorMode",
     "Project",
+    "ProjectMedia",
     "ProjectStatus",
     "Render",
     "RenderPlatform",

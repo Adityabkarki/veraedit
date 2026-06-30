@@ -18,6 +18,8 @@ export interface EditorAsset {
   filename:        string
   durationSeconds: number | null
   status:          AssetStatus
+  /** MinIO/S3 storage key used for cut/transcode jobs. */
+  storageKey:      string
   /** Pre-signed MinIO URL the <video> element can stream from (1h TTL). */
   videoUrl:        string | null
   /** Set when status is error (from backend error_message). */

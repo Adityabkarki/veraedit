@@ -19,6 +19,8 @@ import { useShortsStore, PLATFORM_ORDER, PLATFORM_LABELS } from '@/stores/shorts
 import type { SortBy, Platform }                          from '@/stores/shortsStore'
 import { ShortsCard }    from '@/components/editor/shorts/ShortsCard'
 import { BulkActionBar } from '@/components/editor/shorts/BulkActionBar'
+import { PlatformShortsExtractor } from '@/components/shorts/PlatformShortsExtractor'
+import { useAssetStore } from '@/stores/assetStore'
 
 const SORT_OPTIONS: { value: SortBy; label: string }[] = [
   { value: 'virality',  label: '🔥 Virality'  },
@@ -39,6 +41,7 @@ export function ShortsMode({ projectId }: { projectId?: string }) {
     shorts,
   } = useShortsStore()
 
+  const asset = useAssetStore((s) => s.asset)
   const visible     = filteredShorts()
   const allSelected = selectedShortIds.length === shorts.length && shorts.length > 0
 
@@ -124,6 +127,10 @@ export function ShortsMode({ projectId }: { projectId?: string }) {
           </button>
         </div>
       </div>
+
+      {projectId && asset?.storageKey && (
+        <PlatformShortsExtractor videoKey={asset.storageKey} projectId={projectId} />
+      )}
 
       {/* ── Grid ────────────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto p-4">

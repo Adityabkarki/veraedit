@@ -12,6 +12,7 @@ import { ProjectGrid } from './ProjectGrid'
 import { EmptyState } from './EmptyState'
 import { UploadModal, type UploadHelpers } from './UploadModal'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
+import { AssetLibraryGrid } from '@/components/library/AssetLibraryGrid'
 
 /**
  * Dashboard — main client component.
@@ -146,6 +147,8 @@ export function DashboardPage() {
         ) : (
           <ProjectGrid projects={projects} />
         )}
+
+        <AssetLibraryGrid />
       </main>
 
       <UploadModal

@@ -12,6 +12,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .base import BaseModel
 
 if TYPE_CHECKING:
+    from .asset_library import LibraryAsset
     from .brand import Brand
     from .project import Project
 
@@ -41,4 +42,7 @@ class User(BaseModel):
     )
     brands: Mapped[List["Brand"]] = relationship(
         "Brand", back_populates="user", cascade="all, delete-orphan"
+    )
+    library_assets: Mapped[List["LibraryAsset"]] = relationship(
+        "LibraryAsset", back_populates="user", cascade="all, delete-orphan"
     )

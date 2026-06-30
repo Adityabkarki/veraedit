@@ -13,6 +13,7 @@ Start with SKILL.md and skills-order.json.
 Check scripts/build_state.py to find which module is current.
 
 ## When User Says "continue"
+0. Read 00-NORTH-STAR.md first if you haven't this session — it defines the product vision
 1. Read skills-order.json — the ordered list of 10 modules
 2. Read scripts/build_state.py — find current_module_index
 3. Look up the module at that index in skills-order.json
@@ -21,6 +22,17 @@ Check scripts/build_state.py to find which module is current.
 6. Write tests and run them. Fix failures before moving on.
 7. Run: python scripts/build_state.py next  (advances index)
 8. End with: "Done. Next: [module title]. Type continue."
+
+## When User Says "let's continue phase" (or "continue phase", "next phase")
+0. Read 00-NORTH-STAR.md first if you haven't this session — it defines the product vision
+1. Read phases-order.json — the ordered list of 10 phases (00-09)
+2. Run: python scripts/build_state.py --phases show  (find current phase index)
+3. Look up the phase at that index in phases-order.json
+4. Read the phase file from its directory (e.g., phase-3-shorts-extraction/SKILL.md)
+5. Build everything for that phase. No skipping.
+6. Write tests and run them. Fix failures before moving on.
+7. Run: python scripts/build_state.py --phases next  (advances index)
+8. End with: "Done. Next phase: [phase title]. Type continue phase."
 
 ## Reference Files (still available)
 phase-map.md, architecture.md, tech-decisions.md, and other

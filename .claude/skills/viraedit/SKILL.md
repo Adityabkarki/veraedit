@@ -11,6 +11,9 @@ description: >
   has ever used — simpler than CapCut, smarter than Premiere. Each invocation
   completes exactly one epic with all tasks, tests, and error logging included.
   ALWAYS use this skill when the user says "continue" if ViraEdit context exists.
+  When the user says "let's continue phase" (or "continue phase"), use the
+   phases-order.json and build_state.py --phases mode to track and build the
+   10 phases (00-09) from the phase-*/ folders.
 ---
 
 # ViraEdit — Master Overview
@@ -196,23 +199,32 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 
 ---
 
-## Implementation Order (10 Ordered Modules)
+## Implementation Order — Two Tracks
 
+### Track A: 10 Ordered Modules (original build)
 The build is driven by `skills-order.json`. Each entry references a skill file.
 The agent reads `build_state.py` to find the current module index, then loads the corresponding skill file.
+Trigger: "continue", "next task", "keep going"
 
-| # | Module | Skill File | What it delivers |
-|---|--------|------------|------------------|
-| 01 | Ingestion | `01-ingestion.md` | Accept URL/file upload; download + extract |
-| 02 | Style Cloning | `02-style-cloning.md` | Analyze reference video; extract style template |
-| 03 | Captions | `03-captions.md` | Transcription; Nepali + English; animated captions |
-| 04 | Text Editor | `04-text-editor.md` | Edit transcript → auto-cut video, silence/filler removal |
-| 05 | AI Enhancements | `05-ai-enhancements.md` | Color grading, audio leveling, background removal, B-roll |
-| 06 | Image Gen | `06-image-gen.md` | LLM-based image generation inside editor |
-| 07 | Reframe & Export | `07-reframe-export.md` | Auto-reframe; multi-platform export; auto-zoom |
-| 08 | Smart Clips | `08-smart-clips.md` | Long video → viral clips; chapter detection; highlights |
-| 09 | Brand Workspace | `09-brand-workspace.md` | Per-workspace brand kit: fonts, colors, logos, templates |
-| 10 | Deployment | `10-deployment.md` | Docker Compose + Nginx + VPS deploy; workers; storage |
+### Track B: 10 Phases (new cursor-style phases)
+The phases build is driven by `phases-order.json` in the skills root.
+Each phase lives in its own directory (`phase-0-foundation/` through `phase-9-remotion/`) containing a `SKILL.md`.
+Read `00-NORTH-STAR.md` before any phase — it defines the product vision.
+Use `python scripts/build_state.py --phases` to show/advance phase state.
+Trigger: "let's continue phase", "continue phase"
+
+| # | Phase | File | What it delivers |
+|---|-------|------|------------------|
+| 00 | Foundation: Asset Library & Tagging | `phase-0-foundation/SKILL.md` | Structured asset library with machine-readable tags |
+| 01 | Style Intelligence v2 | `phase-1-style-intelligence/SKILL.md` | Gemini "Director's Blueprint" (visual + audio fingerprint) |
+| 02 | Asset Gap Resolution | `phase-2-asset-gap-resolution/SKILL.md` | Match/generate assets for template slots |
+| 03 | Shorts/Reels Extraction | `phase-3-shorts-extraction/SKILL.md` | Platform-correct short-form clip extraction |
+| 04 | Chapter Extraction | `phase-4-chapter-extraction/SKILL.md` | Standalone downloadable chapter clips |
+| 05 | Sizzle/Trailer | `phase-5-sizzle-trailer/SKILL.md` | Fast-cut highlight reel generation |
+| 06 | One-Click Apply | `phase-6-one-click-apply/SKILL.md` | Non-editor end-to-end user flow |
+| 07 | AI Spend Meter | `phase-7-ai-spend-meter/SKILL.md` | Live per-action AI cost visibility |
+| 08 | Fine-Tuning & Audit | `phase-8-fine-tuning-audit/SKILL.md` | Hardening pass on all existing modules |
+| 09 | Remotion Rendering | `phase-9-remotion-rendering/SKILL.md` | React-based caption & motion graphics pipeline |
 
 Read `skills-order.json`, `build_state.py`, and the current module's skill file.
 Existing `references/phase-map.md` can supplement with detailed tasks.

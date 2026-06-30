@@ -17,6 +17,7 @@ import { useTimelineStore } from '@/stores/timelineStore'
 import { ensurePrimaryMediaClips } from '@/lib/timelineLayers'
 import { useAssetStore, type AssetStatus } from '@/stores/assetStore'
 import { useCaptionsStore } from '@/stores/captionsStore'
+import { useMediaStore } from '@/stores/mediaStore'
 import { useEditorStore } from '@/stores/editorStore'
 import { applyPodcastAutopilotIfNeeded } from '@/lib/podcastAutopilot'
 import { useAutoEditStore } from '@/stores/autoEditStore'
@@ -33,6 +34,7 @@ interface BackendAsset {
   status: AssetStatus
   original_filename: string
   duration_seconds: number | null
+  storage_key: string
   error_message?: string | null
   media_metadata?: { content_type?: string } | null
 }
@@ -169,6 +171,7 @@ export async function loadEditorProject(
         filename: asset.original_filename,
         durationSeconds: asset.duration_seconds,
         status: 'error',
+        storageKey: asset.storage_key,
         videoUrl: useAssetStore.getState().asset?.videoUrl ?? null,
         errorMessage: errMsg,
       })
@@ -204,6 +207,7 @@ export async function loadEditorProject(
       filename: asset.original_filename,
       durationSeconds: asset.duration_seconds,
       status: asset.status,
+      storageKey: asset.storage_key,
       videoUrl,
       errorMessage: null,
     })
@@ -263,6 +267,20 @@ export async function loadEditorProject(
       ? (hl.data!.highlights as ApiHighlight[])
       : [],
   )
+
+  const md = await api.get<Array<{ id: string; name: string; type: string; url: string; thumbnailUrl?: string | null; fileSize?: number }>>(
+    `/projects/${projectId}/media`,
+  )
+  if (md.data && Array.isArray(md.data)) {
+    useMediaStore.getState().setItems(md.data.map((m) => ({
+      id: m.id,
+      name: m.name,
+      type: m.type as 'video' | 'audio' | 'image',
+      url: m.url,
+      thumbnailUrl: m.thumbnailUrl ?? undefined,
+      fileSize: m.fileSize ?? undefined,
+    })))
+  }
 
   const sg = await api.get<{ suggestions: ApiSuggestion[] }>(
     `/projects/${projectId}/assets/${asset.id}/suggestions`,

@@ -1,32 +1,46 @@
 /**
  * Upload supplementary media (images, audio, extra video) to a project.
  *
- * Files are loaded locally for preview. Backend upload happens when the
- * media is used on the timeline.
+ * Files are uploaded to the backend for persistence across page refreshes.
  */
 
-import { useMediaStore, type MediaType } from '@/stores/mediaStore'
+import { api } from '@/lib/api'
+import { useMediaStore, type MediaItem, type MediaType } from '@/stores/mediaStore'
+
+const TYPE_MAP: Record<string, MediaType> = {
+  image: 'image',
+  audio: 'audio',
+  video: 'video',
+}
 
 export async function uploadMediaFile(
-  _projectId: string,
+  projectId: string,
   file: File,
 ): Promise<{ id?: string; error?: string }> {
-  const type: MediaType = file.type.startsWith('image/')
-    ? 'image'
-    : file.type.startsWith('audio/')
-      ? 'audio'
-      : 'video'
+  const formData = new FormData()
+  formData.append('file', file)
 
-  const id = crypto.randomUUID()
-  const blobUrl = URL.createObjectURL(file)
+  const res = await api.postForm<{
+    id: string
+    name: string
+    type: string
+    url: string
+    fileSize?: number
+  }>(`/projects/${projectId}/media`, formData)
 
-  useMediaStore.getState().addItem({
-    id,
-    name: file.name,
-    type,
-    url: blobUrl,
-    fileSize: file.size,
-  })
+  if (res.error || !res.data) {
+    return { error: res.error ?? 'Upload failed.' }
+  }
 
-  return { id }
+  const item: MediaItem = {
+    id: res.data.id,
+    name: res.data.name,
+    type: TYPE_MAP[res.data.type] ?? 'video',
+    url: res.data.url,
+    fileSize: res.data.fileSize,
+  }
+
+  useMediaStore.getState().addItem(item)
+
+  return { id: item.id }
 }

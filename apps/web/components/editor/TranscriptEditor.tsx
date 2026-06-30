@@ -47,6 +47,7 @@ import {
   SelectionToolbar,
   DeleteConfirmModal,
 } from '@/components/editor/transcript/SelectionToolbar'
+import { TextEditorPanel } from '@/components/editor/TextEditorPanel'
 
 export function TranscriptEditor({ projectId }: { projectId?: string } = {}) {
   const {
@@ -70,6 +71,7 @@ export function TranscriptEditor({ projectId }: { projectId?: string } = {}) {
   const { currentTime } = usePlayerStore()
   const containerRef    = useRef<HTMLDivElement>(null)
   const [searchOpen, setSearchOpen]         = useState(false)
+  const [cutMode, setCutMode]               = useState(false)
   const [toolbarPos, setToolbarPos]         = useState<{ x: number; y: number } | null>(null)
 
   // ── Sync currentWordId with player time ────────────────────────────────────
@@ -249,6 +251,22 @@ export function TranscriptEditor({ projectId }: { projectId?: string } = {}) {
             )}
           </span>
 
+          <button
+            type="button"
+            data-testid="toggle-cut-mode"
+            onClick={() => setCutMode((v) => !v)}
+            aria-pressed={cutMode}
+            title="Text-based video cuts"
+            className={[
+              'px-2 py-1 rounded text-[10px] font-medium transition-colors',
+              cutMode
+                ? 'bg-accent text-white'
+                : 'text-text-secondary hover:text-accent hover:bg-accent/10',
+            ].join(' ')}
+          >
+            {cutMode ? 'Script' : 'Cut video'}
+          </button>
+
           {projectId && asset?.id && (
             <button
               type="button"
@@ -294,13 +312,18 @@ export function TranscriptEditor({ projectId }: { projectId?: string } = {}) {
         </div>
 
         {/* ── Filler / silence controls ─────────────────────────────────── */}
-        <FillerControls />
+        {!cutMode && <FillerControls />}
 
         {/* ── Search bar ────────────────────────────────────────────────── */}
-        {searchOpen && (
+        {!cutMode && searchOpen && (
           <TranscriptSearch onClose={() => { setSearchOpen(false) }} />
         )}
 
+        {/* ── Text-based cut mode (Module 04) ───────────────────────────── */}
+        {cutMode ? (
+          <TextEditorPanel projectId={projectId} />
+        ) : (
+        <>
         {/* ── Transcript body ────────────────────────────────────────────── */}
         <div
           ref={containerRef}
@@ -360,13 +383,15 @@ export function TranscriptEditor({ projectId }: { projectId?: string } = {}) {
             </div>
           )}
         </div>
+        </>
+        )}
       </div>
 
       {/* ── Floating toolbar above selection ─────────────────────────────── */}
-      <SelectionToolbar position={toolbarPos} />
+      {!cutMode && <SelectionToolbar position={toolbarPos} />}
 
       {/* ── Delete confirmation modal ────────────────────────────────────── */}
-      <DeleteConfirmModal />
+      {!cutMode && <DeleteConfirmModal />}
     </>
   )
 }

@@ -164,7 +164,7 @@ export function EditorLayout({
             data-testid="center-panel"
             className="flex-1 overflow-hidden min-w-0 min-h-0"
           >
-            <VideoPreview />
+            <VideoPreview projectId={projectId} />
           </div>
 
           {/* Right panel */}
@@ -181,7 +181,7 @@ export function EditorLayout({
                 className="flex-shrink-0 min-h-0 h-full flex flex-col overflow-hidden"
               >
                 {rightPanelMode === 'captions'
-                  ? <SubtitleEditorPanel />
+                  ? <SubtitleEditorPanel projectId={projectId} />
                   : rightPanelMode === 'producer'
                   ? <AIProducerPanel />
                   : rightPanelMode === 'effects'

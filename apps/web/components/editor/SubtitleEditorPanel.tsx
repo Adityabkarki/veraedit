@@ -19,10 +19,11 @@ import { usePlayerStore }    from '@/stores/playerStore'
 import { useUIStore }        from '@/stores/uiStore'
 import { CaptionRow }        from '@/components/editor/captions/CaptionRow'
 import { StylePicker }       from '@/components/editor/captions/StylePicker'
+import { CaptionStylePicker } from '@/components/editor/CaptionStylePicker'
 import { FindReplaceBar }    from '@/components/editor/captions/FindReplaceBar'
 import { ExportOptions }     from '@/components/editor/captions/ExportOptions'
 
-export function SubtitleEditorPanel() {
+export function SubtitleEditorPanel({ projectId }: { projectId?: string } = {}) {
   const { captions, editingId, selectedId, searchMatchIds } = useCaptionsStore()
   const { currentTime, setActiveCaptionText }                = usePlayerStore()
   const { setRightPanelMode }                                = useUIStore()
@@ -105,6 +106,7 @@ export function SubtitleEditorPanel() {
 
       {/* ── Style Picker ───────────────────────────────────────────────────── */}
       <StylePicker />
+      <CaptionStylePicker projectId={projectId} />
 
       {/* ── Find/Replace Bar ───────────────────────────────────────────────── */}
       {showFindReplace && (

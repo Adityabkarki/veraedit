@@ -111,4 +111,4 @@ export function LeftPanel({ projectId }: LeftPanelProps = {}) {
       </div>
     </div>
   )
-}
+}[]

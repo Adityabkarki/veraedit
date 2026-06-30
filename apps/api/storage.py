@@ -58,6 +58,16 @@ ALLOWED_MIME_TYPES: dict[str, str] = {
     "audio/flac": "FLAC",
     "audio/x-flac": "FLAC",
     "audio/aac": "AAC",
+    # Images (library uploads)
+    "image/jpeg": "JPEG",
+    "image/png": "PNG",
+    "image/webp": "WebP",
+    "image/gif": "GIF",
+}
+
+# Library-only MIME types (video + image, no audio)
+LIBRARY_ALLOWED_MIME_TYPES: dict[str, str] = {
+    k: v for k, v in ALLOWED_MIME_TYPES.items() if k.startswith(("video/", "image/"))
 }
 
 # Map extensions → MIME types for clients that send wrong MIME types
@@ -74,6 +84,11 @@ EXTENSION_MIME_MAP: dict[str, str] = {
     ".ogg": "audio/ogg",
     ".flac": "audio/flac",
     ".aac": "audio/aac",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
 }
 
 MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 * 1024  # 10 GB
@@ -104,6 +119,23 @@ def validate_file(filename: str, mime_type: str, file_size: Optional[int]) -> st
     return canonical_mime
 
 
+def validate_library_file(filename: str, mime_type: str, file_size: Optional[int]) -> str:
+    """
+    Validate a library upload (video or image only). Returns canonical MIME type.
+    """
+    if file_size is not None and file_size > MAX_FILE_SIZE_BYTES:
+        raise FileTooLargeError(max_size_gb=10.0)
+
+    ext = PurePosixPath(filename).suffix.lower()
+    canonical_mime = EXTENSION_MIME_MAP.get(ext) or mime_type.lower()
+
+    if canonical_mime not in LIBRARY_ALLOWED_MIME_TYPES:
+        allowed_names = ", ".join(sorted(set(LIBRARY_ALLOWED_MIME_TYPES.values())))
+        raise UnsupportedFileTypeError(mime_type=canonical_mime)
+
+    return canonical_mime
+
+
 def make_storage_key(project_id: str, asset_id: str, filename: str) -> str:
     """
     Build the MinIO object key for an asset.
@@ -116,6 +148,16 @@ def make_storage_key(project_id: str, asset_id: str, filename: str) -> str:
     # Keep only safe characters: alphanumeric, dots, hyphens, underscores
     safe_name = re.sub(r"[^\w.\-]", "_", PurePosixPath(filename).name)
     return f"projects/{project_id}/assets/{asset_id}/{safe_name}"
+
+
+def make_library_storage_key(user_id: str, asset_id: str, filename: str) -> str:
+    """
+    Build the MinIO object key for a reusable library asset.
+
+    Format: users/{user_id}/library/{asset_id}/{safe_filename}
+    """
+    safe_name = re.sub(r"[^\w.\-]", "_", PurePosixPath(filename).name)
+    return f"users/{user_id}/library/{asset_id}/{safe_name}"
 
 
 # ── StorageService ────────────────────────────────────────────────────────────

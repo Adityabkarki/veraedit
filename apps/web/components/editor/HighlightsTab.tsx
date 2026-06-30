@@ -12,6 +12,7 @@ import { useAssetStore } from '@/stores/assetStore'
 import { RegeneratePromptDialog } from '@/components/editor/RegeneratePromptDialog'
 import { api } from '@/lib/api'
 import { downloadShort, exportShortVideo } from '@/lib/shortsExport'
+import { SizzleGenerator } from '@/components/sizzle/SizzleGenerator'
 
 const PLATFORM_LABELS: Record<HighlightPlatform, string> = {
   youtube: 'YouTube 16:9',
@@ -144,6 +145,10 @@ export function HighlightsTab({ projectId }: HighlightsTabProps) {
         onClose={() => setPromptOpen(false)}
         onConfirm={runRegenerate}
       />
+
+      {projectId && asset?.storageKey && (
+        <SizzleGenerator projectId={projectId} videoKey={asset.storageKey} />
+      )}
 
       <div className="px-3 py-2 border-b border-bg-overlay space-y-2 flex-shrink-0">
         <div className="flex items-center justify-between gap-2">

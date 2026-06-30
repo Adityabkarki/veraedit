@@ -109,6 +109,7 @@ describe('ShortsTab — play / export / platform scores', () => {
       filename: 'test.mp4',
       durationSeconds: 120,
       status: 'ready',
+      storageKey: 'projects/test/assets/asset-1',
       videoUrl: 'http://example.com/v.mp4',
     })
     render(<ShortsTab />)

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 ViraEdit Build State Manager
-Tracks which ordered module is current.
-Run with: python scripts/build_state.py [show|reset|next]
+Tracks which ordered module or phase is current.
+Run with: python scripts/build_state.py [show|reset|next] [--phases|--modules]
 """
 import json
 import os
@@ -12,15 +12,25 @@ from pathlib import Path
 
 SKILLS_DIR = Path(__file__).resolve().parent.parent
 ORDER_FILE = SKILLS_DIR / "skills-order.json"
+PHASES_ORDER_FILE = SKILLS_DIR / "phases-order.json"
 STATE_FILE = Path.home() / ".viraedit_build_state.json"
+PHASES_STATE_FILE = Path.home() / ".viraedit_phases_state.json"
+
+def is_phases_mode():
+    return "--phases" in sys.argv
 
 def load_order():
-    with open(ORDER_FILE) as f:
+    file = PHASES_ORDER_FILE if is_phases_mode() else ORDER_FILE
+    with open(file) as f:
         return json.load(f)
 
+def state_file():
+    return PHASES_STATE_FILE if is_phases_mode() else STATE_FILE
+
 def load_state():
-    if STATE_FILE.exists():
-        with open(STATE_FILE) as f:
+    sf = state_file()
+    if sf.exists():
+        with open(sf) as f:
             return json.load(f)
     order = load_order()
     return {
@@ -34,19 +44,22 @@ def load_state():
 
 def save_state(state):
     state["last_updated"] = datetime.now().isoformat()
-    with open(STATE_FILE, "w") as f:
+    sf = state_file()
+    with open(sf, "w") as f:
         json.dump(state, f, indent=2)
-    print(f"State saved to {STATE_FILE}")
+    mode = "Phases" if is_phases_mode() else "Modules"
+    print(f"{mode} state saved to {sf}")
 
 def show_state():
     state = load_state()
     order = load_order()
     completed = state["completed_modules"]
     current_idx = state["current_module_index"]
+    mode = "Phases" if is_phases_mode() else "Modules"
 
-    print("\n" + "=" * 60)
-    print("  ViraEdit Build Progress — Ordered Modules")
-    print("=" * 60)
+    print(f"\n{'=' * 60}")
+    print(f"  ViraEdit Build Progress — Ordered {mode}")
+    print(f"{'=' * 60}")
 
     for i, mod in enumerate(order):
         mod_id = mod["id"]
@@ -62,21 +75,22 @@ def show_state():
     total = len(order)
     done = len(completed)
     pct = int(done / total * 100)
-    print(f"\n  Progress: {done}/{total} modules ({pct}%)")
+    print(f"\n  Progress: {done}/{total} ({pct}%)")
     if current_idx < total:
         current = order[current_idx]
         print(f"  Current:  {current['id']}. {current['title']} ({current['file']})")
     else:
-        print("  🎉 ALL MODULES COMPLETE!")
+        print(f"  🎉 ALL {mode} COMPLETE!")
     print()
 
 def advance_to_next():
     state = load_state()
     order = load_order()
     idx = state["current_module_index"]
+    mode = "Phases" if is_phases_mode() else "Modules"
 
     if idx >= len(order):
-        print("🎉 All modules already complete!")
+        print(f"🎉 All {mode.lower()} already complete!")
         return
 
     completed_id = order[idx]["id"]
@@ -92,19 +106,22 @@ def advance_to_next():
     else:
         state["current_module_index"] = len(order)
         print(f"✅ Completed: {completed_id}. {order[idx]['title']}")
-        print("🎉 ALL MODULES COMPLETE! ViraEdit is built!")
+        print(f"🎉 ALL {mode.upper()} COMPLETE!")
 
     save_state(state)
 
 def reset_state():
-    if STATE_FILE.exists():
-        os.remove(STATE_FILE)
-        print("State reset. Starting from module 01.")
+    sf = state_file()
+    if sf.exists():
+        os.remove(sf)
+        mode = "Phases" if is_phases_mode() else "Modules"
+        print(f"{mode} state reset. Starting from first item.")
     else:
-        print("No state file found.")
+        mode = "Phases" if is_phases_mode() else "Modules"
+        print(f"No {mode.lower()} state file found.")
 
 if __name__ == "__main__":
-    args = sys.argv[1:]
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
     if not args or args[0] == "show":
         show_state()
     elif args[0] == "reset":
@@ -112,4 +129,4 @@ if __name__ == "__main__":
     elif args[0] == "next":
         advance_to_next()
     else:
-        print("Usage: python scripts/build_state.py [show|reset|next]")
+        print("Usage: python scripts/build_state.py [show|reset|next] [--phases|--modules]")

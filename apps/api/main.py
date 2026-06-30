@@ -26,7 +26,7 @@ from config import settings
 from exceptions import ViraEditError
 from logging_config import configure_logging
 from middleware import LanguageDetectionMiddleware, LoggingMiddleware, RequestIDMiddleware
-from routers import assets, auth, costs, health, ingest, projects, renders, sfx, shorts, style_clone, styles, tasks, templates, timelines
+from routers import asset_library, assets, auth, captions, chapters, costs, gap_resolution, health, ingest, platform_shorts, project_media, projects, renders, sfx, shorts, sizzle, style_clone, style_intelligence, styles, tasks, templates, text_editor, timelines
 from ws.forwarder import run_redis_forwarder
 from ws.manager import ws_manager
 from ws.router import router as ws_router
@@ -346,15 +346,24 @@ app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(projects.router)
 app.include_router(assets.router)
+app.include_router(project_media.router)
+app.include_router(asset_library.router)
+app.include_router(gap_resolution.router)
 app.include_router(ingest.router)
 app.include_router(templates.router)
 app.include_router(style_clone.router)
+app.include_router(style_intelligence.router)
+app.include_router(captions.router)
+app.include_router(text_editor.router)
 app.include_router(timelines.router)
 app.include_router(styles.router)
 app.include_router(styles.toolbox_router)
 app.include_router(tasks.router)
 app.include_router(renders.router)
 app.include_router(shorts.router)
+app.include_router(platform_shorts.router)
+app.include_router(chapters.router)
+app.include_router(sizzle.router)
 app.include_router(costs.router)
 app.include_router(sfx.router)
 app.include_router(ws_router)
