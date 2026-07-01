@@ -26,34 +26,16 @@ import {
   syncStyleTransferFromTimeline,
 } from '@/lib/styleTransferSync'
 import { ForensicReportPanel } from '@/components/editor/visual/ForensicReportPanel'
+import { ApplyConfirmPanel } from '@/components/editor/visual/ApplyConfirmPanel'
+import { ApplySummaryToast } from '@/components/editor/visual/ApplySummaryToast'
+import { StyleTemplateCard } from '@/components/editor/visual/StyleTemplateCard'
 import { api } from '@/lib/api'
+import { gapReportFromPreset, type ApplySummary } from '@/lib/styleGapReport'
 import { loadEditorProject } from '@/lib/editorData'
 import type { ApiTimelineResponse } from '@/lib/timelineApi'
 
 interface StyleTransferTabProps {
   projectId: string
-}
-
-function formatRefDuration(seconds?: number): string {
-  if (!seconds || seconds <= 0) return ''
-  if (seconds < 60) return `${Math.round(seconds)}s reference`
-  return `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s reference`
-}
-
-function presetSummary(p: StylePreset): string {
-  const parts: string[] = []
-  if (p.edit_event_count) parts.push(`${p.edit_event_count} edits detected`)
-  else if (p.effect_count) parts.push(`${p.effect_count} effects`)
-  const ref = formatRefDuration(p.reference_duration_s)
-  if (ref) parts.push(ref)
-  if (p.has_vision) parts.push('vision')
-  if (p.detected_effects && p.detected_effects.length > 0) {
-    parts.push(p.detected_effects.slice(0, 3).join(', '))
-  }
-  if (p.supported_coverage_pct != null) {
-    parts.push(`${p.supported_coverage_pct}% supported`)
-  }
-  return parts.join(' · ')
 }
 
 export function StyleTransferTab({ projectId }: StyleTransferTabProps) {
@@ -67,6 +49,8 @@ export function StyleTransferTab({ projectId }: StyleTransferTabProps) {
   const [error, setError]           = useState<string | null>(null)
   const [busy, setBusy]             = useState(false)
   const [appliedSummary, setAppliedSummary] = useState<string | null>(null)
+  const [applySummary, setApplySummary] = useState<ApplySummary | null>(null)
+  const [confirmApply, setConfirmApply] = useState(false)
   const loadLibrary = useCallback(async () => {
     const res = await fetchStyleLibrary(projectId)
     if (res.data?.presets) setPresets(res.data.presets)
@@ -187,13 +171,12 @@ export function StyleTransferTab({ projectId }: StyleTransferTabProps) {
     await loadLibrary()
   }
 
-  const handleApply = async () => {
-    if (!selectedId) {
-      setError('Select a template from your library first.')
-      return
-    }
+  const runApply = async () => {
+    if (!selectedId) return
+    setConfirmApply(false)
     setBusy(true)
     setError(null)
+    setApplySummary(null)
     setStatus('Applying edit template to your timeline (scaled to your video)…')
 
     const res = await applyStylePreset(projectId, selectedId, strength / 100)
@@ -204,6 +187,9 @@ export function StyleTransferTab({ projectId }: StyleTransferTabProps) {
       return
     }
 
+    if (res.data.apply_summary) {
+      setApplySummary(res.data.apply_summary)
+    }
     setStatus(res.data.message ?? 'Template applied.')
     await loadEditorProject(projectId, { preservePlayhead: true })
     const tl = await api.get<ApiTimelineResponse>(`/projects/${projectId}/timeline`)
@@ -211,6 +197,20 @@ export function StyleTransferTab({ projectId }: StyleTransferTabProps) {
       const summary = syncStyleTransferFromTimeline(tl.data.data)
       setAppliedSummary(summary ? formatStyleTransferSummary(summary) : null)
     }
+  }
+
+  const handleApply = () => {
+    if (!selectedId) {
+      setError('Select a template from your library first.')
+      return
+    }
+    const selectedPreset = presets.find((p) => p.id === selectedId)
+    const gr = selectedPreset ? gapReportFromPreset(selectedPreset) : null
+    if (gr && gr.implemented.length > 0) {
+      setConfirmApply(true)
+      return
+    }
+    void runApply()
   }
 
   const handleDelete = async (presetId: string) => {
@@ -312,56 +312,13 @@ export function StyleTransferTab({ projectId }: StyleTransferTabProps) {
         ) : (
           <ul className="space-y-1.5">
             {presets.map((p) => (
-              <li
+              <StyleTemplateCard
                 key={p.id}
-                data-testid={`style-preset-${p.id}`}
-                className={[
-                  'flex items-start gap-2 p-2 rounded-lg border cursor-pointer transition-colors',
-                  selectedId === p.id
-                    ? 'border-accent bg-accent/10'
-                    : 'border-bg-overlay hover:border-text-disabled',
-                ].join(' ')}
-                onClick={() => setSelectedId(p.id)}
-              >
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-text-primary truncate">{p.name}</p>
-                  <p className="text-[10px] text-text-secondary mt-0.5">{presetSummary(p)}</p>
-                  {p.source_url && !p.source_url.startsWith('upload://') && (
-                    <a
-                      href={p.source_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="text-[10px] text-accent hover:underline truncate block mt-0.5"
-                    >
-                      Source ↗
-                    </a>
-                  )}
-                  {p.source_url?.startsWith('upload://') && (
-                    <p className="text-[10px] text-text-disabled mt-0.5 truncate">
-                      From upload: {p.source_url.replace('upload://', '')}
-                    </p>
-                  )}
-                  {p.missing_capabilities && p.missing_capabilities.length > 0 && (
-                    <p className="text-[10px] text-status-warning truncate mt-0.5">
-                      Unsupported: {p.missing_capabilities.slice(0, 2).map((m) => m.name).join(', ')}
-                      {p.missing_capabilities.length > 2 ? '…' : ''}
-                    </p>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  data-testid={`style-delete-${p.id}`}
-                  aria-label={`Delete ${p.name}`}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    void handleDelete(p.id)
-                  }}
-                  className="text-text-disabled hover:text-status-error text-xs px-1"
-                >
-                  ✕
-                </button>
-              </li>
+                preset={p}
+                selected={selectedId === p.id}
+                onSelect={() => setSelectedId(p.id)}
+                onDelete={() => void handleDelete(p.id)}
+              />
             ))}
           </ul>
         )}
@@ -378,6 +335,10 @@ export function StyleTransferTab({ projectId }: StyleTransferTabProps) {
             Applies <strong className="text-text-primary">{selected.name}</strong> once,
             scaled to your video length. Caption styling only — your words stay.
             Graphics and logos become editable placeholders.
+            {' '}
+            <span className="text-text-disabled">
+              Applying again replaces the previous template on the timeline (does not stack).
+            </span>
           </p>
         )}
 
@@ -399,12 +360,23 @@ export function StyleTransferTab({ projectId }: StyleTransferTabProps) {
           type="button"
           data-testid="style-apply-btn"
           disabled={busy || !selectedId}
-          onClick={() => void handleApply()}
+          onClick={handleApply}
           className="mt-3 w-full py-2 rounded-lg border border-accent text-accent hover:bg-accent/10 text-sm font-medium disabled:opacity-40"
         >
           Apply template once
         </button>
       </div>
+
+      {confirmApply && selected && gapReportFromPreset(selected) && (
+        <ApplyConfirmPanel
+          presetName={selected.name}
+          gapReport={gapReportFromPreset(selected)!}
+          onCancel={() => setConfirmApply(false)}
+          onConfirm={() => void runApply()}
+        />
+      )}
+
+      {applySummary && <ApplySummaryToast summary={applySummary} />}
 
       {appliedSummary && (
         <div

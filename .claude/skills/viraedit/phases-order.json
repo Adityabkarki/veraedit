@@ -68,5 +68,12 @@
     "title": "Remotion-Based Caption & Motion Graphics Rendering",
     "file": "phase-9-remotion-rendering/SKILL.md",
     "description": "Upgrade typography with React-based Remotion rendering pipeline"
+  },
+  {
+    "id": "10",
+    "name": "style-extractor-fix",
+    "title": "Style Extractor Fix: Capability Registry, Gap Report & Renderers",
+    "file": "phase-10-Style-Extractor-fix/SKILL.md",
+    "description": "Fix style extractor with capability registry, comprehensive gap report and renderer improvements"
   }
 ]

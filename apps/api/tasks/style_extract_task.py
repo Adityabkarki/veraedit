@@ -195,6 +195,7 @@ def extract_style_task(
             fidelity_score=fidelity,
             edit_recipe=recipe_dict,
             forensic_report=forensic_dict,
+            gap_report=gap.get("gap_report") or {},
             created_at=datetime.now(timezone.utc).isoformat(),
         )
 

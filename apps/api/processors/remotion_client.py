@@ -138,6 +138,62 @@ async def render_title_card_overlay(
     return output_path.as_posix()
 
 
+async def render_lower_third_overlay(
+    text: str,
+    start_seconds: float,
+    end_seconds: float,
+    total_duration: float,
+    *,
+    brand_color: str = "#3b82f6",
+    width: int = 1080,
+    height: int = 1920,
+    font_family: str = "Montserrat",
+    animation: str = "slide_up",
+    subtext: str | None = None,
+    fps: int = 30,
+) -> str:
+    """Render a transparent WebM lower-third overlay."""
+    output_path = _temp_overlay_path("lower_third_overlay")
+    payload = {
+        "text": text,
+        "subtext": subtext,
+        "startSeconds": start_seconds,
+        "endSeconds": end_seconds,
+        "fontFamily": font_family,
+        "brandColor": brand_color,
+        "animation": animation,
+        "durationSeconds": total_duration,
+        "width": width,
+        "height": height,
+        "outputPath": output_path.as_posix(),
+        "fps": fps,
+    }
+
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(
+            connect=5.0,
+            read=settings.REMOTION_RENDER_TIMEOUT,
+            write=30.0,
+            pool=5.0,
+        )
+    ) as client:
+        resp = await client.post(
+            f"{settings.REMOTION_SERVICE_URL.rstrip('/')}/render-lower-third",
+            json=payload,
+        )
+        resp.raise_for_status()
+        result = resp.json()
+        if not result.get("success"):
+            raise RuntimeError(
+                f"Remotion lower-third render failed: {result.get('error', 'unknown error')}"
+            )
+
+    if not output_path.exists():
+        raise RuntimeError("Remotion reported success but lower-third overlay was not created")
+
+    return output_path.as_posix()
+
+
 def composite_overlay_onto_video(
     base_video_path: str | Path,
     overlay_path: str | Path,

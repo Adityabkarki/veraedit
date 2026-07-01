@@ -412,6 +412,40 @@ async def list_style_library(
 
 
 @router.get(
+    "/{project_id}/style-library/{preset_id}",
+    summary="Get a single saved style preset with gap report",
+)
+async def get_style_preset(
+    project_id: uuid.UUID,
+    preset_id: str,
+    db: DbDep,
+    current_user: CurrentUser,
+) -> dict:
+    """Return one preset including coverage_pct and structured gap_report."""
+    await _get_project_or_404(project_id, current_user.id, db)
+
+    result = await db.execute(
+        select(Brand).where(Brand.user_id == current_user.id)
+    )
+    brand = result.scalar_one_or_none()
+
+    from tasks.style_transfer.models import load_presets
+    presets = load_presets(brand.style_dna if brand else None)
+    preset = next((p for p in presets if p.id == preset_id), None)
+    if preset is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Style preset not found.",
+        )
+
+    summary = preset.to_summary_dict()
+    summary["gap_report"] = preset.gap_report or {}
+    summary["coverage_pct"] = preset.supported_coverage_pct
+    summary["effect_inventory"] = preset.effect_inventory
+    return summary
+
+
+@router.get(
     "/{project_id}/style-library/{preset_id}/forensic",
     summary="Forensic reverse-engineering report for a style preset",
 )
@@ -590,6 +624,11 @@ async def apply_style(
         strength=body.strength,
         new_version=new_version,
     )
+    apply_summary = (
+        (new_data.get("metadata") or {})
+        .get("edit_template", {})
+        .get("apply_summary")
+    )
     return {
         "timeline_id": str(new_tl.id),
         "version": new_tl.version,
@@ -598,6 +637,7 @@ async def apply_style(
         "components_applied": components_applied,
         "strength": body.strength,
         "can_undo": True,
+        "apply_summary": apply_summary,
         "message": (
             f"Style '{preset.name}' applied at {int(body.strength * 100)}% strength. "
             "Press Ctrl+Z to undo."

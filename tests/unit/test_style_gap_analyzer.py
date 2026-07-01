@@ -17,10 +17,10 @@ def test_build_effect_inventory_detects_captions_and_cuts():
         audio=AudioProfile(music_energy="medium"),
     )
     inventory = build_effect_inventory(dna)
-    ids = {i["id"] for i in inventory}
-    assert "caption_pop" in ids
-    assert "fade_transition" in ids
-    assert "music_bed" in ids
+    ids = {i["id"] for i in inventory if i.get("id")}
+    assert "caption_word_by_word" in ids or "caption_sentence" in ids
+    assert "transition_crossfade" in ids or "fade_transition" in ids
+    assert "music_duck" in ids or "music_bed" in ids
 
 
 def test_build_gap_report_coverage():
@@ -30,5 +30,7 @@ def test_build_gap_report_coverage():
     )
     report = build_gap_report(dna)
     assert "supported_coverage_pct" in report
+    assert "gap_report" in report
+    assert "coverage_pct" in report["gap_report"]
     assert report["partial_count"] >= 1 or report["missing_count"] >= 1
     assert any(m["id"] == "whip_pan" for m in report["missing_capabilities"])

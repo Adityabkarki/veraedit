@@ -11,9 +11,9 @@ description: >
   has ever used — simpler than CapCut, smarter than Premiere. Each invocation
   completes exactly one epic with all tasks, tests, and error logging included.
   ALWAYS use this skill when the user says "continue" if ViraEdit context exists.
-  When the user says "let's continue phase" (or "continue phase"), use the
+   When the user says "let's continue phase" (or "continue phase"), use the
    phases-order.json and build_state.py --phases mode to track and build the
-   10 phases (00-09) from the phase-*/ folders.
+   11 phases (00-10) from the phase-*/ folders.
 ---
 
 # ViraEdit — Master Overview
@@ -225,6 +225,7 @@ Trigger: "let's continue phase", "continue phase"
 | 07 | AI Spend Meter | `phase-7-ai-spend-meter/SKILL.md` | Live per-action AI cost visibility |
 | 08 | Fine-Tuning & Audit | `phase-8-fine-tuning-audit/SKILL.md` | Hardening pass on all existing modules |
 | 09 | Remotion Rendering | `phase-9-remotion-rendering/SKILL.md` | React-based caption & motion graphics pipeline |
+| 10 | Style Extractor Fix | `phase-10-Style-Extractor-fix/SKILL.md` | Capability Registry, gap report & renderer improvements |
 
 Read `skills-order.json`, `build_state.py`, and the current module's skill file.
 Existing `references/phase-map.md` can supplement with detailed tasks.

@@ -25,7 +25,7 @@ Check scripts/build_state.py to find which module is current.
 
 ## When User Says "let's continue phase" (or "continue phase", "next phase")
 0. Read 00-NORTH-STAR.md first if you haven't this session — it defines the product vision
-1. Read phases-order.json — the ordered list of 10 phases (00-09)
+1. Read phases-order.json — the ordered list of 11 phases (00-10)
 2. Run: python scripts/build_state.py --phases show  (find current phase index)
 3. Look up the phase at that index in phases-order.json
 4. Read the phase file from its directory (e.g., phase-3-shorts-extraction/SKILL.md)

@@ -34,6 +34,12 @@ def test_build_edit_recipe_includes_global_and_cuts():
     assert recipe.reference_duration_s == 10.0
 
 
+def test_build_edit_recipe_skips_heuristic_broll_on_low_frequency():
+    dna = StyleDNA()
+    recipe = build_edit_recipe(dna, _scenes(), reference_duration_s=10.0)
+    assert not any(e.kind == "broll" for e in recipe.events)
+
+
 def test_recipe_applicator_scales_to_target_duration():
     dna = StyleDNA()
     recipe = build_edit_recipe(

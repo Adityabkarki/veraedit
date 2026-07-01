@@ -3,6 +3,7 @@
  * Backend: apps/api/routers/styles.py (EP-2.8)
  */
 
+import type { ApplySummary, StyleGapReport } from '@/lib/styleGapReport'
 import { api } from '@/lib/api'
 
 export interface StylePreset {
@@ -19,6 +20,8 @@ export interface StylePreset {
   edit_event_count?: number
   reference_duration_s?: number
   supported_coverage_pct?: number
+  coverage_pct?: number
+  gap_report?: StyleGapReport
   fidelity_score?: number
   missing_capabilities?: { id: string; name: string; dev_epic?: string }[]
   detected_effects?: string[]
@@ -68,6 +71,7 @@ export interface StyleApplyResponse {
   label: string
   preset_name: string
   message?: string
+  apply_summary?: ApplySummary
 }
 
 const STYLE_COMPONENTS = [

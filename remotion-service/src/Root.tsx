@@ -4,6 +4,7 @@ import { loadFont as loadMontserrat } from "@remotion/google-fonts/Montserrat";
 import { loadFont as loadNotoDevanagari } from "@remotion/google-fonts/NotoSansDevanagari";
 import { CaptionComposition } from "./CaptionComposition";
 import { TitleCardComposition } from "./TitleCardComposition";
+import { LowerThirdComposition } from "./LowerThirdComposition";
 
 const { fontFamily: montserratFamily } = loadMontserrat("normal", {
   weights: ["700", "800"],
@@ -43,6 +44,23 @@ export const RemotionRoot: React.FC = () => (
         endSeconds: 3,
         fontFamily: montserratFamily,
         brandColor: "#3b82f6",
+      }}
+    />
+    <Composition
+      id="LowerThirdOverlay"
+      component={LowerThirdComposition}
+      durationInFrames={300}
+      fps={30}
+      width={1080}
+      height={1920}
+      defaultProps={{
+        text: "",
+        subtext: "",
+        startSeconds: 0,
+        endSeconds: 4,
+        fontFamily: montserratFamily,
+        brandColor: "#3b82f6",
+        animation: "slide_up" as const,
       }}
     />
   </>

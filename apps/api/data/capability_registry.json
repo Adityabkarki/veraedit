@@ -1,0 +1,352 @@
+{
+  "version": "1.0",
+  "capabilities": [
+    {
+      "toolbox_id": "caption_word_by_word",
+      "display_name": "Word-by-word captions",
+      "category": "caption",
+      "is_implemented": true,
+      "renderer": "remotion_caption",
+      "renderer_params": { "style": "hormozi" },
+      "detection_aliases": [
+        "word by word captions", "word_by_word", "hormozi captions",
+        "karaoke captions", "animated captions", "highlight captions",
+        "word highlight subtitle", "caption_word_by_word", "caption_pop"
+      ]
+    },
+    {
+      "toolbox_id": "caption_sentence",
+      "display_name": "Sentence captions",
+      "category": "caption",
+      "is_implemented": true,
+      "renderer": "remotion_caption",
+      "renderer_params": { "style": "minimal" },
+      "detection_aliases": [
+        "sentence captions", "standard subtitles", "minimal subtitles",
+        "clean captions", "sentence subtitle", "caption_style", "caption_slide"
+      ]
+    },
+    {
+      "toolbox_id": "hook_text_overlay",
+      "display_name": "Hook text overlay",
+      "category": "overlay",
+      "is_implemented": true,
+      "renderer": "remotion_title_card",
+      "renderer_params": {
+        "position": "center_top",
+        "animation": "slide_down",
+        "duration_pct": 0.15
+      },
+      "detection_aliases": [
+        "hook text", "hook overlay", "opening text", "hook headline",
+        "title card hook", "bold hook text", "opening title",
+        "hook_text_overlay", "hook", "hook rewrite"
+      ]
+    },
+    {
+      "toolbox_id": "lower_third",
+      "display_name": "Lower-third name card",
+      "category": "overlay",
+      "is_implemented": true,
+      "renderer": "remotion_lower_third",
+      "renderer_params": {
+        "position": "bottom_left",
+        "animation": "slide_up",
+        "duration_s": 4.0
+      },
+      "detection_aliases": [
+        "lower third", "lower-third", "name card", "speaker name",
+        "name lower third", "title lower third", "chyron", "name tag overlay",
+        "lower_third"
+      ]
+    },
+    {
+      "toolbox_id": "cta_overlay",
+      "display_name": "CTA / end card overlay",
+      "category": "overlay",
+      "is_implemented": true,
+      "renderer": "remotion_title_card",
+      "renderer_params": {
+        "position": "center",
+        "animation": "fade_in",
+        "zone": "cta"
+      },
+      "detection_aliases": [
+        "call to action", "cta", "end card", "subscribe overlay",
+        "follow overlay", "link in bio", "outro text", "cta_overlay"
+      ]
+    },
+    {
+      "toolbox_id": "transition_zoom",
+      "display_name": "Zoom transition",
+      "category": "transition",
+      "is_implemented": true,
+      "renderer": "ffmpeg_transition",
+      "renderer_params": {
+        "filter": "zoompan",
+        "direction": "in",
+        "duration_frames": 6
+      },
+      "detection_aliases": [
+        "zoom transition", "zoom_in_cut", "zoom in cut", "push in",
+        "smash zoom", "zoom cut", "punch in cut",
+        "zoom_transition", "transition_zoom"
+      ]
+    },
+    {
+      "toolbox_id": "transition_whip_pan",
+      "display_name": "Whip pan transition",
+      "category": "transition",
+      "is_implemented": true,
+      "renderer": "ffmpeg_transition",
+      "renderer_params": {
+        "filter": "motion_blur_horizontal",
+        "duration_frames": 4
+      },
+      "detection_aliases": [
+        "whip pan", "whip cut", "swipe cut", "fast pan cut",
+        "horizontal blur transition", "whip transition",
+        "whip_pan", "transition_whip_pan", "transition_whip"
+      ]
+    },
+    {
+      "toolbox_id": "transition_hard_cut",
+      "display_name": "Hard cut",
+      "category": "transition",
+      "is_implemented": true,
+      "renderer": "ffmpeg_transition",
+      "renderer_params": { "filter": "none" },
+      "detection_aliases": [
+        "hard cut", "jump cut", "straight cut", "direct cut", "cut only",
+        "hard_cut", "transition_hard_cut"
+      ]
+    },
+    {
+      "toolbox_id": "transition_crossfade",
+      "display_name": "Crossfade",
+      "category": "transition",
+      "is_implemented": true,
+      "renderer": "ffmpeg_transition",
+      "renderer_params": {
+        "filter": "xfade",
+        "transition_type": "fade",
+        "duration_s": 0.3
+      },
+      "detection_aliases": [
+        "crossfade", "cross fade", "dissolve", "fade transition", "blend cut",
+        "fade_transition", "dissolve_transition", "transition_dissolve",
+        "transition_fade", "transition_crossfade"
+      ]
+    },
+    {
+      "toolbox_id": "transition_glitch",
+      "display_name": "Glitch cut",
+      "category": "transition",
+      "is_implemented": false,
+      "renderer": null,
+      "renderer_params": null,
+      "detection_aliases": [
+        "glitch cut", "glitch transition", "digital glitch", "artifact cut",
+        "distortion cut", "rgb split cut"
+      ]
+    },
+    {
+      "toolbox_id": "sfx_whoosh",
+      "display_name": "Whoosh on transition",
+      "category": "sfx",
+      "is_implemented": true,
+      "renderer": "sfx_placement",
+      "renderer_params": {
+        "sfx_id": "whoosh",
+        "offset_ms": -80,
+        "volume": 0.7
+      },
+      "detection_aliases": [
+        "whoosh", "swipe sound", "air sound", "transition sound",
+        "whoosh sfx", "swoosh", "swish sound", "sfx_on_cut", "sfx_whoosh_cut", "sfx"
+      ]
+    },
+    {
+      "toolbox_id": "sfx_bass_drop",
+      "display_name": "Bass drop on cut",
+      "category": "sfx",
+      "is_implemented": true,
+      "renderer": "sfx_placement",
+      "renderer_params": {
+        "sfx_id": "sub_bass",
+        "offset_ms": 0,
+        "volume": 0.9
+      },
+      "detection_aliases": [
+        "bass drop", "sub bass", "impact bass", "bass hit",
+        "heavy bass", "thud", "bass impact", "sfx_sub_bass_thud"
+      ]
+    },
+    {
+      "toolbox_id": "sfx_riser",
+      "display_name": "Riser before hook",
+      "category": "sfx",
+      "is_implemented": true,
+      "renderer": "sfx_placement",
+      "renderer_params": {
+        "sfx_id": "riser",
+        "offset_ms": -1500,
+        "volume": 0.6
+      },
+      "detection_aliases": [
+        "riser", "build up", "tension build", "anticipation sound",
+        "rising tone", "swoosh up", "sfx_riser"
+      ]
+    },
+    {
+      "toolbox_id": "sfx_impact",
+      "display_name": "Impact hit",
+      "category": "sfx",
+      "is_implemented": true,
+      "renderer": "sfx_placement",
+      "renderer_params": {
+        "sfx_id": "impact",
+        "offset_ms": 0,
+        "volume": 0.8
+      },
+      "detection_aliases": [
+        "impact", "hit sound", "punch", "impact sound",
+        "thump", "boom", "crash hit", "sfx_impact_hit"
+      ]
+    },
+    {
+      "toolbox_id": "music_duck",
+      "display_name": "Music ducks under voice",
+      "category": "audio",
+      "is_implemented": true,
+      "renderer": "audio_sidechain",
+      "renderer_params": {
+        "duck_ratio": 8,
+        "attack_ms": 5,
+        "release_ms": 200,
+        "threshold": 0.05
+      },
+      "detection_aliases": [
+        "music ducking", "duck", "auto duck", "music under voice",
+        "music drops under speech", "sidechain", "voice over music", "music_bed"
+      ]
+    },
+    {
+      "toolbox_id": "color_warm",
+      "display_name": "Warm color grade",
+      "category": "color",
+      "is_implemented": true,
+      "renderer": "lut_apply",
+      "renderer_params": { "lut": "cinematic_warm" },
+      "detection_aliases": [
+        "warm grade", "warm color", "warm tone", "golden tone",
+        "warm cinematic", "orange teal", "warm lut", "color_grade"
+      ]
+    },
+    {
+      "toolbox_id": "color_cold",
+      "display_name": "Cold color grade",
+      "category": "color",
+      "is_implemented": true,
+      "renderer": "lut_apply",
+      "renderer_params": { "lut": "cinematic_cold" },
+      "detection_aliases": [
+        "cold grade", "cool tone", "blue tone", "cold color",
+        "desaturated", "cool cinematic", "teal lut"
+      ]
+    },
+    {
+      "toolbox_id": "color_bw",
+      "display_name": "Black and white",
+      "category": "color",
+      "is_implemented": true,
+      "renderer": "lut_apply",
+      "renderer_params": { "lut": "bw" },
+      "detection_aliases": [
+        "black and white", "grayscale", "monochrome", "b&w",
+        "desaturated black white", "bw filter"
+      ]
+    },
+    {
+      "toolbox_id": "color_high_contrast",
+      "display_name": "High contrast / punchy",
+      "category": "color",
+      "is_implemented": true,
+      "renderer": "lut_apply",
+      "renderer_params": { "lut": "high_contrast" },
+      "detection_aliases": [
+        "high contrast", "punchy", "vivid", "contrasty",
+        "deep blacks", "crushed blacks", "boosted contrast"
+      ]
+    },
+    {
+      "toolbox_id": "broll_illustrative",
+      "display_name": "Illustrative B-roll",
+      "category": "broll",
+      "is_implemented": true,
+      "renderer": "broll_resolver",
+      "renderer_params": { "match_strategy": "semantic_search" },
+      "detection_aliases": [
+        "b-roll", "broll", "cutaway", "illustrative footage",
+        "supporting footage", "insert shot", "supplementary clip",
+        "broll_insert", "broll_illustrative"
+      ]
+    },
+    {
+      "toolbox_id": "broll_reaction",
+      "display_name": "Reaction cut B-roll",
+      "category": "broll",
+      "is_implemented": true,
+      "renderer": "broll_resolver",
+      "renderer_params": { "match_strategy": "reaction_shot" },
+      "detection_aliases": [
+        "reaction shot", "reaction cut", "talking head reaction",
+        "face reaction", "response shot"
+      ]
+    },
+    {
+      "toolbox_id": "zoom_ken_burns",
+      "display_name": "Ken Burns slow zoom",
+      "category": "motion",
+      "is_implemented": true,
+      "renderer": "ffmpeg_motion",
+      "renderer_params": {
+        "type": "ken_burns",
+        "scale_from": 1.0,
+        "scale_to": 1.08,
+        "duration_pct": 1.0
+      },
+      "detection_aliases": [
+        "ken burns", "slow zoom", "subtle zoom", "static shot zoom",
+        "gentle zoom", "documentary zoom", "ken_burns", "digital_zoom", "zoom"
+      ]
+    },
+    {
+      "toolbox_id": "jump_cut_pacing",
+      "display_name": "Jump-cut pacing (silence removal)",
+      "category": "pacing",
+      "is_implemented": true,
+      "renderer": "silence_remover",
+      "renderer_params": {
+        "min_silence_ms": 400,
+        "threshold_db": -35
+      },
+      "detection_aliases": [
+        "jump cut", "jump cuts", "silence removed", "tight cut",
+        "no pauses", "fast pacing", "tightly edited", "jump_cut_pacing"
+      ]
+    },
+    {
+      "toolbox_id": "text_overlay",
+      "display_name": "Text overlay",
+      "category": "overlay",
+      "is_implemented": true,
+      "renderer": "remotion_title_card",
+      "renderer_params": { "position": "center", "animation": "fade_in" },
+      "detection_aliases": [
+        "text overlay", "text overlays", "graphic", "graphic overlay",
+        "text_overlay", "title banner"
+      ]
+    }
+  ]
+}

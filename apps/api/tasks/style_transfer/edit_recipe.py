@@ -230,8 +230,8 @@ def build_edit_recipe(
             content_policy="style_only",
         ))
 
-        # Short scenes → likely b-roll / insert
-        if dur_ms < 2500 and dna.broll.frequency in ("medium", "high", "low"):
+        # Short scenes → likely b-roll / insert (medium/high frequency only)
+        if dur_ms < 2500 and dna.broll.frequency in ("medium", "high"):
             mid_ms = cut_ms + dur_ms / 2.0
             events.append(EditRecipeEvent(
                 kind="broll",
@@ -323,20 +323,25 @@ def build_edit_recipe(
             "hook", "graphic", "lower_third", "broll", "cta", "sfx",
             "music_bed", "jump_cut_pacing",
         }
-        transition_kinds = {e.kind for e in vision.detected_edits if e.kind.startswith("transition") or e.kind == "hard_cut"}
+        transition_kinds = {
+            e.kind for e in vision.detected_edits
+            if e.kind.startswith("transition") or e.kind == "hard_cut"
+        }
+        # Timed placeholders from heuristics — vision timestamps win.
+        heuristic_timed = {
+            "hook", "logo", "graphic", "lower_third", "broll", "cta",
+            "picture_in_picture", "split_screen",
+        }
 
         events = [
             e for e in events
             if e.kind not in vision_kinds
+            and e.kind not in heuristic_timed
             and not (
                 (e.kind.startswith("transition") or e.kind == "hard_cut")
                 and transition_kinds
             )
         ]
-        if not any(e.kind == "hook" for e in vision.detected_edits):
-            pass  # keep heuristic hook
-        else:
-            events = [e for e in events if e.kind != "hook"]
 
         for vedit in vision.detected_edits:
             events.append(_vision_edit_to_event(vedit, total_ms))

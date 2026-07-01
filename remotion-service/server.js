@@ -130,6 +130,73 @@ app.post("/render-title-card", async (req, res) => {
   }
 });
 
+app.post("/render-lower-third", async (req, res) => {
+  try {
+    const {
+      text,
+      subtext,
+      startSeconds,
+      endSeconds,
+      fontFamily,
+      brandColor,
+      animation,
+      durationSeconds,
+      width,
+      height,
+      outputPath,
+      fps = 30,
+    } = req.body;
+
+    if (!outputPath) {
+      return res.status(400).json({ success: false, error: "outputPath is required" });
+    }
+
+    const bundleLocation = await getBundle();
+    const composition = await selectComposition({
+      serveUrl: bundleLocation,
+      id: "LowerThirdOverlay",
+      inputProps: {
+        text,
+        subtext,
+        startSeconds,
+        endSeconds,
+        fontFamily,
+        brandColor,
+        animation,
+      },
+    });
+
+    await renderMedia({
+      composition: {
+        ...composition,
+        durationInFrames: Math.max(1, Math.ceil(durationSeconds * fps)),
+        fps,
+        width,
+        height,
+      },
+      serveUrl: bundleLocation,
+      codec: "vp8",
+      outputLocation: outputPath,
+      inputProps: {
+        text,
+        subtext,
+        startSeconds,
+        endSeconds,
+        fontFamily,
+        brandColor,
+        animation,
+      },
+      pixelFormat: "yuva420p",
+      imageFormat: "png",
+    });
+
+    res.json({ success: true, outputPath });
+  } catch (err) {
+    console.error("render-lower-third failed:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.listen(PORT, HOST, () => {
   console.log(`Remotion render service listening on http://${HOST}:${PORT}`);
 });

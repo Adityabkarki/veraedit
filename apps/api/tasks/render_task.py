@@ -537,7 +537,11 @@ def _render_audio_mix(
         "render_audio_mix: clips=%d inputs=%d",
         len(music_clips), input_idx,
     )
-    subprocess.run(cmd, check=True, capture_output=True, timeout=600)
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, timeout=600)
+    except subprocess.CalledProcessError as e:
+        log.error("audio_mix_ffmpeg_failed: returncode=%d stderr=%s", e.returncode, e.stderr.decode("utf-8", errors="replace"))
+        raise
     return output if output.exists() else None
 
 
@@ -568,6 +572,8 @@ def _composite_overlays(
     # Build filter complex with one overlay per clip
     filter_parts: list[str] = []
     overlay_inputs: list[Path] = []
+    # Map main video input to [base] label so overlay filters can reference it
+    filter_parts.append("[0:v]null[base]")
     current_label = "base"
 
     for clip in overlay_clips:
@@ -597,7 +603,7 @@ def _composite_overlays(
         # Trim to source range + scale to reasonable size (max 30% of output)
         scale_w = int(width * 0.3)
         scale_h = int(height * 0.3)
-        trim_filter = f"atrim=start={ss}:end={to},setpts=PTS-STARTPTS"
+        trim_filter = f"trim=start={ss}:end={to},setpts=PTS-STARTPTS"
         scale_filter = f"scale='min({scale_w},iw)':'min({scale_h},ih)':force_original_aspect_ratio=decrease"
 
         label = f"ov{input_idx}"
@@ -606,7 +612,7 @@ def _composite_overlays(
         )
 
         # Overlay base with this overlay
-        enable = f"between(t,{tl_start},{tl_end})"
+        enable = f"between(t,{tl_start:.4f},{tl_end:.4f})"
         next_label = f"v{input_idx}"
         filter_parts.append(
             f"[{current_label}][{label}]overlay=x={x}:y={y}:enable='{enable}'[{next_label}]"
@@ -638,7 +644,11 @@ def _composite_overlays(
         "render_overlay: clips=%d inputs=%d",
         len(overlay_clips), len(overlay_inputs),
     )
-    subprocess.run(cmd, check=True, capture_output=True, timeout=600)
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, timeout=600)
+    except subprocess.CalledProcessError as e:
+        log.error("overlay_ffmpeg_failed: returncode=%d stderr=%s", e.returncode, e.stderr.decode("utf-8", errors="replace"))
+        raise
     return output
 
 

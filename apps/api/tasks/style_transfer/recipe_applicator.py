@@ -23,6 +23,9 @@ from .pacing_ops import (
     apply_jump_cut_formula,
     remap_time_after_removals,
 )
+from services.capability_registry import event_allowed_by_registry
+from .strip_style_transfer import strip_prior_style_transfer
+from .timeline_renderers import overlay_renderer_params, transition_out_payload
 
 log = logging.getLogger("viraedit.style_transfer.recipe_applicator")
 
@@ -41,6 +44,11 @@ _PLACEHOLDER_LABELS = {
 class RecipeApplicator:
     """Apply a saved edit recipe to timeline data."""
 
+    def __init__(self) -> None:
+        self.skipped_effects: list[dict[str, Any]] = []
+        self.applied_effects: list[dict[str, Any]] = []
+        self.error_effects: list[dict[str, Any]] = []
+
     def apply(
         self,
         timeline_data: dict[str, Any],
@@ -52,7 +60,11 @@ class RecipeApplicator:
         transcript_words: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         strength = max(0.0, min(1.0, float(strength)))
+        self.skipped_effects = []
+        self.applied_effects = []
+        self.error_effects = []
         data = copy.deepcopy(timeline_data)
+        data = strip_prior_style_transfer(data)
         pre_target_dur = self._target_duration(data)
         ref_dur = max(recipe.reference_duration_s, 1.0)
 
@@ -103,6 +115,12 @@ class RecipeApplicator:
                 elif event.kind == "sfx" and strength >= 0.4:
                     pending_sfx.append((_map_time(event.start_pct), event))
                 continue
+            allowed, toolbox_id, skip_reason = event_allowed_by_registry(
+                event.kind, event.params, strength,
+            )
+            if not allowed:
+                self._record_skipped(toolbox_id or event.kind, skip_reason or "blocked")
+                continue
             if strength < 0.05 and event.kind not in ("color_grade", "caption_style"):
                 continue
             start_s = _map_time(event.start_pct)
@@ -118,8 +136,11 @@ class RecipeApplicator:
                 applied_events.append({"kind": event.kind, "at_s": 0.0})
             elif event.kind in ("hook", "logo", "graphic", "broll", "picture_in_picture", "lower_third", "cta"):
                 if strength >= 0.35:
-                    self._add_styled_overlay(data, event, start_s, end_s)
+                    self._add_styled_overlay(
+                        data, event, start_s, end_s, toolbox_id, preset_id=preset_id,
+                    )
                     applied_events.append({"kind": event.kind, "at_s": round(start_s, 2)})
+                    self._record_applied(toolbox_id or event.kind, {"at_s": round(start_s, 2)})
             elif event.kind == "digital_zoom":
                 if strength >= 0.45:
                     self._add_digital_zoom_punch(data, event, start_s, end_s)
@@ -144,6 +165,7 @@ class RecipeApplicator:
                             ),
                         ))
                     applied_events.append({"kind": event.kind, "at_s": round(start_s, 2)})
+                    self._record_applied(toolbox_id or event.kind, {"at_s": round(start_s, 2)})
 
         # ── 3. Music bed + SFX clips on timeline
         target_dur = self._target_duration(data)
@@ -178,6 +200,7 @@ class RecipeApplicator:
             "strength": strength,
             "source_url": (dna.source_url if dna else "") or "",
             "applied": applied_events[:40],
+            "apply_summary": self.apply_summary(),
         }
         if dna:
             meta["style_source"] = {
@@ -190,6 +213,21 @@ class RecipeApplicator:
             len(applied_events), target_dur, ref_dur, strength,
         )
         return data
+
+    def _record_skipped(self, toolbox_id: str, reason: str) -> None:
+        self.skipped_effects.append({"toolbox_id": toolbox_id, "reason": reason})
+
+    def _record_applied(self, toolbox_id: str, params: dict[str, Any]) -> None:
+        self.applied_effects.append({"toolbox_id": toolbox_id, **params})
+
+    def apply_summary(self) -> dict[str, Any]:
+        return {
+            "applied": self.applied_effects,
+            "skipped": self.skipped_effects,
+            "errors": self.error_effects,
+            "applied_count": len(self.applied_effects),
+            "skipped_count": len(self.skipped_effects),
+        }
 
     def _target_duration(self, data: dict) -> float:
         gs = data.get("global_settings", {})
@@ -212,7 +250,7 @@ class RecipeApplicator:
             "shadows": round(float(p.get("shadows", 0)) * strength, 3),
             "highlights": round(float(p.get("highlights", 0)) * strength, 3),
         }
-        effect = {"type": "color_grade", "params": grade}
+        effect = {"type": "color_grade", "params": {**grade, "style_transfer": True}}
         for track in data.get("tracks", []):
             if track.get("type") != "video":
                 continue
@@ -238,11 +276,14 @@ class RecipeApplicator:
         for track in data.get("tracks", []):
             if track.get("type") != "captions":
                 continue
-            track.setdefault("style", {}).update(style_params)
+            track.setdefault("style", {}).update({**style_params, "style_transfer": True})
             for clip in track.get("clips", []):
                 effects = clip.setdefault("effects", [])
                 effects[:] = [e for e in effects if e.get("type") != "caption_style"]
-                effects.append({"type": "caption_style", "params": style_params})
+                effects.append({
+                    "type": "caption_style",
+                    "params": {**style_params, "style_transfer": True},
+                })
 
     def _get_or_create_overlay_track(self, data: dict) -> dict:
         for track in data.get("tracks", []):
@@ -261,14 +302,21 @@ class RecipeApplicator:
         return track
 
     def _add_styled_overlay(
-        self, data: dict, event: EditRecipeEvent, start: float, end: float,
+        self,
+        data: dict,
+        event: EditRecipeEvent,
+        start: float,
+        end: float,
+        toolbox_id: str | None = None,
+        preset_id: str = "",
     ) -> None:
         track = self._get_or_create_overlay_track(data)
         p = event.params
-        visual_type = str(p.get("visual_type", event.kind))
-        if event.kind == "hook":
+        renderer_meta = overlay_renderer_params(event.kind, p)
+        visual_type = str(renderer_meta.get("visual_type") or p.get("visual_type", event.kind))
+        if event.kind == "hook" and not renderer_meta.get("visual_type"):
             visual_type = str(p.get("visual_type", "title_banner"))
-        overlay_mode = str(p.get("overlay_mode", "corner"))
+        overlay_mode = str(renderer_meta.get("overlay_mode") or p.get("overlay_mode", "corner"))
         is_broll = (
             event.kind == "broll"
             or visual_type in ("broll_insert", "broll_overlay", "screen_recording", "broll_cutaway")
@@ -281,8 +329,37 @@ class RecipeApplicator:
         display = _PLACEHOLDER_LABELS.get(event.kind, "Placeholder")
         if event.kind == "hook":
             display = _HOOK_PLACEHOLDER
+        if event.kind == "lower_third":
+            display = _PLACEHOLDER_LABELS["lower_third"]
         if is_broll:
             display = ""
+
+        overlay_params: dict[str, Any] = {
+            "visual_type": visual_type,
+            "display_value": display,
+            "suggested_visual": p.get("suggested_visual", "placeholder"),
+            "style_transfer": True,
+            "style_component": f"recipe-{event.kind}",
+            "content_policy": event.content_policy,
+            "is_placeholder": event.kind != "screen_recording",
+            "overlay_mode": overlay_mode,
+            "broll_type": p.get("broll_type", ""),
+            "x_pct": renderer_meta.get("x_pct", 50 if overlay_mode == "fullscreen" else 50),
+            "y_pct": renderer_meta.get("y_pct", 50 if overlay_mode == "fullscreen" else 18),
+            "width_pct": 100 if overlay_mode == "fullscreen" else None,
+            "height_pct": 100 if overlay_mode == "fullscreen" else None,
+            "media_url": p.get("media_url", ""),
+        }
+        if renderer_meta.get("renderer"):
+            overlay_params["renderer"] = renderer_meta["renderer"]
+        if toolbox_id or renderer_meta.get("toolbox_id"):
+            overlay_params["toolbox_id"] = toolbox_id or renderer_meta.get("toolbox_id")
+        if preset_id:
+            overlay_params["preset_id"] = preset_id
+        if renderer_meta.get("animation"):
+            overlay_params["animation"] = renderer_meta["animation"]
+        if renderer_meta.get("position"):
+            overlay_params["position"] = renderer_meta["position"]
 
         clip_id = f"recipe-{event.kind}-{uuid.uuid4().hex[:8]}"
         duration = max(0.5, end - start)
@@ -298,22 +375,7 @@ class RecipeApplicator:
             "volume": 0.0,
             "effects": [{
                 "type": "visual_overlay",
-                "params": {
-                    "visual_type": visual_type,
-                    "display_value": display,
-                    "suggested_visual": p.get("suggested_visual", "placeholder"),
-                    "style_transfer": True,
-                    "style_component": f"recipe-{event.kind}",
-                    "content_policy": event.content_policy,
-                    "is_placeholder": event.kind != "screen_recording",
-                    "overlay_mode": overlay_mode,
-                    "broll_type": p.get("broll_type", ""),
-                    "x_pct": 50 if overlay_mode == "fullscreen" else 50,
-                    "y_pct": 50 if overlay_mode == "fullscreen" else 18,
-                    "width_pct": 100 if overlay_mode == "fullscreen" else None,
-                    "height_pct": 100 if overlay_mode == "fullscreen" else None,
-                    "media_url": p.get("media_url", ""),
-                },
+                "params": overlay_params,
             }],
             "transitions": {},
             "label": "B-Roll" if is_broll else (event.label or display),
@@ -324,15 +386,32 @@ class RecipeApplicator:
     ) -> None:
         self._add_styled_overlay(data, event, start, end)
 
+    def _snap_to_nearest_cut(
+        self, data: dict, target_time: float, snap_window: float = 3.0,
+    ) -> float:
+        """Nearest video clip boundary within snap_window seconds."""
+        nearest = target_time
+        min_dist = snap_window
+        for track in data.get("tracks", []):
+            if track.get("type") != "video":
+                continue
+            for clip in track.get("clips", []):
+                for boundary in (
+                    float(clip.get("timeline_start", 0)),
+                    float(clip.get("timeline_end", 0)),
+                ):
+                    dist = abs(boundary - target_time)
+                    if dist < min_dist:
+                        min_dist = dist
+                        nearest = boundary
+        return nearest
+
     def _apply_transition_at(
         self, data: dict, event: EditRecipeEvent, at_s: float, strength: float,
     ) -> None:
-        p = event.params
-        t_type = str(p.get("transition_type", "cut"))
-        if strength < 0.5:
-            t_type = "cut"
-        dur_ms = float(p.get("duration_ms", 0)) * strength
-        duration = round(max(0.0, min(2.0, dur_ms / 1000.0)), 3)
+        snap_time = self._snap_to_nearest_cut(data, at_s)
+        payload = transition_out_payload(event.kind, event.params, strength)
+        t_type = str(payload.get("type", "cut"))
 
         for track in data.get("tracks", []):
             if track.get("type") != "video":
@@ -344,7 +423,7 @@ class RecipeApplicator:
             best_dist = float("inf")
             for i, clip in enumerate(clips):
                 end_t = float(clip.get("timeline_end", 0))
-                dist = abs(end_t - at_s)
+                dist = abs(end_t - snap_time)
                 if dist < best_dist:
                     best_dist = dist
                     best_i = i
@@ -354,7 +433,7 @@ class RecipeApplicator:
             if best_i >= len(clips) - 1 and t_type != "cut":
                 continue
             transitions = clip.setdefault("transitions", {})
-            transitions["out"] = {"type": t_type, "duration": duration}
+            transitions["out"] = {**payload, "at_s": round(snap_time, 3)}
 
     def _add_digital_zoom_punch(
         self, data: dict, event: EditRecipeEvent, start: float, end: float,
@@ -376,6 +455,7 @@ class RecipeApplicator:
                             "effect_type": "transform",
                             "preset_id": "digital_zoom_punch",
                             "parent_clip_id": clip.get("id", ""),
+                            "style_transfer": True,
                             "keyframes": [
                                 {"offset": max(0.0, (start - cs) / span), "value": 1.0},
                                 {
@@ -404,6 +484,7 @@ class RecipeApplicator:
                             "effect_type": "filter",
                             "preset_id": "ken_burns",
                             "parent_clip_id": clip.get("id", ""),
+                            "style_transfer": True,
                             "keyframes": [
                                 {"offset": 0.0, "value": 1.0},
                                 {"offset": 1.0, "value": float(event.params.get("scale_end", 1.08))},

@@ -182,6 +182,7 @@ class StylePreset:
     fidelity_score: float = 0.0
     edit_recipe: dict[str, Any] = field(default_factory=dict)
     forensic_report: dict[str, Any] = field(default_factory=dict)
+    gap_report: dict[str, Any] = field(default_factory=dict)
     created_at: str = field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -201,6 +202,7 @@ class StylePreset:
             "fidelity_score": self.fidelity_score,
             "edit_recipe": self.edit_recipe,
             "forensic_report": self.forensic_report,
+            "gap_report": self.gap_report,
             "created_at": self.created_at,
         }
 
@@ -219,6 +221,8 @@ class StylePreset:
             "reference_duration_s": (self.edit_recipe or {}).get("reference_duration_s"),
             "missing_capabilities": self.missing_capabilities,
             "supported_coverage_pct": self.supported_coverage_pct,
+            "coverage_pct": self.supported_coverage_pct,
+            "gap_report": self.gap_report,
             "fidelity_score": self.fidelity_score,
             "created_at": self.created_at,
             "detected_effects": [
@@ -254,6 +258,7 @@ class StylePreset:
             fidelity_score=float(d.get("fidelity_score", 0.0)),
             edit_recipe=d.get("edit_recipe") or {},
             forensic_report=d.get("forensic_report") or {},
+            gap_report=d.get("gap_report") or {},
             created_at=d.get("created_at", datetime.now(timezone.utc).isoformat()),
         )
 
