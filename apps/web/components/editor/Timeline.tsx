@@ -435,6 +435,33 @@ export function Timeline() {
             Style
           </button>
 
+          {/* AI B-Roll button */}
+          <button
+            data-testid="ai-broll-button"
+            onClick={() => {
+              const { aiPanelOpen, rightPanelMode, setRightPanelMode, toggleAIPanel } =
+                useUIStore.getState()
+              if (rightPanelMode === 'ai-broll') {
+                setRightPanelMode('ai')
+              } else {
+                setRightPanelMode('ai-broll')
+                if (!aiPanelOpen) toggleAIPanel()
+              }
+            }}
+            aria-label="AI B-Roll suggestions"
+            aria-pressed={rightPanelMode === 'ai-broll'}
+            title="AI B-Roll"
+            className={[
+              'flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors',
+              rightPanelMode === 'ai-broll'
+                ? 'bg-accent text-white'
+                : 'text-text-secondary hover:text-text-primary hover:bg-bg-overlay border border-bg-overlay',
+            ].join(' ')}
+          >
+            <span aria-hidden="true">🎬</span>
+            AI B-Roll
+          </button>
+
           <div className="h-4 w-px bg-bg-overlay mx-1" />
 
           <div className="flex-1" />

@@ -715,6 +715,53 @@ def analyze_asset(self: Task, asset_id: str, scope: str = "all") -> dict[str, An
             # Non-fatal: visual engine failure should not block asset delivery.
             log.warning("visual_engine_failed: %s", visual_exc)
 
+        # ── 13.5. AI B-Roll suggestion engine (LLM-powered — non-fatal inner try) ──
+
+        try:
+            from tasks.broll_suggestion import run_broll_suggestion_engine
+
+            broll_actions = run_broll_suggestion_engine(full_text, words, duration)
+
+            with engine.begin() as conn:
+                for ba in broll_actions:
+                    sug_id = str(uuid.uuid4())
+                    confidence = float(ba.get("confidence", 0.7))
+                    display_val = ba.get("display_value", "B-roll")
+                    conn.execute(
+                        text("""
+                            INSERT INTO suggestions (
+                                id, project_id, asset_id, type, title, description,
+                                action, confidence, status, start_time, end_time,
+                                created_at, updated_at
+                            ) VALUES (
+                                :id, :project_id, :asset_id, 'VISUAL_OPPORTUNITY', :title, :description,
+                                CAST(:action AS jsonb), :confidence, 'PENDING', :start_time, :end_time,
+                                NOW(), NOW()
+                            )
+                        """),
+                        {
+                            "id": sug_id,
+                            "project_id": project_id,
+                            "asset_id": asset_id,
+                            "title": f"B-Roll: {display_val}",
+                            "description": (
+                                f"Insert B-roll at {_fmt_time(ba.get('start_time', 0))} "
+                                f"— {ba.get('broll_reason', 'visual enhancement')}"
+                            ),
+                            "action": json.dumps(ba, ensure_ascii=False),
+                            "confidence": confidence,
+                            "start_time": ba.get("start_time"),
+                            "end_time": ba.get("end_time"),
+                        },
+                    )
+                    suggestion_count += 1
+
+            log.info("broll_suggestions_stored", asset_id=asset_id, count=len(broll_actions))
+
+        except Exception as broll_exc:
+            # Non-fatal: B-roll suggestion failure should not block delivery.
+            log.warning("broll_suggestion_engine_failed: %s", broll_exc)
+
     except Exception as exc:
         log.error("analysis_failed", asset_id=asset_id, error=str(exc), exc_info=True)
         with engine.begin() as conn:

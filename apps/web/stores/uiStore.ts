@@ -9,7 +9,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 
-export type RightPanelMode = 'ai' | 'captions' | 'producer' | 'effects' | 'style' | 'broll' | 'image' | 'camera' | 'overlay-element' | 'keyframes'
+export type RightPanelMode = 'ai' | 'captions' | 'producer' | 'effects' | 'style' | 'broll' | 'image' | 'camera' | 'overlay-element' | 'keyframes' | 'ai-broll'
 
 export interface UIState {
   /** Left media/scenes panel open */

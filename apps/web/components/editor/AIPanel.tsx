@@ -119,6 +119,15 @@ export function AIPanel({ projectId }: { projectId?: string }) {
           >
             Aa
           </button>
+          {/* Switch to AI B-Roll */}
+          <button
+            data-testid="open-ai-broll"
+            onClick={() => setRightPanelMode('ai-broll')}
+            title="Open AI B-Roll suggestions"
+            className="text-[11px] text-text-disabled hover:text-accent transition-colors px-1.5 py-0.5 rounded hover:bg-bg-overlay"
+          >
+            🎬
+          </button>
         </div>
 
         <AIPromptBar />

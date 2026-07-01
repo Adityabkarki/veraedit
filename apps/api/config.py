@@ -101,6 +101,9 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = Field(default="")
     GEMINI_VISION_MODEL: str = Field(default="gemini-2.0-flash")
 
+    # ── Stock footage (Pexels) ─────────────────────────────────────────────────
+    PEXELS_API_KEY: str = Field(default="")
+
     # ── AI Budget ─────────────────────────────────────────────────────────────
     AI_COST_LIMIT_USD_PER_HOUR: float = Field(default=2.00)  # hard limit
     AI_COST_WARN_USD_PER_HOUR: float = Field(default=1.60)   # warning threshold

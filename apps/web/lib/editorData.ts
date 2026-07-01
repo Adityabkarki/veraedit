@@ -22,6 +22,7 @@ import { useEditorStore } from '@/stores/editorStore'
 import { applyPodcastAutopilotIfNeeded } from '@/lib/podcastAutopilot'
 import { useAutoEditStore } from '@/stores/autoEditStore'
 import { usePlayerStore } from '@/stores/playerStore'
+import { pickPrimaryProjectAsset } from '@/lib/projectAssets'
 
 interface BackendProject {
   id: string
@@ -36,7 +37,7 @@ interface BackendAsset {
   duration_seconds: number | null
   storage_key: string
   error_message?: string | null
-  media_metadata?: { content_type?: string } | null
+  media_metadata?: { content_type?: string; role?: string; source?: string } | null
 }
 
 interface TranscriptApiPayload {
@@ -150,7 +151,13 @@ export async function loadEditorProject(
   const projectTitle = proj.data.name || 'Untitled Project'
 
   const assets = await api.get<BackendAsset[]>(`/projects/${projectId}/assets`)
-  const asset = assets.data && assets.data.length > 0 ? assets.data[0] : null
+  const preferredAssetId = reloadTimeline
+    ? useAssetStore.getState().asset?.id
+    : undefined
+  const asset =
+    assets.data && assets.data.length > 0
+      ? pickPrimaryProjectAsset(assets.data, preferredAssetId)
+      : null
 
   if (!asset) {
     clearAllStores()

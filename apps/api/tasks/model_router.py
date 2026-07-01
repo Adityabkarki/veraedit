@@ -52,6 +52,7 @@ TASK_MODEL_MAP: dict[str, str] = {
     "visual_planning":   OPENAI_PRIMARY,
     "prompt_command":    OPENAI_PRIMARY,
     "style_forensic":    OPENAI_PRIMARY,
+    "broll_suggestion":  OPENAI_PRIMARY,
 }
 
 

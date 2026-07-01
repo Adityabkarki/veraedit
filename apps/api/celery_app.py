@@ -59,6 +59,7 @@ celery_app = Celery(
         "tasks.render_from_template_task",  # Phase 06: Template render
         "tasks.caption_tasks",         # Module 03: Captions STT + burn-in
         "tasks.cut_tasks",             # Module 04: Text-based cuts
+        "tasks.broll_generation",
     ],
 )
 

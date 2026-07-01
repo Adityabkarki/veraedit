@@ -1407,6 +1407,81 @@ async def get_visuals(
     }
 
 
+# ── GET /projects/{id}/assets/{asset_id}/broll-suggestions ──────────────────
+
+@router.get(
+    "/{project_id}/assets/{asset_id}/broll-suggestions",
+    summary="Get AI B-roll suggestions (transcript-based, LLM-powered)",
+)
+async def get_broll_suggestions(
+    project_id: uuid.UUID,
+    asset_id: uuid.UUID,
+    db: DbDep,
+    current_user: CurrentUser,
+) -> dict:
+    """
+    Return AI-generated B-roll suggestions for the video.
+
+    B-roll suggestions are generated during AI analysis (step 13.5 of the
+    pipeline) using GPT-4o-mini to scan the transcript. Each suggestion
+    identifies a moment where B-roll footage would enhance the video.
+
+    Only available once asset status = 'ready'.
+    """
+    from models import Suggestion
+
+    asset = await _get_owned_asset(project_id, asset_id, current_user.id, db)
+
+    if asset.status != "ready":
+        return {
+            "status": asset.status,
+            "message": _status_message(asset.status),
+            "broll_count": 0,
+            "broll_suggestions": [],
+        }
+
+    result = await db.execute(
+        select(Suggestion)
+        .where(
+            Suggestion.asset_id == asset_id,
+            Suggestion.type == "VISUAL_OPPORTUNITY",
+        )
+        .order_by(Suggestion.start_time.asc())
+    )
+    all_visuals = result.scalars().all()
+    # Filter in Python for ai_broll suggestions
+    broll_suggestions = [
+        s for s in all_visuals
+        if (s.action or {}).get("suggested_visual") == "ai_broll"
+    ]
+
+    suggestions = []
+    for s in broll_suggestions:
+        action = s.action or {}
+        suggestions.append({
+            "id": str(s.id),
+            "title": s.title,
+            "description": s.description,
+            "start_time": s.start_time,
+            "end_time": s.end_time,
+            "confidence": s.confidence,
+            "status": s.status.value if hasattr(s.status, "value") else str(s.status),
+            "broll_prompt": action.get("broll_prompt", ""),
+            "broll_reason": action.get("broll_reason", ""),
+            "generation_status": action.get("generation_status", "pending"),
+            "text_excerpt": action.get("text_excerpt", ""),
+            "generated_asset_url": action.get("generated_asset_url"),
+            "generated_asset_id": action.get("generated_asset_id"),
+            "error_message": action.get("error_message"),
+        })
+
+    return {
+        "status": "ready",
+        "broll_count": len(suggestions),
+        "broll_suggestions": suggestions,
+    }
+
+
 # ── POST /projects/{id}/assets/{asset_id}/prompt ────────────────────────────
 
 @router.post(
