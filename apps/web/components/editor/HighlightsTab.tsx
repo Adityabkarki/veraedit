@@ -129,7 +129,13 @@ export function HighlightsTab({ projectId }: HighlightsTabProps) {
       return
     }
     if (res.downloadUrl) {
-      downloadShort(res.downloadUrl, 'promo_reel_compiled')
+      const dl = await downloadShort(
+        res.downloadUrl,
+        'promo_reel_compiled',
+        projectId,
+        res.renderId ?? undefined,
+      )
+      if (!dl.ok) setExportError(dl.error)
     }
   }, [projectId, asset?.id, filtered, exportPlatform])
 

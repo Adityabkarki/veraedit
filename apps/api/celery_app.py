@@ -42,8 +42,8 @@ from config import settings
 
 celery_app = Celery(
     "viraedit",
-    broker=settings.REDIS_URL,
-    backend=settings.REDIS_URL,
+    broker=settings.CELERY_BROKER_URL,
+    backend=settings.CELERY_RESULT_BACKEND,
     include=[
         "tasks.transcribe",
         "tasks.analyze",
@@ -83,10 +83,11 @@ celery_app.conf.update(
 
     # CRITICAL: Windows requires solo pool (no fork)
     # Pass --pool=solo on the command line; this sets the default
-    worker_pool="solo",
+    # Linux: prefork allows multiple tasks in parallel, change with --concurrency=N
+    worker_pool="prefork",
 
-    # Concurrency 1 for solo pool (the default when pool=solo)
-    worker_concurrency=1,
+    # Number of worker processes (prefork pool)
+    worker_concurrency=2,
 
     # Acks late — task won't be marked done until it finishes
     # Prevents lost tasks if the worker crashes mid-flight
@@ -112,6 +113,8 @@ celery_app.conf.update(
         "tasks.chapters.*":          {"queue": "render"},
         "tasks.sizzle.*":            {"queue": "render"},
         "tasks.render.from_template": {"queue": "render"},
+        "tasks.caption.render":      {"queue": "render"},
+        "tasks.caption.transcribe":    {"queue": "transcription"},
         "tasks.caption.*":           {"queue": "transcription"},
         "tasks.cut.*":               {"queue": "render"},
     },

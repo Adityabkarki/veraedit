@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useJobPoller } from '@/hooks/useJobPoller'
 import { useShortsStore, type ApiShort } from '@/stores/shortsStore'
+import { downloadRemoteFile } from '@/lib/downloadFile'
 import {
   getShortsExtractJob,
   PLATFORM_OPTIONS,
@@ -68,15 +69,20 @@ export function PlatformShortsExtractor({ videoKey, projectId }: PlatformShortsE
     setJobId(data.job_id)
   }
 
-  const downloadAll = (platform: string) => {
-    results?.[platform]?.forEach((clip, i) => {
-      window.setTimeout(() => {
-        const anchor = document.createElement('a')
-        anchor.href = clip.url
-        anchor.download = `${platform}_${clip.title.replace(/\s+/g, '_')}.mp4`
-        anchor.click()
-      }, i * 300)
-    })
+  const downloadAll = async (platform: string) => {
+    const clips = results?.[platform]
+    if (!clips?.length) return
+    for (const [i, clip] of clips.entries()) {
+      const filename = `${platform}_${clip.title.replace(/\s+/g, '_')}.mp4`
+      const dl = await downloadRemoteFile(clip.url, filename)
+      if (!dl.ok) {
+        toast.error(dl.error ?? 'Could not download short.')
+        return
+      }
+      if (i < clips.length - 1) {
+        await new Promise((r) => setTimeout(r, 300))
+      }
+    }
   }
 
   return (
@@ -149,7 +155,7 @@ export function PlatformShortsExtractor({ videoKey, projectId }: PlatformShortsE
                   </h3>
                   <button
                     type="button"
-                    onClick={() => downloadAll(platform)}
+                    onClick={() => void downloadAll(platform)}
                     className="text-xs bg-text-primary text-bg-base px-3 py-1.5 rounded-lg"
                   >
                     Download all ({clips.length})

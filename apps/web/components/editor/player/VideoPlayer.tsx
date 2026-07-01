@@ -83,6 +83,11 @@ export function VideoPlayer({ src, aspectRatio }: VideoPlayerProps) {
     [clips, duration],
   )
 
+  useEffect(() => {
+    const td = timelineVideoDuration(clips)
+    if (td > 0) setDuration(td)
+  }, [clips, setDuration])
+
   const activeVideoClip = useMemo(
     () => activeVideoClipAt(clips, currentTime),
     [clips, currentTime],

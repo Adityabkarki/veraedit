@@ -10,6 +10,7 @@ import { TextEditor } from '@/components/editor/TextEditor'
 import { useTranscriptStore } from '@/stores/transcriptStore'
 import { usePlayerStore } from '@/stores/playerStore'
 import { useAssetStore } from '@/stores/assetStore'
+import { applyAvCutsFromRanges } from '@/lib/applySuggestionClient'
 import {
   applyCuts,
   detectFillers,
@@ -70,6 +71,18 @@ export function TextEditorPanel({ projectId }: TextEditorPanelProps) {
         return
       }
       setApplying(true)
+
+      // Apply cuts to the local timeline for instant feedback
+      const n = applyAvCutsFromRanges(cuts, 'Text editor cuts')
+      if (n > 0) {
+        toast.success(`Applied ${n} cut(s) to timeline. Rendering final video…`)
+      } else {
+        toast.message('No cuts to apply.')
+        setApplying(false)
+        return
+      }
+
+      // Queue server-side FFmpeg render for download/export
       const res = await applyCuts(projectId, asset.storageKey, cuts)
       if (res.error || !res.data?.job_id) {
         toast.error(res.error ?? 'Could not start cut job.')
@@ -78,7 +91,6 @@ export function TextEditorPanel({ projectId }: TextEditorPanelProps) {
       }
 
       const jobId = res.data.job_id
-      toast.message('Applying cuts to video…')
 
       const poll = async (attempt = 0): Promise<void> => {
         if (attempt > 90) {
@@ -94,7 +106,7 @@ export function TextEditorPanel({ projectId }: TextEditorPanelProps) {
         }
         const st = status.data?.status
         if (st === 'done' && status.data?.result?.url) {
-          toast.success('Video cuts applied.', {
+          toast.success('Rendered cut video ready for download.', {
             action: {
               label: 'Download',
               onClick: () => window.open(status.data!.result!.url!, '_blank'),

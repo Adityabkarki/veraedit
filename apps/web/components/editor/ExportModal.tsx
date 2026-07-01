@@ -8,7 +8,7 @@ import { useState } from 'react'
 import {
   EXPORT_PLATFORMS,
   exportProjectVideo,
-  triggerDownload,
+  downloadProjectRender,
   type ExportPlatform,
 } from '@/lib/renderExport'
 
@@ -45,8 +45,17 @@ export function ExportModal({ projectId, open, onClose }: ExportModalProps) {
       return
     }
 
-    if (result.downloadUrl) {
-      triggerDownload(result.downloadUrl, `viraedit-${platform}.mp4`)
+    if (result.downloadUrl && result.renderId) {
+      const dl = await downloadProjectRender(
+        projectId,
+        result.renderId,
+        platform,
+        result.downloadUrl,
+      )
+      if (!dl.ok) {
+        setError(dl.error ?? 'Render finished but the download could not start.')
+        return
+      }
       setStatus('Download started')
       setTimeout(onClose, 1200)
     }

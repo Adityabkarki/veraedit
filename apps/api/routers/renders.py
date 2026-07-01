@@ -27,12 +27,14 @@ Platform presets:
 """
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
 import structlog
 from fastapi import APIRouter, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
@@ -373,7 +375,13 @@ async def download_render(
         )
         download_url = s3.generate_presigned_url(
             "get_object",
-            Params={"Bucket": settings.S3_BUCKET_RENDERS, "Key": render.storage_key},
+            Params={
+                "Bucket": settings.S3_BUCKET_RENDERS,
+                "Key": render.storage_key,
+                "ResponseContentDisposition": (
+                    f'attachment; filename="viraedit-{render.platform.value}.mp4"'
+                ),
+            },
             ExpiresIn=expires_in,
         )
     except Exception as exc:
@@ -399,6 +407,101 @@ async def download_render(
         "platform": render.platform.value,
         "resolution": render.resolution,
     }
+
+
+# ── GET /renders/{render_id}/file ────────────────────────────────────────────
+
+def _renders_s3_client():
+    import boto3
+    from botocore.config import Config
+    from config import settings
+
+    return boto3.client(
+        "s3",
+        endpoint_url=settings.S3_ENDPOINT_URL,
+        aws_access_key_id=settings.S3_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.S3_SECRET_ACCESS_KEY,
+        config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
+        region_name=settings.S3_REGION or "us-east-1",
+    )
+
+
+@router.get(
+    "/{project_id}/renders/{render_id}/file",
+    summary="Stream a completed render MP4 (authenticated download)",
+)
+async def stream_render_file(
+    project_id: uuid.UUID,
+    render_id: uuid.UUID,
+    db: DbDep,
+    current_user: CurrentUser,
+) -> StreamingResponse:
+    """
+    Stream the render MP4 through the API so the browser can save it reliably.
+
+    Use this instead of the presigned MinIO URL when the frontend `download`
+    attribute fails across origins.
+    """
+    await _get_project_or_404(project_id, current_user.id, db)
+    render = await _get_render_or_404(project_id, render_id, db)
+
+    if render.status != RenderStatus.READY:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Render is not ready (status: {render.status.value}). "
+                "Wait for status=ready before downloading."
+            ),
+        )
+    if not render.storage_key:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Render completed but output file location is unknown. Contact support.",
+        )
+
+    from config import settings
+
+    def _fetch_object():
+        client = _renders_s3_client()
+        return client.get_object(
+            Bucket=settings.S3_BUCKET_RENDERS,
+            Key=render.storage_key,
+        )
+
+    try:
+        obj = await asyncio.to_thread(_fetch_object)
+    except Exception as exc:
+        log.warning(
+            "render_stream_failed",
+            render_id=str(render_id),
+            error=str(exc),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Could not load render file from storage. Please try again.",
+        ) from exc
+
+    body = obj["Body"]
+    safe_name = (render.name or f"viraedit-{render.platform.value}").replace('"', "").strip()
+    filename = f"{safe_name or 'viraedit-export'}.mp4"
+
+    def iter_chunks():
+        try:
+            for chunk in body.iter_chunks(chunk_size=1024 * 1024):
+                if chunk:
+                    yield chunk
+        finally:
+            body.close()
+
+    log.info("render_stream_started", render_id=str(render_id), filename=filename)
+
+    return StreamingResponse(
+        iter_chunks(),
+        media_type=obj.get("ContentType") or "video/mp4",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
 
 
 # ── DELETE /renders/{render_id} ───────────────────────────────────────────────

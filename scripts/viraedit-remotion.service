@@ -1,0 +1,17 @@
+[Unit]
+Description=ViraEdit Remotion Render Service
+After=network.target
+
+[Service]
+Type=simple
+User=mkarki
+WorkingDirectory=/home/mkarki/Work/karmaOps/veraedit/remotion-service
+Environment="PATH=/usr/bin:/usr/local/bin"
+Environment="REMOTION_HOST=127.0.0.1"
+Environment="REMOTION_PORT=3500"
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

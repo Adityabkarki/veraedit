@@ -14,16 +14,27 @@ import {
   startCaptionRender,
   getCaptionJob,
 } from '@/lib/captionsApi'
+import { downloadRemoteFile } from '@/lib/downloadFile'
 import { useCaptionsStore } from '@/stores/captionsStore'
 import { useAssetStore } from '@/stores/assetStore'
 import { toast } from 'sonner'
+
+/** 2s interval × 450 attempts ≈ 15 minutes for long FFmpeg encodes. */
+const POLL_INTERVAL_MS = 2000
+const MAX_POLL_ATTEMPTS = 450
+/** After this many attempts while still queued, the worker likely is not picking up jobs. */
+const QUEUED_WORKER_HINT_AFTER = 20
+/** Remind the user a long encode may still be running. */
+const STILL_WORKING_HINT_AFTER = 30
 
 interface CaptionStylePickerProps {
   projectId?: string
 }
 
 export function CaptionStylePicker({ projectId }: CaptionStylePickerProps) {
-  const [selected, setSelected] = useState<BurnInStyle>('nepali_bold')
+  const [selected, setSelected] = useState<BurnInStyle>(
+    () => useCaptionsStore.getState().burnInStyle ?? 'nepali_bold',
+  )
   const [rendering, setRendering] = useState(false)
   const captions = useCaptionsStore((s) => s.captions)
   const asset = useAssetStore((s) => s.asset)
@@ -45,7 +56,8 @@ export function CaptionStylePicker({ projectId }: CaptionStylePickerProps) {
     const words = captions.flatMap((cap) => {
       const parts = cap.text.trim().split(/\s+/).filter(Boolean)
       if (parts.length === 0) return []
-      const step = cap.duration / parts.length
+      const span = Math.max(0.01, cap.endTime - cap.startTime)
+      const step = span / parts.length
       return parts.map((word, i) => ({
         word,
         start: cap.startTime + i * step,
@@ -67,38 +79,76 @@ export function CaptionStylePicker({ projectId }: CaptionStylePickerProps) {
     }
 
     const jobId = res.data.job_id
-    toast.message('Rendering captions…', { description: 'This may take a minute.' })
+    toast.message('Rendering captions…', {
+      description: 'FFmpeg is burning captions into your video. Long clips can take several minutes.',
+    })
+
+    let stillWorkingToastShown = false
 
     const poll = async (attempt = 0): Promise<void> => {
-      if (attempt > 60) {
-        toast.error('Caption render timed out. Check the worker is running.')
+      if (attempt > MAX_POLL_ATTEMPTS) {
+        toast.error(
+          'Caption render is taking longer than expected. The worker may still be encoding — check Celery logs or try again.',
+        )
         setRendering(false)
         return
       }
+
       const status = await getCaptionJob(jobId)
       if (status.error) {
         toast.error(status.error)
         setRendering(false)
         return
       }
+
       const st = status.data?.status
-      if (st === 'done' && status.data?.result?.url) {
-        toast.success('Captions burned into video.', {
-          description: 'Download link is ready.',
-          action: {
-            label: 'Open',
-            onClick: () => window.open(status.data!.result!.url!, '_blank'),
-          },
-        })
+
+      if (st === 'queued' && attempt >= QUEUED_WORKER_HINT_AFTER) {
+        toast.error(
+          'Job is still queued. Start the Celery worker with the render queue: celery -A celery_app worker --queues=transcription,analysis,render,ai --pool=solo',
+        )
         setRendering(false)
         return
       }
+
+      if (
+        st === 'processing' &&
+        attempt >= STILL_WORKING_HINT_AFTER &&
+        !stillWorkingToastShown
+      ) {
+        stillWorkingToastShown = true
+        toast.message('Still rendering…', {
+          description: 'Large videos can take 5–10 minutes. Please keep this tab open.',
+        })
+      }
+
+      if (st === 'done' && status.data?.result?.url) {
+        const url = status.data.result.url
+        const dl = await downloadRemoteFile(url, `captioned-${selected}.mp4`)
+        if (dl.ok) {
+          toast.success('Captions burned into video.', {
+            description: 'Your download should start shortly.',
+          })
+        } else {
+          toast.success('Captions burned into video.', {
+            description: 'Download link is ready.',
+            action: {
+              label: 'Open',
+              onClick: () => window.open(url, '_blank'),
+            },
+          })
+        }
+        setRendering(false)
+        return
+      }
+
       if (st === 'failed') {
         toast.error(status.data?.error ?? 'Caption render failed.')
         setRendering(false)
         return
       }
-      setTimeout(() => void poll(attempt + 1), 2000)
+
+      setTimeout(() => void poll(attempt + 1), POLL_INTERVAL_MS)
     }
 
     void poll()
@@ -117,7 +167,10 @@ export function CaptionStylePicker({ projectId }: CaptionStylePickerProps) {
               key={style.id}
               type="button"
               data-testid={`burn-style-${style.id}`}
-              onClick={() => setSelected(style.id)}
+              onClick={() => {
+                setSelected(style.id)
+                useCaptionsStore.getState().setBurnInStyle(style.id)
+              }}
               aria-pressed={active}
               title={style.description}
               className={[

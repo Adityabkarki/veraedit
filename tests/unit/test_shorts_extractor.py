@@ -31,7 +31,10 @@ async def test_extract_shorts_for_platforms_mocked(monkeypatch, tmp_path):
         "apply_cuts_precise",
         lambda i, o, c, force_reencode=False: o.write_bytes(b"vid"),
     )
-    monkeypatch.setattr(shorts_extractor, "render_captions", lambda i, o, w, style: o.write_bytes(b"cap"))
+    async def fake_render(i, o, w, style):
+        o.write_bytes(b"cap")
+
+    monkeypatch.setattr(shorts_extractor, "render_captions_v2", fake_render)
     monkeypatch.setattr(
         shorts_extractor,
         "reframe_video",

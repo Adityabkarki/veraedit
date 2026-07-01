@@ -102,7 +102,13 @@ export function ScenesPanel({ projectId }: { projectId?: string }) {
         return
       }
       if (res.downloadUrl) {
-        downloadShort(res.downloadUrl, title ? `chapter_${title}` : 'chapter')
+        const dl = await downloadShort(
+          res.downloadUrl,
+          title ? `chapter_${title}` : 'chapter',
+          projectId,
+          res.renderId ?? undefined,
+        )
+        if (!dl.ok) setExportError(dl.error)
       }
     },
     [projectId, asset?.id],

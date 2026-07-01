@@ -152,76 +152,44 @@ def _remove_time_ranges(
     ranges: list[tuple[float, float]],
 ) -> list[dict]:
     """
-    Remove the given time ranges from a list of timeline clips.
+    Remove source-time ranges by rebuilding clips from kept segments.
 
-    For each range [cut_start, cut_end]:
-    - Clips fully inside the range are removed.
-    - Clips partially overlapping the range are trimmed.
-    - Clips after the range are shifted left by (cut_end - cut_start).
-
-    Returns a new list of clips with ranges removed and positions adjusted.
+    Splits the timeline into contiguous source regions and packs them
+  sequentially so playback skips removed filler/silence correctly.
     """
-    result = []
-    # Total time removed so far — used to shift downstream clips
-    total_removed = 0.0
+    if not clips or not ranges:
+        return clips
 
-    for clip in clips:
-        c_start = clip.get("timeline_start", 0.0) - total_removed
-        c_end = clip.get("timeline_end", 0.0) - total_removed
-        src_start = clip.get("source_start", 0.0)
-        src_end = clip.get("source_end", 0.0)
-        src_dur = src_end - src_start
-        speed = clip.get("speed", 1.0) or 1.0
+    from processors.text_editor import cuts_to_keep
 
-        adjusted_clip = dict(clip)
-        skip = False
+    max_src = max(
+        float(c.get("source_end") or c.get("timeline_end") or 0.0)
+        for c in clips
+    )
+    cut_dicts = [{"start": float(a), "end": float(b)} for a, b in ranges if b > a]
+    if not cut_dicts:
+        return clips
 
-        for cut_start, cut_end in sorted(ranges):
-            cut_dur = cut_end - cut_start
+    keep = cuts_to_keep(cut_dicts, max_src)
+    if not keep:
+        return []
 
-            if c_end <= cut_start:
-                # Clip is entirely before cut range — no change
-                continue
-            elif c_start >= cut_end:
-                # Clip is entirely after cut range — shift left
-                c_start -= cut_dur
-                c_end -= cut_dur
-                total_removed += cut_dur
-                # Only shift once per clip per range
-                total_removed -= cut_dur  # undo global increment; we'll apply per clip
-            elif cut_start <= c_start and cut_end >= c_end:
-                # Clip is fully inside cut range — remove it
-                skip = True
-                break
-            elif cut_start > c_start and cut_end < c_end:
-                # Cut is entirely inside clip — split not supported; trim end instead
-                overlap = cut_end - cut_start
-                c_end -= overlap
-                # Adjust source window proportionally
-                src_overlap = overlap * speed
-                src_end_new = src_end - src_overlap
-                adjusted_clip["source_end"] = max(src_start + 0.1, src_end_new)
-            elif cut_start <= c_start and cut_end < c_end:
-                # Overlap at the start of clip — trim start
-                overlap = cut_end - c_start
-                c_start = cut_end
-                src_overlap = overlap * speed
-                src_start_new = src_start + src_overlap
-                adjusted_clip["source_start"] = min(src_end - 0.1, src_start_new)
-            elif cut_start > c_start and cut_end >= c_end:
-                # Overlap at the end of clip — trim end
-                overlap = c_end - cut_start
-                c_end = cut_start
-                src_overlap = overlap * speed
-                src_end_new = src_end - src_overlap
-                adjusted_clip["source_end"] = max(src_start + 0.1, src_end_new)
-
-        if not skip:
-            adjusted_clip["timeline_start"] = max(0.0, c_start)
-            adjusted_clip["timeline_end"] = max(c_start + 0.01, c_end)
-            result.append(adjusted_clip)
-
-    return result
+    template = clips[0]
+    rebuilt: list[dict] = []
+    timeline_cursor = 0.0
+    for i, seg in enumerate(keep):
+        seg_dur = float(seg["end"]) - float(seg["start"])
+        if seg_dur < 0.01:
+            continue
+        new_clip = dict(template)
+        new_clip["id"] = f"{template.get('id', 'clip')}-seg-{i}"
+        new_clip["timeline_start"] = timeline_cursor
+        new_clip["timeline_end"] = timeline_cursor + seg_dur
+        new_clip["source_start"] = float(seg["start"])
+        new_clip["source_end"] = float(seg["end"])
+        rebuilt.append(new_clip)
+        timeline_cursor += seg_dur
+    return rebuilt
 
 
 # ── Action handlers ───────────────────────────────────────────────────────────

@@ -53,7 +53,14 @@ audit. Prefer surfacing these in the product UI where possible.
 
 ## Remotion rendering (Phase 09)
 
-- Not yet implemented. Caption burn-in currently uses FFmpeg ASS subtitles.
+- **Service dependency:** Animated captions use Remotion when the service on
+  `127.0.0.1:3500` is reachable; otherwise ASS/FFmpeg fallback runs automatically.
+- **Port security:** Do not expose port 3500 through nginx or public firewall —
+  internal FastAPI → Remotion only.
+- **Title cards:** Phase 6 template rendering still uses FFmpeg `drawtext` for
+  simple title burn-in; Remotion title-card API is available for future upgrades.
+- **Performance:** Remotion renders every frame (slow on long videos). ASS fallback
+  is used when Remotion fails or times out.
 
 ## Testing gaps
 

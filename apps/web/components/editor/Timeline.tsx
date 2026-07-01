@@ -21,7 +21,7 @@
  *   Space / J / L / K / ← → / Shift←→ / C / Delete / Ctrl+Z / Ctrl+Y / Ctrl+D
  */
 
-import { useRef, useCallback, useMemo } from 'react'
+import { useRef, useCallback, useEffect, useMemo } from 'react'
 import { useDismissClipEditorOnEscape } from '@/hooks/useDismissClipEditorOnEscape'
 import { useTimelineStore, PPS_MIN, PPS_MAX, PPS_DEFAULT } from '@/stores/timelineStore'
 import { useEffectsStore }  from '@/stores/effectsStore'
@@ -120,6 +120,19 @@ export function Timeline() {
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const verticalScrollRef = useRef<HTMLDivElement>(null)
+
+  // Non-passive wheel listener so preventDefault() works (React 18 makes onWheel passive)
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const handler = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return
+      e.preventDefault()
+      verticalScrollRef.current?.scrollBy({ top: e.deltaY, behavior: 'auto' })
+    }
+    el.addEventListener('wheel', handler, { passive: false })
+    return () => el.removeEventListener('wheel', handler)
+  }, [])
 
   // Compute total timeline duration from the rightmost clip edge
   const totalDuration = Math.max(
@@ -470,11 +483,6 @@ export function Timeline() {
               className="flex-1 min-w-0 overflow-x-auto overflow-y-visible"
               style={{ height: tracksContentHeight }}
               onScroll={onHorizontalScroll}
-              onWheel={(e) => {
-                if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return
-                e.preventDefault()
-                verticalScrollRef.current?.scrollBy({ top: e.deltaY, behavior: 'auto' })
-              }}
             >
               <div style={{ width: totalWidth, height: tracksContentHeight }}>
                 <TimelineRuler totalDuration={totalDuration} />

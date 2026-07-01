@@ -9,6 +9,7 @@ import { TemplateGapResolver } from '@/components/editor/TemplateGapResolver'
 import { StepIndicator } from '@/components/oneclick/StepIndicator'
 import { useJobPoller } from '@/hooks/useJobPoller'
 import { matchTemplateToLibrary, type AnnotatedTemplate } from '@/lib/gapResolutionApi'
+import { downloadRemoteFile } from '@/lib/downloadFile'
 import {
   getTemplateRenderJob,
   startRenderFromTemplate,
@@ -133,6 +134,12 @@ export function CloneStyleFlow({ projectId }: CloneStyleFlowProps) {
     setStep('review')
   }, [projectId, resolvedAssets, template, textValues])
 
+  const handleDownload = useCallback(async () => {
+    if (!finalVideo?.url) return
+    const dl = await downloadRemoteFile(finalVideo.url, 'my-video.mp4')
+    if (!dl.ok) toast.error(dl.error ?? 'Could not download video.')
+  }, [finalVideo?.url])
+
   const handleContinueFromResolve = () => {
     if (textSlots.length) {
       setStep('text')
@@ -249,13 +256,13 @@ export function CloneStyleFlow({ projectId }: CloneStyleFlowProps) {
           {finalVideo.captionNote && (
             <p className="text-xs text-text-secondary max-w-sm mx-auto">{finalVideo.captionNote}</p>
           )}
-          <a
-            href={finalVideo.url}
-            download="my-video.mp4"
+          <button
+            type="button"
+            onClick={() => void handleDownload()}
             className="inline-block bg-bg-overlay text-text-primary py-2.5 px-6 rounded-xl text-sm font-medium"
           >
             Download
-          </a>
+          </button>
           <div className="flex flex-wrap gap-3 justify-center pt-2 text-xs">
             <Link href={`/projects/${projectId}/shorts`} className="text-accent hover:underline">
               Also get this as Shorts

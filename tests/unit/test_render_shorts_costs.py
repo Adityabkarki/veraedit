@@ -180,6 +180,11 @@ class TestRenderRouterRegistration:
         paths = [r.path for r in router.routes]
         assert any("download" in p for p in paths)
 
+    def test_renders_router_has_file_stream_endpoint(self):
+        from routers.renders import router
+        paths = [r.path for r in router.routes]
+        assert any(p.endswith("/file") and "{render_id}" in p for p in paths)
+
     def test_renders_router_has_cancel_endpoint(self):
         from routers.renders import router
         methods = {}

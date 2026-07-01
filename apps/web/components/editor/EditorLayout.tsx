@@ -164,7 +164,7 @@ export function EditorLayout({
             data-testid="center-panel"
             className="flex-1 overflow-hidden min-w-0 min-h-0"
           >
-            <VideoPreview projectId={projectId} />
+            <VideoPreview />
           </div>
 
           {/* Right panel */}

@@ -13,6 +13,8 @@
 import { useCallback } from 'react'
 import { toast } from 'sonner'
 import { applyAvCutsFromRanges } from '@/lib/applySuggestionClient'
+import { timelineVideoDuration } from '@/lib/playbackMapping'
+import { useTimelineStore } from '@/stores/timelineStore'
 import {
   useTranscriptStore,
   getFillerWords,
@@ -32,13 +34,19 @@ export function FillerControls() {
   const silenceTime  = getTotalSavedTime(silenceWords.map((w) => w.id), words)
 
   const handleRemoveFillers = useCallback(() => {
+    const before = timelineVideoDuration(useTimelineStore.getState().clips)
     deleteAllFillers()
     const updated = useTranscriptStore.getState().words
     const ranges = updated
       .filter((w) => w.type === 'filler' && w.deleted)
       .map((w) => ({ start: w.startTime, end: w.endTime }))
     const n = applyAvCutsFromRanges(ranges, 'Remove fillers')
-    if (n > 0) {
+    const after = timelineVideoDuration(useTimelineStore.getState().clips)
+    if (n > 0 && after < before - 0.05) {
+      toast.success(
+        `Removed ${n} filler segment(s). Video is now ${Math.floor(after / 60)}:${String(Math.floor(after % 60)).padStart(2, '0')} (was ${Math.floor(before / 60)}:${String(Math.floor(before % 60)).padStart(2, '0')}).`,
+      )
+    } else if (n > 0) {
       toast.success(`Removed ${n} filler segment(s) from script and timeline.`)
     } else {
       toast.message('Fillers marked removed in script.')
@@ -46,13 +54,19 @@ export function FillerControls() {
   }, [deleteAllFillers])
 
   const handleRemoveSilences = useCallback(() => {
+    const before = timelineVideoDuration(useTimelineStore.getState().clips)
     removeLongSilences(SILENCE_MIN)
     const updated = useTranscriptStore.getState().words
     const ranges = updated
       .filter((w) => w.type === 'silence' && w.deleted)
       .map((w) => ({ start: w.startTime, end: w.endTime }))
     const n = applyAvCutsFromRanges(ranges, 'Remove silences')
-    if (n > 0) {
+    const after = timelineVideoDuration(useTimelineStore.getState().clips)
+    if (n > 0 && after < before - 0.05) {
+      toast.success(
+        `Removed ${n} silence segment(s). Video is now ${Math.floor(after / 60)}:${String(Math.floor(after % 60)).padStart(2, '0')} (was ${Math.floor(before / 60)}:${String(Math.floor(before % 60)).padStart(2, '0')}).`,
+      )
+    } else if (n > 0) {
       toast.success(`Removed ${n} silence segment(s) from script and timeline.`)
     }
   }, [removeLongSilences])

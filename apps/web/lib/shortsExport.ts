@@ -4,16 +4,11 @@
  */
 
 import { api } from '@/lib/api'
-import { triggerDownload, saveProjectTimeline } from '@/lib/renderExport'
+import { downloadRenderFile, downloadRemoteFile } from '@/lib/downloadFile'
+import { saveProjectTimeline } from '@/lib/renderExport'
+import { pollRenderJob } from '@/lib/renderPoll'
 
 import type { ShortStylingExport } from '@/lib/shortStyling'
-
-interface RenderStatus {
-  id: string
-  status: string
-  progress_percent: number
-  error_message?: string | null
-}
 
 export async function exportShortVideo(
   projectId: string,
@@ -27,7 +22,7 @@ export async function exportShortVideo(
   reframeStrategy?: string,
   styling?: ShortStylingExport,
   segments?: { start_time: number; end_time: number }[],
-): Promise<{ error: string | null; downloadUrl: string | null }> {
+): Promise<{ error: string | null; downloadUrl: string | null; renderId: string | null }> {
   // Best-effort: persist editor timeline when available (backend also auto-creates if missing)
   await saveProjectTimeline(projectId, `Short export: ${name}`)
 
@@ -47,34 +42,28 @@ export async function exportShortVideo(
 
   const renderId = created.data?.render_id ?? created.data?.id
   if (created.error || !renderId) {
-    return { error: created.error ?? 'Could not start short export.', downloadUrl: null }
+    return { error: created.error ?? 'Could not start short export.', downloadUrl: null, renderId: null }
   }
 
   let ready = false
-  for (let i = 0; i < 60; i++) {
-    const st = await api.get<RenderStatus>(`/projects/${projectId}/renders/${renderId}`)
-    if (st.error || !st.data) {
-      return { error: st.error ?? 'Could not check render status.', downloadUrl: null }
-    }
-    const status = st.data.status?.toLowerCase() ?? ''
-    onProgress?.(st.data.progress_percent ?? 0, status)
-    if (status === 'ready') {
-      ready = true
-      break
-    }
-    if (status === 'error') {
-      return {
-        error: st.data.error_message ?? 'Short export failed.',
-        downloadUrl: null,
-      }
-    }
-    await new Promise((r) => setTimeout(r, 3000))
+  let pollError: string | null = null
+  try {
+    await pollRenderJob(projectId, renderId, {
+      videoDurationSeconds: Math.max(0, endTime - startTime),
+      clipCount: segments?.length ?? 1,
+      hasCaptions: true,
+      onProgress,
+    })
+    ready = true
+  } catch (err) {
+    pollError = err instanceof Error ? err.message : 'Short export failed.'
   }
 
   if (!ready) {
     return {
-      error: 'Export timed out. Make sure scripts\\worker.bat all is running.',
+      error: pollError ?? 'Export timed out.',
       downloadUrl: null,
+      renderId: null,
     }
   }
 
@@ -82,13 +71,23 @@ export async function exportShortVideo(
     `/projects/${projectId}/renders/${renderId}/download`,
   )
   if (dl.error || !dl.data?.download_url) {
-    return { error: dl.error ?? 'Export finished but download is unavailable.', downloadUrl: null }
+    return { error: dl.error ?? 'Export finished but download is unavailable.', downloadUrl: null, renderId }
   }
 
-  return { error: null, downloadUrl: dl.data.download_url }
+  return { error: null, downloadUrl: dl.data.download_url, renderId }
 }
 
-export function downloadShort(url: string, title: string) {
+export async function downloadShort(
+  url: string,
+  title: string,
+  projectId?: string,
+  renderId?: string,
+): Promise<{ ok: boolean; error: string | null }> {
   const safe = title.replace(/[^\w\-]+/g, '_').slice(0, 40)
-  triggerDownload(url, `${safe || 'short'}.mp4`)
+  const filename = `${safe || 'short'}.mp4`
+  if (projectId && renderId) {
+    const viaApi = await downloadRenderFile(projectId, renderId, filename)
+    if (viaApi.ok) return viaApi
+  }
+  return downloadRemoteFile(url, filename)
 }

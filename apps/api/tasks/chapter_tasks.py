@@ -12,7 +12,7 @@ import structlog
 from celery import Task
 
 from celery_app import celery_app
-from processors.caption_renderer import render_captions
+from processors.caption_renderer import render_captions_v2
 from processors.chapter_detector import detect_chapters_with_energy
 from processors.storage_helpers import storage_sync
 from processors.text_editor import apply_cuts, get_duration
@@ -91,7 +91,11 @@ def extract_chapters_task(
             final_path = raw_path
             if chapter_words:
                 try:
-                    render_captions(raw_path, captioned_path, chapter_words, style=caption_style)
+                    asyncio.run(
+                        render_captions_v2(
+                            raw_path, captioned_path, chapter_words, style=caption_style
+                        )
+                    )
                     final_path = captioned_path
                 except Exception as exc:
                     log.warning("chapter_caption_failed", chapter=i, error=str(exc))

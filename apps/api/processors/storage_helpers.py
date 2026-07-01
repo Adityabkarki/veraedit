@@ -67,10 +67,14 @@ class S3Storage:
         self.client.download_file(self.bucket, key, local_path.as_posix())
         return local_path
 
-    def get_presigned_url(self, key: str, expires: int = 3600) -> str:
+    def get_presigned_url(self, key: str, expires: int = 3600, filename: str | None = None) -> str:
+        params: dict = {"Bucket": self.bucket, "Key": key}
+        if filename:
+            safe = filename.replace('"', "")
+            params["ResponseContentDisposition"] = f'attachment; filename="{safe}"'
         return self.client.generate_presigned_url(
             "get_object",
-            Params={"Bucket": self.bucket, "Key": key},
+            Params=params,
             ExpiresIn=expires,
         )
 

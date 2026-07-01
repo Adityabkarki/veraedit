@@ -23,6 +23,7 @@
  */
 
 import { create } from 'zustand'
+import { mapSourceTimeToEdited } from '@/lib/avCutUtils'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -317,6 +318,8 @@ export interface TranscriptState {
   restoreWords:        (ids: string[]) => void
   deleteAllFillers:    () => void
   removeLongSilences:  (minDuration: number) => void
+  /** Ripple transcript word times after timeline source cuts. */
+  shiftTimesForCuts:   (cuts: { start: number; end: number }[]) => void
   setPendingDelete:    (ids: string[] | null) => void
   setSearchQuery:      (q: string) => void
   nextSearchMatch:     () => void
@@ -412,6 +415,23 @@ export const useTranscriptStore = create<TranscriptState>((set, get) => ({
       const updated = s.words.map((w) =>
         ids.includes(w.id) ? { ...w, deleted: true } : w
       )
+      return { words: updated, segments: buildSegments(updated) }
+    }),
+
+  shiftTimesForCuts: (cuts) =>
+    set((s) => {
+      if (cuts.length === 0) return s
+      const updated = s.words
+        .filter((w) => !w.deleted)
+        .map((w) => {
+          const start = mapSourceTimeToEdited(w.startTime, cuts)
+          const end = mapSourceTimeToEdited(w.endTime, cuts)
+          return {
+            ...w,
+            startTime: start,
+            endTime: Math.max(start + 0.01, end),
+          }
+        })
       return { words: updated, segments: buildSegments(updated) }
     }),
 

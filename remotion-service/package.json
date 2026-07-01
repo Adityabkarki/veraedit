@@ -1,0 +1,23 @@
+{
+  "name": "viraedit-remotion-service",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "node server.js",
+    "render": "remotion render"
+  },
+  "dependencies": {
+    "@remotion/bundler": "^4.0.242",
+    "@remotion/cli": "^4.0.242",
+    "@remotion/google-fonts": "^4.0.242",
+    "@remotion/renderer": "^4.0.242",
+    "express": "^4.21.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "^4.0.242"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "typescript": "^5.6.3"
+  }
+}

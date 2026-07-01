@@ -18,7 +18,7 @@ from sqlalchemy import create_engine, text
 
 from celery_app import celery_app
 from config import settings
-from processors.caption_renderer import render_captions, segments_from_words, words_to_srt
+from processors.caption_renderer import segments_from_words, words_to_srt
 from processors.storage_helpers import storage_sync
 from processors.transcriber import transcribe_video
 from services.pipeline_cost import estimate_stt_cost_usd
@@ -148,7 +148,12 @@ def transcribe_task(
                 pass
 
 
-@celery_app.task(bind=True, name="tasks.caption.render")
+@celery_app.task(
+    bind=True,
+    name="tasks.caption.render",
+    soft_time_limit=1700,
+    time_limit=1800,
+)
 def render_captions_task(
     self: Task,
     job_id: str,
@@ -164,6 +169,9 @@ def render_captions_task(
     try:
         local_path = storage_sync.download_to_temp(video_key, job_id)
         out_path = local_path.with_name(f"{local_path.stem}_captioned_{style}.mp4")
+        # Editor burn-in: ASS + FFmpeg only (fast). Remotion v2 is for batch chapter/sizzle flows.
+        from processors.caption_renderer import render_captions
+
         render_captions(local_path, out_path, words, style=style)
         out_key = f"projects/{project_id}/captioned/{job_id}_{style}.mp4"
         storage_sync.put_file(out_key, out_path, content_type="video/mp4")

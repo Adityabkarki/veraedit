@@ -111,10 +111,11 @@ class Settings(BaseSettings):
     STYLE_EXTRACT_USE_EASYOCR: bool = Field(default=False)
 
     # ── Celery ────────────────────────────────────────────────────────────────
-    CELERY_BROKER_URL: str = Field(default="redis://localhost:6379/0")
-    CELERY_RESULT_BACKEND: str = Field(default="redis://localhost:6379/1")
+    CELERY_BROKER_URL: str = Field(default="redis://localhost:6379/1")
+    CELERY_RESULT_BACKEND: str = Field(default="redis://localhost:6379/2")
     # CRITICAL: Always solo on Windows — prefork pool breaks
-    CELERY_WORKER_POOL: str = Field(default="solo")
+    # Linux: prefork allows parallel task execution
+    CELERY_WORKER_POOL: str = Field(default="prefork")
 
     # ── FFmpeg ────────────────────────────────────────────────────────────────
     FFMPEG_PATH: str = Field(default="ffmpeg")
@@ -125,6 +126,10 @@ class Settings(BaseSettings):
     WHISPER_LANGUAGE: str = Field(default="ne")
     # Legacy name — same as ELEVENLABS_STT_MODEL (scribe_v2)
     WHISPER_MODEL: str = Field(default="scribe_v2")
+
+    # ── Remotion render service (internal only — do not expose port 3500) ─────
+    REMOTION_SERVICE_URL: str = Field(default="http://127.0.0.1:3500")
+    REMOTION_RENDER_TIMEOUT: float = Field(default=30.0)
 
     # ── Fonts ─────────────────────────────────────────────────────────────────
     # Devanagari font — used ONLY for video caption rendering, never UI

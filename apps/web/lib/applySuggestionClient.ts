@@ -6,8 +6,14 @@
 import type { Clip, Track } from '@/stores/timelineStore'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useCaptionsStore } from '@/stores/captionsStore'
+import { usePlayerStore } from '@/stores/playerStore'
+import { useTranscriptStore } from '@/stores/transcriptStore'
 import { syncAllOverlaysFromTimeline } from '@/lib/visualTimelineSync'
 import { syncCaptionsToTimeline } from '@/lib/captionTimelineSync'
+import { applySourceCutsToTimeline, type TimeRange } from '@/lib/avCutUtils'
+import { timelineVideoDuration } from '@/lib/playbackMapping'
+import { ensurePrimaryMediaClips, hasVideoLaneClip } from '@/lib/timelineLayers'
+import { useAssetStore } from '@/stores/assetStore'
 import {
   allocateDedicatedTrack,
   OVERLAY_FAMILY,
@@ -60,68 +66,9 @@ function resolveActionType(action: SuggestionAction, suggestionType?: string): s
   return ''
 }
 
-function removeRangeFromClips(
-  clips: Clip[],
-  start: number,
-  end: number,
-): Clip[] {
-  const cutDur = end - start
-  if (cutDur <= 0) return clips
-
-  const result: Clip[] = []
-  for (const clip of clips) {
-    const cStart = clip.startTime
-    const cEnd = clip.startTime + clip.duration
-
-    if (cEnd <= start || cStart >= end) {
-      const shifted =
-        cStart >= end
-          ? {
-              ...clip,
-              startTime: cStart - cutDur,
-              sourceStart: clip.sourceStart,
-              sourceEnd: clip.sourceEnd,
-            }
-          : clip
-      result.push(shifted)
-      continue
-    }
-
-    if (cStart >= start && cEnd <= end) continue
-
-    if (cStart < start && cEnd > end) {
-      const srcStart = clip.sourceStart ?? cStart
-      const srcEnd = clip.sourceEnd ?? cEnd
-      const overlap = end - start
-      result.push({
-        ...clip,
-        duration: cEnd - cStart - overlap,
-        sourceEnd: srcEnd - overlap,
-      })
-      continue
-    }
-
-    if (cStart < start && cEnd > start && cEnd <= end) {
-      result.push({
-        ...clip,
-        duration: start - cStart,
-        sourceEnd: (clip.sourceStart ?? cStart) + (start - cStart),
-      })
-      continue
-    }
-
-    if (cStart >= start && cStart < end && cEnd > end) {
-      const trim = end - cStart
-      result.push({
-        ...clip,
-        startTime: start,
-        duration: cEnd - end,
-        sourceStart: (clip.sourceStart ?? cStart) + trim,
-      })
-      continue
-    }
-  }
-  return result
+function applyCutsToClips(clips: Clip[], ranges: TimeRange[]): Clip[] {
+  if (ranges.length === 0) return clips
+  return applySourceCutsToTimeline(clips, ranges)
 }
 
 function ensureOverlayTrack(tracks: Track[]): Track[] {
@@ -202,46 +149,24 @@ export function applySuggestionToEditor(
       const start = action.start ?? action.start_time ?? 0
       const end = action.end ?? action.end_time ?? 0
       if (end <= start) return false
-      nextClips = removeRangeFromClips(
-        nextClips.filter((c) => c.trackId === 'video' || c.trackId === 'audio'),
-        start,
-        end,
-      )
-      const other = clips.filter((c) => c.trackId !== 'video' && c.trackId !== 'audio')
-      nextClips = [...nextClips, ...other]
+      nextClips = applyCutsToClips(clips, [{ start, end }])
       break
     }
     case 'remove_filler':
     case 'remove_fillers': {
-      const ranges = action.filler_cuts ?? action.spans ?? []
-      for (const fc of ranges) {
-        const st = fc.start
-        const en = fc.end
-        if (en > st) {
-          nextClips = removeRangeFromClips(
-            nextClips.filter((c) => c.trackId === 'video' || c.trackId === 'audio'),
-            st,
-            en,
-          )
-        }
-      }
-      const other = clips.filter((c) => c.trackId !== 'video' && c.trackId !== 'audio')
-      nextClips = [...nextClips, ...other]
+      const ranges = (action.filler_cuts ?? action.spans ?? [])
+        .map((fc) => ({ start: fc.start, end: fc.end }))
+        .filter((r) => r.end > r.start)
+      if (ranges.length === 0) return false
+      nextClips = applyCutsToClips(clips, ranges)
       break
     }
     case 'trim_silence': {
-      const ranges = action.spans ?? []
-      for (const span of ranges) {
-        if (span.end > span.start) {
-          nextClips = removeRangeFromClips(
-            nextClips.filter((c) => c.trackId === 'video' || c.trackId === 'audio'),
-            span.start,
-            span.end,
-          )
-        }
-      }
-      const otherSilence = clips.filter((c) => c.trackId !== 'video' && c.trackId !== 'audio')
-      nextClips = [...nextClips, ...otherSilence]
+      const ranges = (action.spans ?? [])
+        .map((span) => ({ start: span.start, end: span.end }))
+        .filter((r) => r.end > r.start)
+      if (ranges.length === 0) return false
+      nextClips = applyCutsToClips(clips, ranges)
       break
     }
     case 'add_chapter_marker': {
@@ -300,6 +225,33 @@ export function applySuggestionToEditor(
     lastEditAction: 'AI suggestion applied',
   })
 
+  if (
+    actionType === 'cut' ||
+    actionType === 'remove_filler' ||
+    actionType === 'remove_fillers' ||
+    actionType === 'trim_silence'
+  ) {
+    const cutRanges: TimeRange[] =
+      actionType === 'cut'
+        ? [{
+            start: action.start ?? action.start_time ?? 0,
+            end: action.end ?? action.end_time ?? 0,
+          }]
+        : (action.filler_cuts ?? action.spans ?? [])
+            .map((r) => ({ start: r.start, end: r.end }))
+            .filter((r) => r.end > r.start)
+
+    if (cutRanges.length > 0) {
+      useTranscriptStore.getState().shiftTimesForCuts(cutRanges)
+      const newDuration = timelineVideoDuration(nextClips)
+      const player = usePlayerStore.getState()
+      if (newDuration > 0 && player.currentTime > newDuration) {
+        player.seek(newDuration)
+        useTimelineStore.getState().setPlayheadTime(newDuration)
+      }
+    }
+  }
+
   const start = action.start_time ?? action.start
   if (start != null && start >= 0) setPlayheadTime(start)
 
@@ -316,20 +268,35 @@ export function applyAvCutsFromRanges(
   ranges: { start: number; end: number }[],
   actionLabel = 'Transcript cuts applied',
 ): number {
-  const sorted = ranges
-    .filter((r) => r.end > r.start)
-    .sort((a, b) => b.start - a.start)
-  if (sorted.length === 0) return 0
+  const valid = ranges.filter((r) => r.end > r.start)
+  if (valid.length === 0) return 0
 
   const { clips, tracks, beginEdit, endEdit } = useTimelineStore.getState()
   beginEdit()
-  let next = [...clips]
-  for (const { start, end } of sorted) {
-    const av = next.filter((c) => c.trackId === 'video' || c.trackId === 'audio')
-    const other = next.filter((c) => c.trackId !== 'video' && c.trackId !== 'audio')
-    next = [...removeRangeFromClips(av, start, end), ...other]
+
+  let workingClips = clips
+  const asset = useAssetStore.getState().asset
+  if (!hasVideoLaneClip(clips) && asset?.id) {
+    const restored = ensurePrimaryMediaClips(tracks, clips, {
+      id: asset.id,
+      filename: asset.filename ?? 'Main video',
+      durationSeconds: asset.durationSeconds ?? 0,
+    })
+    workingClips = restored.clips
   }
+
+  const next = applyCutsToClips(workingClips, valid)
   useTimelineStore.setState({ clips: next, tracks: [...tracks] })
+
+  const newDuration = timelineVideoDuration(next)
+  const player = usePlayerStore.getState()
+  if (newDuration > 0 && player.currentTime > newDuration) {
+    player.seek(newDuration)
+    useTimelineStore.getState().setPlayheadTime(newDuration)
+  }
+
+  useTranscriptStore.getState().shiftTimesForCuts(valid)
+
   endEdit(actionLabel)
-  return sorted.length
+  return valid.length
 }

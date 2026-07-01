@@ -61,14 +61,6 @@ export function ReferenceInput({ projectId, onTemplateReady }: ReferenceInputPro
       className="border-t border-bg-overlay px-4 py-4 space-y-3"
       data-testid="reference-input"
     >
-      <div>
-        <h3 className="text-sm font-semibold text-text-primary">Paste a video you like</h3>
-        <p className="text-xs text-text-secondary mt-1">
-          Any TikTok, Instagram Reel, or YouTube link. We study its style and build your
-          video to match — you bring your own footage and text.
-        </p>
-      </div>
-
       <div className="flex gap-2">
         <input
           type="url"

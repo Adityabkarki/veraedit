@@ -9,7 +9,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from processors.caption_renderer import render_captions
+from processors.caption_renderer import render_captions_v2
 from processors.clip_finder import find_viral_moments
 from processors.reframer import PLATFORM_SPECS, export_for_platform, reframe_video
 from processors.text_editor import apply_cuts_precise, get_duration
@@ -76,7 +76,7 @@ async def extract_shorts_for_platforms(
         style = cand.get("suggested_caption_style", "hormozi")
         if clip_words:
             try:
-                render_captions(base_clip_path, captioned_path, clip_words, style=style)
+                await render_captions_v2(base_clip_path, captioned_path, clip_words, style=style)
             except Exception:
                 captioned_path = base_clip_path
         else:

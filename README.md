@@ -69,9 +69,36 @@ source .venv/bin/activate
 
 celery -A celery_app worker \
   --queues=transcription,analysis,render,ai \
-  --pool=solo \
   --loglevel=info
 ```
+
+---
+
+### 🎬 Remotion Render Service
+
+Start the Remotion-based video overlay renderer:
+
+```bash
+cd remotion-service
+
+npm install
+
+node server.js
+```
+
+The Remotion service will be available at:
+
+```
+http://127.0.0.1:3500
+```
+
+**Endpoints:**
+
+| Method | Path                  | Description                  |
+| ------ | --------------------- | ---------------------------- |
+| `GET`  | `/health`             | Health check                 |
+| `POST` | `/render-captions`    | Render caption overlay video |
+| `POST` | `/render-title-card`  | Render title card overlay    |
 
 ---
 

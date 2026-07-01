@@ -13,7 +13,7 @@
  *   — NOT: "Error 401: Unauthorized"
  */
 
-const API_URL =
+export const API_URL =
   (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_URL) ||
   'http://localhost:8000'
 

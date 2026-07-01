@@ -18,6 +18,7 @@
 
 import { create } from 'zustand'
 import { syncCaptionsToTimeline, clearCaptionClipsFromTimeline } from '@/lib/captionTimelineSync'
+import { PRESET_TO_BURN } from '@/lib/captionBurnStyle'
 import { useTimelineStore } from '@/stores/timelineStore'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -165,6 +166,8 @@ export function downloadTextFile(
 export interface CaptionsState {
   captions:       Caption[]
   globalStyle:    CaptionStyle
+  /** ASS burn-in style for export / burn-into-video (hormozi, nepali_bold, …). */
+  burnInStyle:    import('@/lib/captionsApi').BurnInStyle
   editingId:      string | null
   selectedId:     string | null
   searchQuery:    string
@@ -189,6 +192,7 @@ export interface CaptionsState {
 
   // ── Style ────────────────────────────────────────────────────────────────
   applyPreset:       (preset: CaptionPreset) => void
+  setBurnInStyle:    (style: import('@/lib/captionsApi').BurnInStyle) => void
   setStyleProp:      <K extends keyof CaptionStyle>(key: K, value: CaptionStyle[K]) => void
 
   // ── Find / replace ───────────────────────────────────────────────────────
@@ -235,6 +239,7 @@ export function transcriptToCaptions(
 export const useCaptionsStore = create<CaptionsState>((set, get) => ({
   captions:       [],
   globalStyle:    { ...CAPTION_PRESETS['nepali-bold'] },
+  burnInStyle:    'nepali_bold',
   editingId:      null,
   selectedId:     null,
   searchQuery:    '',
@@ -317,6 +322,7 @@ export const useCaptionsStore = create<CaptionsState>((set, get) => ({
     set({
       captions:       [],
       globalStyle:    { ...CAPTION_PRESETS['nepali-bold'] },
+      burnInStyle:    'nepali_bold',
       editingId:      null,
       selectedId:     null,
       searchQuery:    '',
@@ -331,6 +337,7 @@ export const useCaptionsStore = create<CaptionsState>((set, get) => ({
     set({
       captions,
       globalStyle:    { ...CAPTION_PRESETS['nepali-bold'] },
+  burnInStyle:    'nepali_bold',
       editingId:      null,
       selectedId:     null,
       searchQuery:    '',
@@ -345,6 +352,7 @@ export const useCaptionsStore = create<CaptionsState>((set, get) => ({
     set({
       captions,
       globalStyle:    { ...CAPTION_PRESETS['nepali-bold'] },
+  burnInStyle:    'nepali_bold',
       editingId:      null,
       selectedId:     null,
       searchQuery:    '',
@@ -355,7 +363,12 @@ export const useCaptionsStore = create<CaptionsState>((set, get) => ({
   },
 
   applyPreset: (preset) =>
-    set({ globalStyle: { ...CAPTION_PRESETS[preset] } }),
+    set({
+      globalStyle: { ...CAPTION_PRESETS[preset] },
+      burnInStyle: PRESET_TO_BURN[preset],
+    }),
+
+  setBurnInStyle: (style) => set({ burnInStyle: style }),
 
   setStyleProp: (key, value) =>
     set((s) => ({ globalStyle: { ...s.globalStyle, [key]: value } })),

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useJobPoller } from '@/hooks/useJobPoller'
+import { downloadRemoteFile } from '@/lib/downloadFile'
 import {
   getSizzleJob,
   MOOD_OPTIONS,
@@ -43,6 +44,12 @@ export function SizzleGenerator({ videoKey, projectId }: SizzleGeneratorProps) {
 
   const step = (result as { step?: string } | null)?.step
   const isWorking = status === 'queued' || status === 'processing'
+
+  const downloadTrailer = async () => {
+    if (!trailerUrl) return
+    const dl = await downloadRemoteFile(trailerUrl, 'trailer.mp4')
+    if (!dl.ok) toast.error(dl.error ?? 'Could not download trailer.')
+  }
 
   const start = async () => {
     setTrailerUrl(null)
@@ -140,13 +147,13 @@ export function SizzleGenerator({ videoKey, projectId }: SizzleGeneratorProps) {
             loop
             playsInline
           />
-          <a
-            href={trailerUrl}
-            download="trailer.mp4"
-            className="block text-center bg-bg-overlay text-text-primary py-2.5 rounded-xl text-sm font-medium hover:bg-bg-overlay/80"
+          <button
+            type="button"
+            onClick={() => void downloadTrailer()}
+            className="block w-full text-center bg-bg-overlay text-text-primary py-2.5 rounded-xl text-sm font-medium hover:bg-bg-overlay/80"
           >
             Download trailer
-          </a>
+          </button>
         </div>
       )}
     </div>

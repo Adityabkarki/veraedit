@@ -12,7 +12,7 @@ import structlog
 from celery import Task
 
 from celery_app import celery_app
-from processors.caption_renderer import render_captions
+from processors.caption_renderer import render_captions_v2
 from processors.music_library import pick_music_for_mood
 from processors.sizzle_assembler import add_background_music, assemble_sizzle_reel
 from processors.sizzle_finder import find_sizzle_moments_with_energy
@@ -105,11 +105,13 @@ def generate_sizzle_task(
             captioned_path = work_dir / "sizzle_captioned.mp4"
             if remapped_words:
                 try:
-                    render_captions(
-                        current,
-                        captioned_path,
-                        remapped_words,
-                        style="kinetic",
+                    asyncio.run(
+                        render_captions_v2(
+                            current,
+                            captioned_path,
+                            remapped_words,
+                            style="kinetic",
+                        )
                     )
                     current = captioned_path
                 except Exception as exc:

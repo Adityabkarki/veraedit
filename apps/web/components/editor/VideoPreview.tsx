@@ -4,16 +4,10 @@
  * VideoPreview — centre panel: video player + style reference + gap resolution.
  */
 
-import { useState } from 'react'
 import { useEditorStore, type AspectRatio } from '@/stores/editorStore'
 import { PanelTooltip } from '@/components/editor/PanelTooltip'
 import { VideoPlayer } from '@/components/editor/player/VideoPlayer'
 import { useAssetStore } from '@/stores/assetStore'
-import { ReferenceInput } from '@/components/editor/ReferenceInput'
-import { TemplateGapResolver } from '@/components/editor/TemplateGapResolver'
-import { matchTemplateToLibrary, type AnnotatedTemplate } from '@/lib/gapResolutionApi'
-import type { StyleTemplateV2 } from '@/lib/styleIntelligenceApi'
-import { toast } from 'sonner'
 
 const ASPECT_OPTIONS: { label: string; value: AspectRatio }[] = [
   { label: '16:9', value: '16:9' },
@@ -25,10 +19,9 @@ const ASPECT_OPTIONS: { label: string; value: AspectRatio }[] = [
 
 interface VideoPreviewProps {
   src?: string
-  projectId?: string
 }
 
-export function VideoPreview({ src, projectId }: VideoPreviewProps) {
+export function VideoPreview({ src }: VideoPreviewProps) {
   const assetVideoUrl = useAssetStore((s) => s.asset?.videoUrl ?? undefined)
   const videoSrc = src ?? assetVideoUrl
   const durationMin = useAssetStore((s) =>
@@ -36,23 +29,6 @@ export function VideoPreview({ src, projectId }: VideoPreviewProps) {
   )
   const aspectRatio = useEditorStore((s) => s.aspectRatio)
   const setAspectRatio = useEditorStore((s) => s.setAspectRatio)
-  const [annotatedTemplate, setAnnotatedTemplate] = useState<AnnotatedTemplate | null>(null)
-
-  const handleTemplateReady = async (template: StyleTemplateV2) => {
-    if (template.aspect_ratio) {
-      const ratio = template.aspect_ratio as AspectRatio
-      if (['16:9', '9:16', '1:1', '4:3', '21:9'].includes(ratio)) {
-        setAspectRatio(ratio)
-      }
-    }
-
-    const { data, error } = await matchTemplateToLibrary(template)
-    if (error || !data) {
-      toast.error(error ?? 'Could not match your library to this template.')
-      return
-    }
-    setAnnotatedTemplate(data)
-  }
 
   return (
     <div
@@ -91,22 +67,6 @@ export function VideoPreview({ src, projectId }: VideoPreviewProps) {
       <div className="flex-1 min-h-0 overflow-hidden">
         <VideoPlayer src={videoSrc} aspectRatio={aspectRatio} />
       </div>
-
-      {projectId && !annotatedTemplate && (
-        <ReferenceInput projectId={projectId} onTemplateReady={handleTemplateReady} />
-      )}
-
-      {annotatedTemplate && (
-        <div className="flex-shrink-0 max-h-[45%] overflow-y-auto">
-          <TemplateGapResolver
-            template={annotatedTemplate}
-            onTemplateChange={setAnnotatedTemplate}
-            onSlotResolved={() => {
-              /* slot fills tracked in annotated template state */
-            }}
-          />
-        </div>
-      )}
     </div>
   )
 }

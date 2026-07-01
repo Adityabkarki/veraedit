@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useJobPoller } from '@/hooks/useJobPoller'
 import { useScenesStore, type ApiScene } from '@/stores/scenesStore'
+import { downloadRemoteFile } from '@/lib/downloadFile'
 import {
   getChapterExtractJob,
   startChapterExtraction,
@@ -69,15 +70,23 @@ export function ChapterExtractor({ videoKey, projectId }: ChapterExtractorProps)
     setJobId(data.job_id)
   }
 
-  const downloadAll = () => {
-    chapters?.forEach((ch, i) => {
-      window.setTimeout(() => {
-        const anchor = document.createElement('a')
-        anchor.href = ch.url
-        anchor.download = `chapter_${i + 1}_${ch.title.replace(/\s+/g, '_')}.mp4`
-        anchor.click()
-      }, i * 300)
-    })
+  const downloadAll = async () => {
+    if (!chapters?.length) return
+    for (const [i, ch] of chapters.entries()) {
+      const filename = `chapter_${i + 1}_${ch.title.replace(/\s+/g, '_')}.mp4`
+      const dl = await downloadRemoteFile(ch.url, filename)
+      if (!dl.ok) {
+        toast.error(dl.error ?? 'Could not download chapter.')
+        return
+      }
+      await new Promise((r) => setTimeout(r, 300))
+    }
+  }
+
+  const downloadOne = async (ch: ChapterClip, index: number) => {
+    const filename = `chapter_${index + 1}_${ch.title.replace(/\s+/g, '_')}.mp4`
+    const dl = await downloadRemoteFile(ch.url, filename)
+    if (!dl.ok) toast.error(dl.error ?? 'Could not download chapter.')
   }
 
   const stepLabel =
@@ -119,7 +128,7 @@ export function ChapterExtractor({ videoKey, projectId }: ChapterExtractorProps)
             <p className="text-xs text-text-secondary">{chapters.length} chapters ready</p>
             <button
               type="button"
-              onClick={downloadAll}
+              onClick={() => void downloadAll()}
               className="text-xs text-accent hover:underline"
             >
               Download all
@@ -136,13 +145,13 @@ export function ChapterExtractor({ videoKey, projectId }: ChapterExtractorProps)
                   <p className="font-medium text-text-primary truncate">{ch.title}</p>
                   <p className="text-text-disabled">{Math.round(ch.duration)}s</p>
                 </div>
-                <a
-                  href={ch.url}
-                  download
+                <button
+                  type="button"
+                  onClick={() => void downloadOne(ch, ch.index)}
                   className="text-accent hover:underline flex-shrink-0"
                 >
                   Download
-                </a>
+                </button>
               </li>
             ))}
           </ul>

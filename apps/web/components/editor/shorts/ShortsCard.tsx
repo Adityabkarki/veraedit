@@ -91,7 +91,15 @@ export function ShortsCard({ short, projectId, isSelected }: ShortsCardProps) {
       setExportError(res.error)
       return
     }
-    if (res.downloadUrl) downloadShort(res.downloadUrl, short.title)
+    if (res.downloadUrl) {
+      const dl = await downloadShort(
+        res.downloadUrl,
+        short.title,
+        projectId,
+        res.renderId ?? undefined,
+      )
+      if (!dl.ok) setExportError(dl.error)
+    }
   }, [projectId, assetId, activePlatform, short])
 
   const score = short.viralityScore
