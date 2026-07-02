@@ -30,7 +30,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from dependencies import CurrentUser, DbDep
 from exceptions import ProjectNotFoundError
-from models import Asset, Brand, MediaType, Project, Timeline, Transcript
+from models import Asset, Brand, LibraryAsset, MediaType, Project, Timeline, Transcript
 from schemas.timeline import TimelineDataModel
 
 router = APIRouter(prefix="/api/v1/projects", tags=["style"])
@@ -556,6 +556,22 @@ async def apply_style(
 
         recipe = EditRecipe.from_dict(preset.edit_recipe)
         transcript_words = await _load_project_transcript_words(project_id, db)
+        lib_result = await db.execute(
+            select(LibraryAsset).where(LibraryAsset.user_id == current_user.id)
+        )
+        library_assets = [
+            {
+                "id": str(asset.id),
+                "asset_type": asset.asset_type,
+                "tags": asset.tags,
+                "storage_key": asset.storage_key,
+            }
+            for asset in lib_result.scalars().all()
+        ]
+        audio_profile = (
+            (preset.gap_report or {}).get("audio_profile")
+            or (preset.forensic_report or {}).get("audio_profile")
+        )
         applicator = RecipeApplicator()
         new_data = applicator.apply(
             timeline_data=current_data,
@@ -565,6 +581,10 @@ async def apply_style(
             preset_name=preset.name,
             preset_id=preset.id,
             transcript_words=transcript_words,
+            project_id=str(project_id),
+            audio_profile=audio_profile,
+            library_assets=library_assets,
+            user_id=str(current_user.id),
         )
         components_applied = ["edit_recipe"]
     else:

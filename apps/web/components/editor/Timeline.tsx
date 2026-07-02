@@ -36,6 +36,7 @@ import { Playhead }      from '@/components/editor/timeline/Playhead'
 import { SnapIndicator } from '@/components/editor/timeline/SnapIndicator'
 import { UndoToast }     from '@/components/editor/timeline/UndoToast'
 import { EffectRangeOverlay } from '@/components/editor/timeline/EffectRangeOverlay'
+import { BrollGapBadge } from '@/components/editor/TimelineBrollGapBadge'
 
 
 import {
@@ -391,6 +392,8 @@ export function Timeline() {
           </span>
 
           {/* Effects drawer button */}
+          <BrollGapBadge />
+
           <button
             data-testid="effects-button"
             onClick={toggleDrawer}

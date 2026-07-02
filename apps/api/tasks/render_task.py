@@ -22,6 +22,7 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import datetime, timezone
+from typing import Any
 
 from celery_app import celery_app
 
@@ -297,6 +298,77 @@ def _s3_client():
     )
 
 
+def _clip_effect_param(clip: dict, effect_type: str, param: str) -> Any:
+    """Read a param from the first matching effect on a clip."""
+    for effect in clip.get("effects", []):
+        if effect.get("type") == effect_type:
+            params = effect.get("params") or {}
+            if param in params:
+                return params[param]
+    return None
+
+
+def _clip_storage_key(clip: dict) -> str | None:
+    """Resolve MinIO key from clip effects or the assets table."""
+    for effect in clip.get("effects", []):
+        params = effect.get("params") or {}
+        key = params.get("storage_key")
+        if key:
+            return str(key)
+    asset_id = clip.get("asset_id")
+    if asset_id and asset_id != "synthetic":
+        return _asset_storage_key(str(asset_id))
+    return None
+
+
+def _download_clip_source(clip: dict, dest_dir) -> "Path | None":  # type: ignore[name-defined]
+    """Download a clip's audio/video source from MinIO."""
+    from pathlib import Path
+
+    key = _clip_storage_key(clip)
+    if not key:
+        return None
+    dest = Path(dest_dir) / Path(key).name
+    _s3_client().download_file(Bucket="viraedit-media", Key=key, Filename=str(dest))
+    return dest
+
+
+def _music_clip_needs_ducking(clip: dict) -> bool:
+    return bool(_clip_effect_param(clip, "music_bed", "duck_under_voice"))
+
+
+def _mix_audio_with_ducking(
+    voice_video_path: "Path",
+    music_path: "Path",
+    output_path: "Path",
+    music_volume: float = 0.2,
+) -> "Path":
+    """Mix voice audio from the main video with background music, ducking under speech."""
+    import subprocess
+    from config import settings
+
+    filter_complex = (
+        f"[1:a]volume={music_volume}[music];"
+        f"[0:a][music]sidechaincompress="
+        f"threshold=0.05:ratio=8:attack=5:release=200[ducked];"
+        f"[0:a][ducked]amix=inputs=2:duration=first[aout]"
+    )
+    subprocess.run([
+        settings.FFMPEG_PATH,
+        "-y",
+        "-i", str(voice_video_path),
+        "-i", str(music_path),
+        "-filter_complex", filter_complex,
+        "-map", "0:v:0",
+        "-map", "[aout]",
+        "-c:v", "copy",
+        "-c:a", "aac",
+        "-shortest",
+        str(output_path),
+    ], check=True, capture_output=True)
+    return output_path
+
+
 def _asset_storage_key(asset_id: str) -> str | None:
     """Look up an asset's MinIO storage key."""
     from sqlalchemy import text
@@ -457,9 +529,19 @@ def _download_assets(clips: list[dict], tmp_dir: "Path") -> dict[str, "Path"]:
     from pathlib import Path
     asset_files: dict[str, Path] = {}
     for c in clips:
-        aid = c["asset_id"]
-        if aid and aid not in asset_files:
-            asset_files[aid] = _download_asset(aid, tmp_dir)
+        aid = str(c.get("asset_id", "") or "")
+        cache_key = aid if aid and aid != "synthetic" else str(c.get("id", ""))
+        if not cache_key or cache_key in asset_files:
+            continue
+        try:
+            if _clip_storage_key(c):
+                path = _download_clip_source(c, tmp_dir)
+                if path:
+                    asset_files[cache_key] = path
+            elif aid and aid != "synthetic":
+                asset_files[cache_key] = _download_asset(aid, tmp_dir)
+        except Exception:
+            log.warning("render_skip_download: asset=%s clip=%s", aid, c.get("id"))
     return asset_files
 
 
@@ -492,7 +574,9 @@ def _render_audio_mix(
     adelay_ms: list[str] = []
 
     for clip in music_clips:
-        src = asset_files.get(clip["asset_id"])
+        aid = str(clip.get("asset_id", "") or "")
+        cache_key = aid if aid and aid != "synthetic" else str(clip.get("id", ""))
+        src = asset_files.get(cache_key)
         if not src:
             continue
         ss = float(clip.get("source_start", 0.0))
@@ -770,20 +854,25 @@ def _real_render(
         # ── Step 4: Mix main audio with overlay audio ────────────────────
         if audio_mix:
             mixed = tmp / "audio_mixed.mp4"
-            cmd = [
-                settings.FFMPEG_PATH, "-y",
-                "-i", str(current_output),
-                "-i", str(audio_mix),
-                "-filter_complex",
-                "[0:a][1:a]amix=inputs=2:duration=first:normalize=0[a]",
-                "-map", "0:v",
-                "-map", "[a]",
-                "-c:v", "copy",
-                "-c:a", "aac", "-b:a", abr, "-ar", "48000", "-ac", "2",
-                "-movflags", "+faststart",
-                str(mixed),
-            ]
-            subprocess.run(cmd, check=True, capture_output=True, timeout=600)
+            duck_music = any(_music_clip_needs_ducking(c) for c in music_clips)
+            if duck_music:
+                music_vol = float(music_clips[0].get("volume", 0.2)) if music_clips else 0.2
+                _mix_audio_with_ducking(current_output, audio_mix, mixed, music_vol)
+            else:
+                cmd = [
+                    settings.FFMPEG_PATH, "-y",
+                    "-i", str(current_output),
+                    "-i", str(audio_mix),
+                    "-filter_complex",
+                    "[0:a][1:a]amix=inputs=2:duration=first:normalize=0[a]",
+                    "-map", "0:v",
+                    "-map", "[a]",
+                    "-c:v", "copy",
+                    "-c:a", "aac", "-b:a", abr, "-ar", "48000", "-ac", "2",
+                    "-movflags", "+faststart",
+                    str(mixed),
+                ]
+                subprocess.run(cmd, check=True, capture_output=True, timeout=600)
             current_output = mixed
             _update_render_status(render_id, "processing", progress=78.0)
 

@@ -100,9 +100,14 @@ class Settings(BaseSettings):
     # ── AI — Google Gemini (vision style analysis, image gen) ───────────────
     GEMINI_API_KEY: str = Field(default="")
     GEMINI_VISION_MODEL: str = Field(default="gemini-2.0-flash")
+    GEMINI_IMAGE_MODEL: str = Field(default="gemini-2.5-flash-image")
+    OPENAI_IMAGE_MODEL: str = Field(default="dall-e-3")
+    OPENAI_IMAGE_ENABLED: bool = Field(default=True)
 
     # ── Stock footage (Pexels) ─────────────────────────────────────────────────
     PEXELS_API_KEY: str = Field(default="")
+    # When true, search Pexels first; AI image gen is fallback only.
+    BROLL_PREFER_STOCK: bool = Field(default=False)
 
     # ── AI Budget ─────────────────────────────────────────────────────────────
     AI_COST_LIMIT_USD_PER_HOUR: float = Field(default=2.00)  # hard limit

@@ -504,3 +504,71 @@ def add_music_bed_timeline_clip(
         "transitions": {},
         "label": "Music bed (add track)",
     })
+
+
+def add_resolved_music_bed_clip(
+    data: dict,
+    duration_s: float,
+    *,
+    asset_id: str,
+    storage_key: str,
+    volume: float,
+    duck_under_voice: bool,
+    label: str,
+    mood: str,
+    track_filename: str,
+) -> None:
+    """Full-span music clip backed by a real bundled track in MinIO."""
+    for track in data.get("tracks", []):
+        if track.get("type") == "music":
+            break
+    else:
+        track = {
+            "id": "track-music-style",
+            "type": "music",
+            "name": "Music",
+            "muted": False,
+            "locked": False,
+            "visible": True,
+            "clips": [],
+            "style": {},
+        }
+        data.setdefault("tracks", []).append(track)
+
+    music_track = next(t for t in data["tracks"] if t["type"] == "music")
+    music_track["clips"] = [
+        c for c in music_track.get("clips", [])
+        if not any(e.get("type") == "music_bed" for e in c.get("effects", []))
+    ]
+    dur = max(1.0, duration_s)
+    music_track["style"] = {
+        **music_track.get("style", {}),
+        "energy": mood,
+        "volume": volume,
+        "style_transfer": True,
+    }
+    music_track["clips"].append({
+        "id": f"music-bed-{uuid.uuid4().hex[:8]}",
+        "asset_id": asset_id,
+        "source_start": 0.0,
+        "source_end": dur,
+        "timeline_start": 0.0,
+        "timeline_end": round(dur, 4),
+        "speed": 1.0,
+        "muted": False,
+        "volume": volume,
+        "effects": [{
+            "type": "music_bed",
+            "params": {
+                "style_transfer": True,
+                "is_placeholder": False,
+                "storage_key": storage_key,
+                "track_filename": track_filename,
+                "mood": mood,
+                "duck_under_voice": duck_under_voice,
+                "slot_label": label,
+            },
+        }],
+        "transitions": {},
+        "label": label,
+    })

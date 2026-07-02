@@ -6,7 +6,6 @@ Video slots become Ken Burns stand-ins — always flagged as generated.
 """
 from __future__ import annotations
 
-import base64
 import io
 import tempfile
 import uuid
@@ -24,7 +23,6 @@ from services.ai_costs import COSTS
 log = structlog.get_logger("viraedit.gap_generator")
 
 _IMAGE_GEN_COST_USD = COSTS["gemini_image_generation"]
-_GEMINI_IMAGE_MODEL = "gemini-2.0-flash-exp-image-generation"
 
 
 def _placeholder_image(description: str, aspect_ratio: str) -> bytes:
@@ -50,10 +48,6 @@ async def generate_missing_image(
     """Generate a still image for a missing slot."""
     if settings.GEMINI_API_KEY:
         try:
-            import google.generativeai as genai
-
-            genai.configure(api_key=settings.GEMINI_API_KEY)
-            model = genai.GenerativeModel(_GEMINI_IMAGE_MODEL)
             colors = brand_context.get("colors") or []
             prompt = (
                 f"{requirement_description}. "
@@ -61,15 +55,11 @@ async def generate_missing_image(
                 f"Color palette to incorporate subtly: {colors}. "
                 f"High quality, suitable for a {aspect_ratio} social media video frame."
             )
-            response = model.generate_content(prompt)
+            from processors.gemini_image import generate_gemini_image
 
-            for part in response.parts:
-                inline = getattr(part, "inline_data", None)
-                if inline and inline.data:
-                    data = inline.data
-                    if isinstance(data, str):
-                        return base64.b64decode(data)
-                    return bytes(data)
+            image_bytes, _model = generate_gemini_image(prompt, aspect_ratio)
+            if image_bytes:
+                return image_bytes
         except Exception as exc:
             log.warning("gemini_image_gen_failed", error=str(exc))
 

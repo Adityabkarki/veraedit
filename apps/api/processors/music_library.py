@@ -5,6 +5,7 @@ Tracks live under apps/api/assets/music_library/ (CC0 / royalty-free).
 """
 from __future__ import annotations
 
+import os
 import random
 from pathlib import Path
 
@@ -78,3 +79,33 @@ def list_tracks_for_mood(mood: str) -> list[Path]:
     """All track paths for a mood (used in tests)."""
     tracks = MUSIC_LIBRARY.get(mood, MUSIC_LIBRARY["upbeat"])
     return [_ASSETS_ROOT / name for name in tracks]
+
+
+def get_music_track_metadata(track_path: str | Path) -> dict[str, str]:
+    """Return basic display metadata for a bundled track file."""
+    filename = os.path.basename(str(track_path))
+    name_without_ext = os.path.splitext(filename)[0]
+    title = name_without_ext.replace("_", " ").title()
+    return {"title": title, "filename": filename}
+
+
+def map_genre_to_mood(genre: str, energy_arc: str = "") -> str:
+    """Map free-text genre/energy to bundled library mood tags."""
+    genre_lower = genre.lower()
+    energy_lower = energy_arc.lower()
+
+    if any(w in genre_lower for w in ("epic", "trailer", "cinematic", "dramatic", "intense")):
+        return "dramatic"
+    if any(w in genre_lower for w in ("corporate", "professional", "business", "clean")):
+        return "corporate"
+    if any(w in genre_lower for w in ("lofi", "chill", "ambient", "calm", "soft", "acoustic")):
+        return "calm"
+    if any(w in genre_lower for w in ("upbeat", "energetic", "pop", "hip hop", "hype", "fun")):
+        return "upbeat"
+
+    if "calm" in energy_lower or "low" in energy_lower:
+        return "calm"
+    if "build" in energy_lower or "peak" in energy_lower or "dramatic" in energy_lower:
+        return "dramatic"
+
+    return "upbeat"

@@ -92,6 +92,13 @@ export interface ClipEffects {
   styleToolId?: string
   /** Music bed placeholder (music track) */
   musicBed?: boolean
+  duckUnderVoice?: boolean
+  musicStorageKey?: string
+  /** B-roll gap resolution from style apply */
+  gapResolutionNeeded?: boolean
+  gapMatchStatus?: string
+  gapMatchScore?: number
+  gapDescription?: string
   /** Jump-cut segment marker (video track) */
   pacingSegment?: boolean
   /** Caption FX track — animation preset on real captions */
@@ -155,6 +162,15 @@ export interface Clip {
   /** Playback speed multiplier (1 = normal) */
   speed?: number
   effects?: ClipEffects
+  /** Gap resolver metadata (B-roll slots from style apply) */
+  gapResolutionNeeded?: boolean
+  gapMetadata?: {
+    slotId?: string
+    matchStatus?: string
+    matchScore?: number
+    description?: string
+    requirement?: Record<string, unknown>
+  }
 }
 
 export interface Track {

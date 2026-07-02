@@ -125,6 +125,35 @@ def _download_stock_video(url: str, tmp_dir: Path) -> Path:
     return path
 
 
+def _pexels_search_query(prompt: str) -> str:
+    """Shorten an AI B-roll prompt into a Pexels-friendly search query."""
+    text = (prompt or "").split(".")[0].strip()
+    words = text.split()[:8]
+    return " ".join(words) if words else "b-roll"
+
+
+def _try_stock_video_fallback(prompt: str, tmp_dir: Path) -> tuple[Path | None, str]:
+    """When AI image gen fails, use matching Pexels stock footage if configured."""
+    if not settings.PEXELS_API_KEY:
+        return None, "none"
+
+    from processors.stock_search import search_stock
+
+    query = _pexels_search_query(prompt)
+    results = search_stock(query=query, count=1, orientation="landscape")
+    if not results:
+        log.warning("broll_pexels_fallback_no_results", query=query)
+        return None, "none"
+
+    try:
+        video_path = _download_stock_video(results[0]["video_url"], tmp_dir)
+        log.info("broll_pexels_fallback_used", query=query)
+        return video_path, "stock_pexels"
+    except Exception as exc:
+        log.warning("broll_pexels_fallback_download_failed", error=str(exc))
+        return None, "none"
+
+
 def _image_to_video(image_bytes: bytes, tmp_dir: Path, duration: float) -> Path:
     """Convert a generated image to a Ken Burns animated video clip."""
     from processors.imagegen import image_path_to_video
@@ -155,6 +184,8 @@ def _create_asset_record(
     broll_source: str = "ai_broll_generation",
 ) -> str:
     """Create an Asset record in the DB for the generated/stock B-roll."""
+    from models.asset import AssetStatus, MediaType
+
     asset_id = str(uuid.uuid4())
     with _sync_engine.begin() as conn:
         conn.execute(
@@ -177,9 +208,9 @@ def _create_asset_record(
                 "storage_key": storage_key,
                 "file_size": file_size,
                 "duration_seconds": duration,
-                "media_type": "video",
+                "media_type": MediaType.VIDEO.name,
                 "mime_type": "video/mp4",
-                "status": "ready",
+                "status": AssetStatus.READY.name,
                 "media_metadata": json.dumps({
                     "role": "broll",
                     "source": broll_source,
@@ -393,28 +424,41 @@ def generate_and_insert_broll(
         })
         _emit_progress(project_id, asset_id, 10, "Generating B-roll image...")
 
-        from processors.dalle_generator import generate_broll_image
-        image_bytes, provider = generate_broll_image(prompt, aspect="16:9", quality="standard")
-        if image_bytes is None:
+        duration = max(3.0, min(8.0, timeline_end - timeline_start))
+        video_path = None
+        provider = "none"
+
+        if settings.BROLL_PREFER_STOCK and settings.PEXELS_API_KEY:
+            _emit_progress(project_id, asset_id, 10, "Searching stock footage...")
+            video_path, provider = _try_stock_video_fallback(prompt, tmp_dir)
+
+        if video_path is None:
+            from processors.dalle_generator import generate_broll_image
+            image_bytes, provider = generate_broll_image(prompt, aspect="16:9", quality="standard")
+
+            if image_bytes is not None:
+                log.info("broll_image_generated", provider=provider, size=len(image_bytes))
+                _update_suggestion_action(suggestion_id, project_id, asset_id, {
+                    "generation_status": "rendering_video",
+                })
+                _emit_progress(project_id, asset_id, 40, "Creating B-roll video clip...")
+                video_path = _image_to_video(image_bytes, tmp_dir, duration)
+            else:
+                _emit_progress(project_id, asset_id, 25, "AI image unavailable — searching stock footage...")
+                video_path, provider = _try_stock_video_fallback(prompt, tmp_dir)
+
+        if video_path is None:
             _update_suggestion_action(suggestion_id, project_id, asset_id, {
                 "generation_status": "error",
-                "error_message": "Image generation failed — no API key or service unavailable.",
+                "error_message": (
+                    "Image generation failed. Check OPENAI_API_KEY, GEMINI_API_KEY "
+                    "(Google AI Studio key), or PEXELS_API_KEY."
+                ),
             })
             _emit_progress(project_id, asset_id, 100, "B-roll generation failed — no image service available.")
             return {"status": "error", "message": "Image generation failed"}
 
-        log.info("broll_image_generated", provider=provider, size=len(image_bytes))
-
-        # ── 2. Convert to video (Ken Burns) ────────────────────────────────
-        _update_suggestion_action(suggestion_id, project_id, asset_id, {
-            "generation_status": "rendering_video",
-        })
-        _emit_progress(project_id, asset_id, 40, "Creating B-roll video clip...")
-
-        duration = max(3.0, min(8.0, timeline_end - timeline_start))
-        video_path = _image_to_video(image_bytes, tmp_dir, duration)
-
-        log.info("broll_video_rendered", path=str(video_path), size=video_path.stat().st_size)
+        log.info("broll_video_rendered", path=str(video_path), size=video_path.stat().st_size, provider=provider)
 
         # ── 3. Upload to MinIO ─────────────────────────────────────────────
         _update_suggestion_action(suggestion_id, project_id, asset_id, {
@@ -422,7 +466,12 @@ def generate_and_insert_broll(
         })
         _emit_progress(project_id, asset_id, 65, "Uploading B-roll asset...")
 
-        fname = f"broll_{uuid.uuid4().hex[:12]}.mp4"
+        is_stock = provider == "stock_pexels"
+        fname = (
+            f"broll_stock_{uuid.uuid4().hex[:12]}.mp4"
+            if is_stock
+            else f"broll_{uuid.uuid4().hex[:12]}.mp4"
+        )
         storage_key = f"projects/{project_id}/assets/{fname}"
         _upload_to_minio(str(video_path), storage_key)
 
@@ -440,6 +489,7 @@ def generate_and_insert_broll(
             duration=duration,
             file_size=video_path.stat().st_size,
             image_prompt=prompt,
+            broll_source="stock_pexels" if is_stock else "ai_broll_generation",
         )
 
         # ── 5. Insert into timeline ────────────────────────────────────────
@@ -453,10 +503,8 @@ def generate_and_insert_broll(
             timeline_start=timeline_start,
             timeline_end=timeline_start + duration,
             download_url=download_url,
-            source="ai_generated",
+            source="stock" if is_stock else "ai_generated",
         )
-
-        # ── 6. Mark suggestion as generated ────────────────────────────────
         _update_suggestion_action(suggestion_id, project_id, asset_id, {
             "generation_status": "generated",
             "generated_asset_id": new_asset_id,

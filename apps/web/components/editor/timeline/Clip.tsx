@@ -105,6 +105,7 @@ export function Clip({ clip, track }: ClipProps) {
   const transitionOut = clip.effects?.transitionOut
   const transitionDur = clip.effects?.transitionDuration ?? 0
   const hasTransition = clip.trackId === 'video' && transitionOut && transitionOut !== 'cut'
+  const needsGapFootage = Boolean(clip.gapResolutionNeeded)
   const transitionWidthPx = hasTransition
     ? Math.max(6, Math.min(width * 0.35, transitionDur * pixelsPerSecond))
     : 0
@@ -304,7 +305,9 @@ export function Clip({ clip, track }: ClipProps) {
                       : isOverlayElement
                         ? `linear-gradient(90deg, ${track.color}88, ${track.color}CC)`
                         : `${track.color}33`,
-          border: `1px solid ${
+          border: needsGapFootage
+            ? '2px dashed #F97316'
+            : `1px solid ${
             isSelected
               ? isBroll ? '#9CA3AF' : isImage ? '#22D3EE' : isCameraZoom ? '#60A5FA' : track.color
               : isBroll

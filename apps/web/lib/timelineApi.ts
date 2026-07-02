@@ -28,6 +28,8 @@ export interface ApiTimelineClip {
     in?: { type?: string; duration?: number }
     out?: { type?: string; duration?: number }
   }
+  gap_resolution_needed?: boolean
+  gap_metadata?: Record<string, unknown>
 }
 
 export interface ApiTimelineTrack {
@@ -166,6 +168,13 @@ function parseEffects(apiClip: ApiTimelineClip): ClipEffects | undefined {
       result.musicBed = true
       result.styleTransfer = true
       result.displayValue = String(fx.params.slot_label ?? 'Add your background music')
+      result.isPlaceholder = fx.params.is_placeholder !== false
+      if (fx.params.duck_under_voice != null) {
+        result.duckUnderVoice = Boolean(fx.params.duck_under_voice)
+      }
+      if (fx.params.storage_key) {
+        result.musicStorageKey = String(fx.params.storage_key)
+      }
     }
     if (fx.type === 'color_filter' && fx.params) {
       result.colorFilterId  = String(fx.params.filter_id ?? '')
@@ -309,6 +318,18 @@ export function apiTimelineToStore(data: ApiTimelineData): { tracks: Track[]; cl
         sourceEnd:   c.source_end,
         speed:       c.speed ?? 1,
         effects:     mergeClipTransitions(parseEffects(c), c),
+        gapResolutionNeeded: Boolean((c as { gap_resolution_needed?: boolean }).gap_resolution_needed),
+        gapMetadata: (() => {
+          const raw = (c as { gap_metadata?: Record<string, unknown> }).gap_metadata
+          if (!raw) return undefined
+          return {
+            slotId: raw.slot_id as string | undefined,
+            matchStatus: raw.match_status as string | undefined,
+            matchScore: raw.match_score as number | undefined,
+            description: raw.description as string | undefined,
+            requirement: raw.requirement as Record<string, unknown> | undefined,
+          }
+        })(),
       })
     }
   }
@@ -451,8 +472,10 @@ function buildApiClip(c: Clip, assetId: string): ApiTimelineClip {
       type: 'music_bed',
       params: {
         style_transfer: true,
-        is_placeholder: true,
+        is_placeholder: c.effects.isPlaceholder !== false,
         slot_label: c.effects.displayValue || 'Add your background music track',
+        duck_under_voice: c.effects.duckUnderVoice ?? false,
+        storage_key: c.effects.musicStorageKey,
       },
     })
   }
@@ -475,6 +498,16 @@ function buildApiClip(c: Clip, assetId: string): ApiTimelineClip {
     })
   }
   if (effects.length > 0) base.effects = effects
+  if (c.gapResolutionNeeded) base.gap_resolution_needed = true
+  if (c.gapMetadata) {
+    base.gap_metadata = {
+      slot_id: c.gapMetadata.slotId,
+      match_status: c.gapMetadata.matchStatus,
+      match_score: c.gapMetadata.matchScore,
+      description: c.gapMetadata.description,
+      requirement: c.gapMetadata.requirement,
+    }
+  }
   return base
 }
 

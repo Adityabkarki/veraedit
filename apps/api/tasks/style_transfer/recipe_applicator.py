@@ -19,10 +19,23 @@ from .edit_recipe import EditRecipe, EditRecipeEvent
 from .models import StyleDNA
 from .pacing_ops import (
     add_music_bed_timeline_clip,
+    add_resolved_music_bed_clip,
     add_sfx_timeline_clip,
     apply_jump_cut_formula,
     remap_time_after_removals,
 )
+from processors.asset_matcher import (
+    MATCH_THRESHOLD,
+    PARTIAL_THRESHOLD,
+    score_asset_against_requirement,
+)
+from processors.music_library import (
+    get_music_track_metadata,
+    map_genre_to_mood,
+    pick_music_for_mood,
+    should_duck_for_speech,
+)
+from schemas.template import SlotRequirement
 from services.capability_registry import event_allowed_by_registry
 from .strip_style_transfer import strip_prior_style_transfer
 from .timeline_renderers import overlay_renderer_params, transition_out_payload
@@ -58,6 +71,10 @@ class RecipeApplicator:
         preset_name: str = "",
         preset_id: str = "",
         transcript_words: list[dict[str, Any]] | None = None,
+        project_id: str = "",
+        audio_profile: dict[str, Any] | None = None,
+        library_assets: list[dict[str, Any]] | None = None,
+        user_id: str = "",
     ) -> dict[str, Any]:
         strength = max(0.0, min(1.0, float(strength)))
         self.skipped_effects = []
@@ -65,17 +82,16 @@ class RecipeApplicator:
         self.error_effects = []
         data = copy.deepcopy(timeline_data)
         data = strip_prior_style_transfer(data)
-        pre_target_dur = self._target_duration(data)
         ref_dur = max(recipe.reference_duration_s, 1.0)
+        self._project_id = project_id
+        self._audio_profile = audio_profile or self._audio_profile_from_dna(dna)
+        self._library_assets = library_assets or []
+        self._user_id = user_id
 
         applied_events: list[dict[str, Any]] = []
         pending_sfx: list[tuple[float, EditRecipeEvent]] = []
         pending_music: EditRecipeEvent | None = None
         removed_ranges: list[tuple[float, float]] = []
-
-        def _map_time(pct: float) -> float:
-            raw = pct * pre_target_dur
-            return remap_time_after_removals(raw, removed_ranges)
 
         # ── 1. Jump-cut formula first (splits + silence tighten on user transcript)
         for event in recipe.events:
@@ -105,15 +121,26 @@ class RecipeApplicator:
                 removed_ranges.append((float(r["start"]), float(r["end"])))
             applied_events.append({"kind": event.kind, "at_s": 0.0})
 
-        target_dur = self._target_duration(data)
+        user_duration = self._target_duration(data)
 
-        # ── 2. Timed edits (scaled + remapped after jump cuts)
+        def _map_event_times(event: EditRecipeEvent) -> tuple[float, float]:
+            start_s, end_s = self._scale_timestamp(
+                event.start_pct, event.end_pct, user_duration,
+            )
+            if removed_ranges:
+                start_s = remap_time_after_removals(start_s, removed_ranges)
+                end_s = remap_time_after_removals(end_s, removed_ranges)
+            event_zone = self._get_zone(event.start_pct)
+            return start_s, end_s, event_zone
+
+        # ── 2. Timed edits (section-anchor scaled after jump cuts)
         for event in recipe.events:
             if event.kind in ("jump_cut_pacing", "music_bed", "sfx"):
                 if event.kind == "music_bed":
                     pending_music = event
                 elif event.kind == "sfx" and strength >= 0.4:
-                    pending_sfx.append((_map_time(event.start_pct), event))
+                    sfx_start, _, _ = _map_event_times(event)
+                    pending_sfx.append((sfx_start, event))
                 continue
             allowed, toolbox_id, skip_reason = event_allowed_by_registry(
                 event.kind, event.params, strength,
@@ -123,8 +150,9 @@ class RecipeApplicator:
                 continue
             if strength < 0.05 and event.kind not in ("color_grade", "caption_style"):
                 continue
-            start_s = _map_time(event.start_pct)
-            end_s = max(start_s + 0.5, _map_time(event.end_pct))
+            start_s, end_s, zone = _map_event_times(event)
+            if event.start_pct != event.end_pct:
+                end_s = max(start_s + 0.5, end_s)
             if event.start_pct == event.end_pct and event.kind.startswith("transition"):
                 end_s = start_s
 
@@ -136,9 +164,15 @@ class RecipeApplicator:
                 applied_events.append({"kind": event.kind, "at_s": 0.0})
             elif event.kind in ("hook", "logo", "graphic", "broll", "picture_in_picture", "lower_third", "cta"):
                 if strength >= 0.35:
-                    self._add_styled_overlay(
-                        data, event, start_s, end_s, toolbox_id, preset_id=preset_id,
-                    )
+                    if event.kind == "broll":
+                        self._apply_broll_slot(
+                            data, event, start_s, end_s, zone, toolbox_id, preset_id=preset_id,
+                        )
+                    else:
+                        self._add_styled_overlay(
+                            data, event, start_s, end_s, toolbox_id,
+                            preset_id=preset_id, zone=zone,
+                        )
                     applied_events.append({"kind": event.kind, "at_s": round(start_s, 2)})
                     self._record_applied(toolbox_id or event.kind, {"at_s": round(start_s, 2)})
             elif event.kind == "digital_zoom":
@@ -167,12 +201,13 @@ class RecipeApplicator:
                     applied_events.append({"kind": event.kind, "at_s": round(start_s, 2)})
                     self._record_applied(toolbox_id or event.kind, {"at_s": round(start_s, 2)})
 
-        # ── 3. Music bed + SFX clips on timeline
+        # ── 3. Music bed + SFX clips on timeline (music last — needs final duration)
         target_dur = self._target_duration(data)
         if pending_music and strength >= 0.35:
-            add_music_bed_timeline_clip(
-                data, target_dur, pending_music.params, strength,
-            )
+            if not self._apply_music_bed(data, pending_music, target_dur, strength):
+                add_music_bed_timeline_clip(
+                    data, target_dur, pending_music.params, strength,
+                )
             applied_events.append({"kind": "music_bed", "at_s": 0.0})
         for at_s, event in pending_sfx:
             add_sfx_timeline_clip(
@@ -213,6 +248,345 @@ class RecipeApplicator:
             len(applied_events), target_dur, ref_dur, strength,
         )
         return data
+
+    @staticmethod
+    def _scale_timestamp(
+        start_pct: float, end_pct: float, user_duration: float,
+    ) -> tuple[float, float]:
+        """
+        Map reference percentage positions to user timestamps using section-anchor
+        scaling (hook / body / CTA zones). Falls back to proportional for short videos.
+        """
+        if user_duration < 30.0:
+            return (
+                round(start_pct * user_duration, 3),
+                round(end_pct * user_duration, 3),
+            )
+
+        hook_end = 10.0
+        cta_start = max(hook_end + 10.0, user_duration - 20.0)
+        body_start = hook_end
+        body_end = cta_start
+
+        def map_pct(pct: float) -> float:
+            if pct <= 0.20:
+                return round((pct / 0.20) * hook_end, 3)
+            if pct >= 0.80:
+                zone_pct = (pct - 0.80) / 0.20
+                return round(cta_start + zone_pct * (user_duration - cta_start), 3)
+            zone_pct = (pct - 0.20) / 0.60
+            return round(body_start + zone_pct * (body_end - body_start), 3)
+
+        scaled_start = map_pct(start_pct)
+        scaled_end = map_pct(end_pct)
+        if scaled_end - scaled_start < 1.0:
+            scaled_end = scaled_start + max(1.0, (end_pct - start_pct) * user_duration)
+        return scaled_start, scaled_end
+
+    @staticmethod
+    def _get_zone(start_pct: float) -> str:
+        if start_pct <= 0.20:
+            return "hook"
+        if start_pct >= 0.80:
+            return "cta"
+        return "body"
+
+    @staticmethod
+    def _audio_profile_from_dna(dna: StyleDNA | None) -> dict[str, Any]:
+        if dna is None:
+            return {}
+        audio = dna.audio
+        ducking = (
+            "music drops significantly under VO"
+            if audio.ducking_aggressiveness in ("moderate", "heavy")
+            else "music stays constant"
+        )
+        genre = audio.music_genre_hint or (
+            "upbeat" if audio.music_energy in ("medium", "high") else "none"
+        )
+        return {
+            "music_genre": genre,
+            "music_energy_arc": audio.music_energy,
+            "music_ducking_behavior": ducking,
+        }
+
+    def _apply_music_bed(
+        self,
+        data: dict[str, Any],
+        event: EditRecipeEvent,
+        target_dur: float,
+        strength: float,
+    ) -> bool:
+        """Place a real bundled music track when audio profile allows. Returns True if placed."""
+        profile = dict(self._audio_profile)
+        if not profile:
+            params = event.params
+            profile = {
+                "music_genre": params.get("genre_hint", "upbeat"),
+                "music_energy_arc": params.get("music_energy", "medium"),
+                "music_ducking_behavior": (
+                    "music drops significantly under VO"
+                    if params.get("ducking") in ("moderate", "heavy")
+                    else "music stays constant"
+                ),
+            }
+
+        genre = str(profile.get("music_genre", "upbeat"))
+        if genre.lower() == "none":
+            self._record_skipped("music_bed", "no_music_in_reference")
+            return False
+
+        energy_arc = str(profile.get("music_energy_arc", ""))
+        mood = map_genre_to_mood(genre, energy_arc)
+        track_path = pick_music_for_mood(mood)
+        if not track_path.exists():
+            self._record_skipped("music_bed", "no_matching_track")
+            log.info("music_bed: no track found for mood '%s', leaving placeholder", mood)
+            return False
+
+        asset_id = str(uuid.uuid4())
+        track_filename = track_path.name
+        dest_key = (
+            f"projects/{self._project_id}/assets/music/{asset_id}_{track_filename}"
+            if self._project_id
+            else f"library/music/{asset_id}_{track_filename}"
+        )
+
+        try:
+            from processors.storage_helpers import S3Storage
+            S3Storage().put_file(dest_key, track_path, "audio/mpeg")
+        except Exception as exc:
+            log.warning("music_bed: upload failed (%s), leaving placeholder", exc)
+            self._record_skipped("music_bed", "upload_failed")
+            return False
+
+        track_meta = get_music_track_metadata(track_path)
+        volume = round(float(profile.get("music_volume", 0.2)) * strength, 3)
+        duck = should_duck_for_speech(profile)
+        label = f"{mood.title()} music — {track_meta.get('title', track_filename)}"
+
+        add_resolved_music_bed_clip(
+            data,
+            target_dur,
+            asset_id=asset_id,
+            storage_key=dest_key,
+            volume=volume,
+            duck_under_voice=duck,
+            label=label,
+            mood=mood,
+            track_filename=track_filename,
+        )
+        self._record_applied("music_bed", {
+            "mood": mood, "track": track_filename, "asset_id": asset_id,
+        })
+        log.info("music_bed: placed '%s' for mood '%s'", track_filename, mood)
+        return True
+
+    def _apply_broll_slot(
+        self,
+        data: dict,
+        event: EditRecipeEvent,
+        start_s: float,
+        end_s: float,
+        zone: str,
+        toolbox_id: str | None,
+        preset_id: str = "",
+    ) -> None:
+        """Resolve B-roll against the user's library or write a gap placeholder."""
+        p = event.params
+        description = event.label or p.get("description", "B-roll clip")
+        shot_type = p.get("shot_type", "b_roll")
+        energy = p.get("energy_level", "moderate")
+        slot_duration = max(0.5, end_s - start_s)
+
+        req = SlotRequirement(
+            shot_type=str(shot_type),
+            energy_level=str(energy),
+            min_duration=max(1.0, slot_duration * 0.6),
+            max_duration=slot_duration * 1.5,
+            needs_face=False,
+            description=str(description),
+        )
+
+        library = [
+            a for a in self._library_assets
+            if a.get("asset_type") == "video"
+        ]
+        scored = [
+            (asset, score_asset_against_requirement(asset.get("tags", {}), req))
+            for asset in library
+        ]
+        scored.sort(key=lambda x: x[1], reverse=True)
+
+        if scored and scored[0][1] >= MATCH_THRESHOLD:
+            best_asset, score = scored[0]
+            match_status = "matched"
+        elif scored and scored[0][1] >= PARTIAL_THRESHOLD:
+            best_asset, score = scored[0]
+            match_status = "partial"
+        else:
+            best_asset, score = None, 0.0
+            match_status = "missing"
+
+        slot_id = p.get("slot_id") or f"broll_{int(start_s * 100)}"
+
+        if match_status in ("matched", "partial") and best_asset:
+            self._add_broll_clip(
+                data, event, start_s, end_s, zone, toolbox_id, preset_id,
+                slot_id=slot_id,
+                asset=best_asset,
+                match_status=match_status,
+                match_score=score,
+                description=str(description),
+                is_placeholder=match_status == "partial",
+                gap_resolution_needed=match_status == "partial",
+            )
+            self._record_applied("broll", {
+                "slot_id": slot_id,
+                "match_status": match_status,
+                "asset_id": best_asset.get("id"),
+                "score": score,
+            })
+            log.info("broll slot '%s': %s (score=%.2f)", slot_id, match_status, score)
+            return
+
+        self._add_broll_placeholder(
+            data, event, start_s, end_s, zone, toolbox_id, preset_id,
+            slot_id=slot_id,
+            description=str(description),
+            requirement=req.model_dump(),
+        )
+        self._record_applied("broll", {
+            "slot_id": slot_id,
+            "match_status": "missing",
+            "gap_resolution_needed": True,
+        })
+        log.info("broll slot '%s': missing — placeholder for gap resolver", slot_id)
+
+    def _add_broll_clip(
+        self,
+        data: dict,
+        event: EditRecipeEvent,
+        start: float,
+        end: float,
+        zone: str,
+        toolbox_id: str | None,
+        preset_id: str,
+        *,
+        slot_id: str,
+        asset: dict[str, Any],
+        match_status: str,
+        match_score: float,
+        description: str,
+        is_placeholder: bool,
+        gap_resolution_needed: bool,
+    ) -> None:
+        track = self._get_or_create_overlay_track(data)
+        asset_url = ""
+        storage_key = asset.get("storage_key", "")
+        if storage_key:
+            try:
+                from processors.storage_helpers import S3Storage
+                asset_url = S3Storage().get_presigned_url(storage_key, expires=86400)
+            except Exception:
+                pass
+
+        duration = max(0.5, end - start)
+        clip_id = f"broll_{slot_id}"
+        track["clips"].append({
+            "id": clip_id,
+            "asset_id": str(asset.get("id", "synthetic")),
+            "source_start": 0.0,
+            "source_end": duration,
+            "timeline_start": round(start, 4),
+            "timeline_end": round(end, 4),
+            "speed": 1.0,
+            "muted": True,
+            "volume": 0.0,
+            "is_placeholder": is_placeholder,
+            "gap_resolution_needed": gap_resolution_needed,
+            "gap_metadata": {
+                "slot_id": slot_id,
+                "match_status": match_status,
+                "match_score": round(match_score, 3),
+                "description": description,
+            },
+            "effects": [{
+                "type": "visual_overlay",
+                "params": {
+                    "visual_type": "broll_overlay",
+                    "display_value": "",
+                    "overlay_mode": "fullscreen",
+                    "style_transfer": True,
+                    "style_component": "recipe-broll",
+                    "content_policy": event.content_policy,
+                    "is_placeholder": is_placeholder,
+                    "media_url": asset_url,
+                    "storage_key": storage_key,
+                    "zone": zone,
+                    "toolbox_id": toolbox_id,
+                    "preset_id": preset_id,
+                },
+            }],
+            "transitions": {},
+            "label": "B-Roll",
+        })
+
+    def _add_broll_placeholder(
+        self,
+        data: dict,
+        event: EditRecipeEvent,
+        start: float,
+        end: float,
+        zone: str,
+        toolbox_id: str | None,
+        preset_id: str,
+        *,
+        slot_id: str,
+        description: str,
+        requirement: dict[str, Any],
+    ) -> None:
+        track = self._get_or_create_overlay_track(data)
+        duration = max(0.5, end - start)
+        clip_id = f"broll_{slot_id}"
+        track["clips"].append({
+            "id": clip_id,
+            "asset_id": "synthetic",
+            "source_start": 0.0,
+            "source_end": duration,
+            "timeline_start": round(start, 4),
+            "timeline_end": round(end, 4),
+            "speed": 1.0,
+            "muted": True,
+            "volume": 0.0,
+            "is_placeholder": True,
+            "gap_resolution_needed": True,
+            "gap_metadata": {
+                "slot_id": slot_id,
+                "match_status": "missing",
+                "match_score": 0.0,
+                "description": description,
+                "requirement": requirement,
+                "user_id": self._user_id,
+            },
+            "effects": [{
+                "type": "visual_overlay",
+                "params": {
+                    "visual_type": "broll_overlay",
+                    "display_value": "",
+                    "overlay_mode": "fullscreen",
+                    "style_transfer": True,
+                    "style_component": "recipe-broll",
+                    "content_policy": event.content_policy,
+                    "is_placeholder": True,
+                    "zone": zone,
+                    "toolbox_id": toolbox_id,
+                    "preset_id": preset_id,
+                },
+            }],
+            "transitions": {},
+            "label": "B-Roll (needs footage)",
+        })
 
     def _record_skipped(self, toolbox_id: str, reason: str) -> None:
         self.skipped_effects.append({"toolbox_id": toolbox_id, "reason": reason})
@@ -309,6 +683,7 @@ class RecipeApplicator:
         end: float,
         toolbox_id: str | None = None,
         preset_id: str = "",
+        zone: str = "body",
     ) -> None:
         track = self._get_or_create_overlay_track(data)
         p = event.params
@@ -360,6 +735,8 @@ class RecipeApplicator:
             overlay_params["animation"] = renderer_meta["animation"]
         if renderer_meta.get("position"):
             overlay_params["position"] = renderer_meta["position"]
+        if zone:
+            overlay_params["zone"] = zone
 
         clip_id = f"recipe-{event.kind}-{uuid.uuid4().hex[:8]}"
         duration = max(0.5, end - start)
