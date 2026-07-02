@@ -18,10 +18,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def _find_env_file() -> Path | None:
-    """Search for .env file starting from api dir up to project root."""
+    """Search for .env file — project root first (stable regardless of cwd)."""
     candidates = [
-        Path(".env"),                          # cwd is apps/api
         Path(__file__).parent.parent.parent / ".env",  # project root
+        Path(".env"),                          # cwd (e.g. apps/api)
         Path(__file__).parent / ".env",        # apps/api/.env
     ]
     for path in candidates:
@@ -128,6 +128,14 @@ class Settings(BaseSettings):
     # ── FFmpeg ────────────────────────────────────────────────────────────────
     FFMPEG_PATH: str = Field(default="ffmpeg")
     FFPROBE_PATH: str = Field(default="ffprobe")
+
+    # ── Edit proxy (ingest) — lightweight H.264 for editor playback ───────────
+    # Original upload is kept for export. Default 540p balances size vs clarity.
+    PROXY_MAX_HEIGHT: int = Field(default=540, ge=360, le=720)
+    PROXY_CRF: int = Field(default=24, ge=18, le=32)
+    PROXY_PRESET: str = Field(default="fast")
+    PROXY_AUDIO_BITRATE: str = Field(default="96k")
+    PROXY_TRANSCODE_TIMEOUT_SECONDS: int = Field(default=7200)
 
     # ── Nepali / speech-to-text ───────────────────────────────────────────────
     # Core rule: always transcribe as Nepali (passed to ElevenLabs as language_code=nep)

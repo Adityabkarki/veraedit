@@ -36,6 +36,15 @@ class AssetStatus(str, enum.Enum):
     ERROR = "error"
 
 
+class ProxyStatus(str, enum.Enum):
+    """Lightweight edit proxy derived from the original upload (export uses original)."""
+    PENDING = "pending"
+    PROCESSING = "processing"
+    READY = "ready"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+
+
 class Asset(BaseModel):
     __tablename__ = "assets"
 
@@ -48,6 +57,13 @@ class Asset(BaseModel):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     original_filename: Mapped[str] = mapped_column(String(500), nullable=False)
     storage_key: Mapped[str] = mapped_column(String(1000), nullable=False)  # MinIO/S3 path
+    proxy_storage_key: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
+    proxy_file_size: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    proxy_status: Mapped[Optional[ProxyStatus]] = mapped_column(
+        String(32),
+        nullable=True,
+        index=True,
+    )
 
     # File properties
     file_size: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)

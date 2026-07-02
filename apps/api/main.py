@@ -85,6 +85,18 @@ async def lifespan(app: FastAPI):
     else:
         log.warning("elevenlabs_stt_misconfigured", error=el.get("error"))
 
+    if settings.PEXELS_API_KEY:
+        log.info(
+            "pexels_stock_configured",
+            key_prefix=f"{settings.PEXELS_API_KEY[:6]}...",
+            prefer_stock=settings.BROLL_PREFER_STOCK,
+        )
+    else:
+        log.warning(
+            "pexels_stock_not_configured",
+            hint="Add PEXELS_API_KEY to .env for B-roll stock search (see .env.example)",
+        )
+
     # Verify DB is reachable (fail fast if misconfigured)
     try:
         from database import engine

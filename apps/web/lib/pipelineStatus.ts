@@ -23,18 +23,30 @@ export interface PipelinePollState {
 
 const STAGE_HINT: Record<string, string> = {
   uploading: 'Finishing upload…',
-  uploaded: 'Waiting for transcription to start…',
+  uploaded: 'Creating edit proxy and starting transcription…',
   transcribing: 'Transcribing speech in Nepali (ElevenLabs Scribe)…',
   analyzing: 'Finding chapters and editing suggestions (OpenAI)…',
+}
+
+export function proxyDetailMessage(proxyStatus: string | null | undefined): string | null {
+  if (proxyStatus === 'pending' || proxyStatus === 'processing') {
+    return 'Building a lightweight edit proxy (540p) for faster preview…'
+  }
+  if (proxyStatus === 'failed') {
+    return 'Edit proxy failed — preview uses the original file (may be slower).'
+  }
+  return null
 }
 
 export function pipelineDetailMessage(
   status: AssetStatus | null,
   transcriptStatus: string | null,
   elapsedMs: number,
+  proxyStatus?: string | null,
 ): string | null {
   if (!status || status === 'ready' || status === 'error') return null
 
+  const proxyHint = proxyDetailMessage(proxyStatus)
   const base = STAGE_HINT[status] ?? `Processing (${status})…`
 
   if (
@@ -48,7 +60,13 @@ export function pipelineDetailMessage(
   }
 
   if (status === 'transcribing' && transcriptStatus === 'processing') {
-    return 'Transcription is in progress. This usually takes 1–3 minutes.'
+    return proxyHint
+      ? `${proxyHint} ${base}`
+      : 'Transcription is in progress. This usually takes 1–3 minutes.'
+  }
+
+  if (proxyHint && (status === 'uploaded' || status === 'transcribing')) {
+    return `${proxyHint} ${base}`
   }
 
   return base
@@ -123,6 +141,7 @@ export async function pollEditorPipeline(
       result.assetStatus,
       result.transcriptStatus,
       elapsedMs,
+      result.proxyStatus,
     ),
     elapsedMs,
     progressPercent: estimatePipelineProgress(
