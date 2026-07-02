@@ -31,7 +31,10 @@ import { ApplySummaryToast } from '@/components/editor/visual/ApplySummaryToast'
 import { StyleTemplateCard } from '@/components/editor/visual/StyleTemplateCard'
 import { api } from '@/lib/api'
 import { gapReportFromPreset, type ApplySummary } from '@/lib/styleGapReport'
-import { loadEditorProject } from '@/lib/editorData'
+import { syncCaptionsFromTimeline } from '@/lib/captionTimelineSync'
+import { syncOverlaysToVisualLibrary } from '@/lib/applySuggestionClient'
+import { saveProjectTimeline } from '@/lib/renderExport'
+import { useTimelineStore } from '@/stores/timelineStore'
 import type { ApiTimelineResponse } from '@/lib/timelineApi'
 
 interface StyleTransferTabProps {
@@ -179,10 +182,18 @@ export function StyleTransferTab({ projectId }: StyleTransferTabProps) {
     setApplySummary(null)
     setStatus('Applying edit template to your timeline (scaled to your video)…')
 
+    // Style apply runs against the active DB timeline; persist unsaved manual edits first.
+    const synced = await saveProjectTimeline(projectId, 'Pre-template apply sync')
+    if (!synced.ok) {
+      setBusy(false)
+      setError(synced.error ?? 'Could not sync timeline before applying template.')
+      return
+    }
+
     const res = await applyStylePreset(projectId, selectedId, strength / 100)
-    setBusy(false)
 
     if (res.error || !res.data) {
+      setBusy(false)
       setError(res.error ?? 'Could not apply template.')
       return
     }
@@ -191,12 +202,35 @@ export function StyleTransferTab({ projectId }: StyleTransferTabProps) {
       setApplySummary(res.data.apply_summary)
     }
     setStatus(res.data.message ?? 'Template applied.')
-    await loadEditorProject(projectId, { preservePlayhead: true })
+
+    // Prefer the server-applied timeline payload to avoid UI/export race windows.
+    const appliedTimeline = res.data.data
+    if (appliedTimeline) {
+      const playhead = useTimelineStore.getState().playheadTime
+      useTimelineStore.getState().loadFromApi(appliedTimeline, { preservePlayhead: true })
+      syncOverlaysToVisualLibrary(useTimelineStore.getState().clips)
+      syncCaptionsFromTimeline(useTimelineStore.getState().clips)
+      useTimelineStore.getState().setPlayheadTime(playhead)
+      const summary = syncStyleTransferFromTimeline(appliedTimeline)
+      setAppliedSummary(summary ? formatStyleTransferSummary(summary) : null)
+      console.info('[style-apply] synced timeline from apply response', {
+        fromVersion: res.data.source_timeline_version,
+        toVersion: res.data.version,
+      })
+      setBusy(false)
+      return
+    }
+
+    // Backward-compatible fallback for older API responses.
     const tl = await api.get<ApiTimelineResponse>(`/projects/${projectId}/timeline`)
     if (tl.data?.data) {
+      useTimelineStore.getState().loadFromApi(tl.data.data, { preservePlayhead: true })
+      syncOverlaysToVisualLibrary(useTimelineStore.getState().clips)
+      syncCaptionsFromTimeline(useTimelineStore.getState().clips)
       const summary = syncStyleTransferFromTimeline(tl.data.data)
       setAppliedSummary(summary ? formatStyleTransferSummary(summary) : null)
     }
+    setBusy(false)
   }
 
   const handleApply = () => {

@@ -112,6 +112,50 @@ describe('timelineApi — storeToApiTimeline', () => {
     expect(restored.find((c) => c.id === 'i2')?.trackId).toBe('images-2')
   })
 
+  it('persists storage key and per-clip asset id for broll', () => {
+    const { tracks } = apiTimelineToStore(SAMPLE)
+    const clips = [{
+      id: 'broll-1',
+      trackId: 'broll' as const,
+      startTime: 2,
+      duration: 4,
+      label: 'B-Roll',
+      type: 'overlay' as const,
+      effects: {
+        visualType: 'broll_overlay',
+        overlayMode: 'fullscreen' as const,
+        mediaAssetId: 'media-99',
+        storageKey: 'projects/p1/media/clip.mp4',
+        mediaUrl: 'https://example.com/clip.mp4',
+      },
+    }]
+    const api = storeToApiTimeline(tracks, clips, 'asset-abc', 12)
+    const brollTrack = api.tracks.find((t) => t.type === 'overlay')
+    const clip = brollTrack?.clips[0]
+    expect(clip?.asset_id).toBe('media-99')
+    const overlayFx = clip?.effects?.find((e) => e.type === 'visual_overlay')
+    expect(overlayFx?.params?.storage_key).toBe('projects/p1/media/clip.mp4')
+  })
+
+  it('persists sfx slug and volume on audio lane', () => {
+    const { tracks } = apiTimelineToStore(SAMPLE)
+    const clips = [{
+      id: 'sfx-1',
+      trackId: 'sfx' as const,
+      startTime: 1,
+      duration: 0.35,
+      label: 'SFX: Whoosh',
+      type: 'audio' as const,
+      effects: { sfxSlug: 'whoosh', sfxType: 'whoosh', sfxVolume: 0.4 },
+    }]
+    const api = storeToApiTimeline(tracks, clips, 'asset-abc', 12)
+    const audioTrack = api.tracks.find((t) => t.type === 'audio' && t.clips.length > 0)
+    const clip = audioTrack?.clips[0]
+    expect(clip?.volume).toBe(0.4)
+    const sfxFx = clip?.effects?.find((e) => e.type === 'sfx_slot')
+    expect(sfxFx?.params?.sfx_slug).toBe('whoosh')
+  })
+
   it('persists caption clip text', () => {
     const { tracks } = apiTimelineToStore(SAMPLE)
     const clips = [{

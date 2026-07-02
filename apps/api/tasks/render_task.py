@@ -23,8 +23,22 @@ import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import urlparse
 
 from celery_app import celery_app
+from tasks.export_timeline import (
+    caption_style_from_metadata,
+    clip_cache_key,
+    clip_effects_by_type,
+    collect_render_clips,
+    http_media_url,
+    log_caption_preview_vs_render,
+    log_render_plan,
+    overlay_is_media_clip,
+    overlay_layout,
+    sfx_slug_from_clip,
+    zoom_scale_at_time,
+)
 
 log = logging.getLogger("viraedit.tasks.render")
 
@@ -80,7 +94,7 @@ def render_video(
         stored_settings = (job or {}).get("render_settings") or {}
 
         # Load timeline and resolve asset paths
-        timeline_data = _load_timeline(project_id)
+        timeline_data = _load_timeline(render_id, project_id)
         if not timeline_data:
             raise RuntimeError("No active timeline found for this project.")
 
@@ -263,11 +277,22 @@ def _load_render_job(render_id: str) -> dict | None:
     return {"platform": row[0], "render_settings": settings or {}}
 
 
-def _load_timeline(project_id: str) -> dict | None:
-    """Load the active timeline data for a project."""
+def _load_timeline(render_id: str, project_id: str) -> dict | None:
+    """Load the exact timeline snapshot selected for this render."""
     from sqlalchemy import text
     engine = _get_sync_conn()
     with engine.connect() as conn:
+        pinned = conn.execute(
+            text(
+                "SELECT t.data FROM renders r "
+                "JOIN timelines t ON t.id = r.timeline_id "
+                "WHERE r.id = :rid AND r.project_id = :pid LIMIT 1"
+            ),
+            {"rid": render_id, "pid": project_id},
+        ).fetchone()
+        if pinned:
+            engine.dispose()
+            return pinned[0]
         result = conn.execute(
             text(
                 "SELECT data FROM timelines "
@@ -316,21 +341,39 @@ def _clip_storage_key(clip: dict) -> str | None:
         if key:
             return str(key)
     asset_id = clip.get("asset_id")
-    if asset_id and asset_id != "synthetic":
+    if asset_id and not str(asset_id).startswith("clip-"):
         return _asset_storage_key(str(asset_id))
     return None
 
 
 def _download_clip_source(clip: dict, dest_dir) -> "Path | None":  # type: ignore[name-defined]
-    """Download a clip's audio/video source from MinIO."""
+    """Download a clip's audio/video source from MinIO or HTTP."""
+    import urllib.request
     from pathlib import Path
 
     key = _clip_storage_key(clip)
-    if not key:
-        return None
-    dest = Path(dest_dir) / Path(key).name
-    _s3_client().download_file(Bucket="viraedit-media", Key=key, Filename=str(dest))
-    return dest
+    if key:
+        dest = Path(dest_dir) / Path(key).name
+        _s3_client().download_file(Bucket="viraedit-media", Key=key, Filename=str(dest))
+        return dest
+
+    url = http_media_url(clip)
+    if url:
+        suffix = Path(urlparse(url).path).suffix or ".bin"
+        dest = Path(dest_dir) / f"http_{clip.get('id', 'media')}{suffix}"
+        urllib.request.urlretrieve(url, str(dest))
+        return dest if dest.exists() else None
+
+    slug = sfx_slug_from_clip(clip)
+    if slug:
+        from services.sfx_library import local_sfx_path
+        local = local_sfx_path(slug)
+        if local and local.is_file():
+            dest = Path(dest_dir) / local.name
+            dest.write_bytes(local.read_bytes())
+            return dest
+
+    return None
 
 
 def _music_clip_needs_ducking(clip: dict) -> bool:
@@ -430,12 +473,48 @@ def _clip_effects_by_type(clip: dict, etype: str) -> list[dict]:
     return [e for e in effects if isinstance(e, dict) and e.get("type") == etype]
 
 
-def _video_filter_string(clip: dict, width: int, height: int) -> str:
-    """Build the -vf filter chain for a single clip (scale+pad + speed + color)."""
+def _visual_overlay_params(clip: dict) -> dict[str, Any]:
+    params: dict[str, Any] = {}
+    for eff in clip_effects_by_type(clip, "visual_overlay"):
+        if isinstance(eff, dict):
+            params.update(eff.get("params") or {})
+    return params
+
+
+def _ffmpeg_escape_drawtext(value: str) -> str:
+    """Escape drawtext string payload for FFmpeg filter syntax."""
+    return (
+        value.replace("\\", "\\\\")
+        .replace(":", "\\:")
+        .replace("'", "\\'")
+        .replace("%", "\\%")
+        .replace("\n", "\\n")
+    )
+
+
+def _video_filter_string(
+    clip: dict,
+    width: int,
+    height: int,
+    timeline_data: dict | None = None,
+) -> str:
+    """Build the -vf filter chain for a single clip (scale+pad + speed + color + zoom)."""
     filters: list[str] = []
     filters.append(f"scale={width}:{height}:force_original_aspect_ratio=decrease")
     filters.append(f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2")
     filters.append("setsar=1")
+
+    if timeline_data is not None:
+        mid_t = (
+            float(clip.get("timeline_start", 0))
+            + float(clip.get("timeline_end", clip.get("timeline_start", 0)))
+        ) / 2.0
+        zoom = zoom_scale_at_time(timeline_data, mid_t)
+        if abs(zoom - 1.0) > 0.02:
+            zw = int(width * zoom)
+            zh = int(height * zoom)
+            filters.append(f"scale={zw}:{zh}")
+            filters.append(f"crop={width}:{height}")
 
     speed = float(clip.get("speed", 1.0))
     if abs(speed - 1.0) > 0.01:
@@ -458,21 +537,18 @@ def _video_filter_string(clip: dict, width: int, height: int) -> str:
         if eq_parts:
             filters.append("eq=" + ":".join(eq_parts))
 
-    # Color grade (style transfer lookup) — approximated via colorbalance
+    # Color grade (style transfer lookup) — approximate with eq controls.
     for eff in _clip_effects_by_type(clip, "color_grade"):
         params = eff.get("params") or {}
-        shadows = params.get("shadows") or {}
-        midtones = params.get("midtones") or {}
-        highlights = params.get("highlights") or {}
-        cb_parts: list[str] = []
-        for region, prefix in [(shadows, "rs"), (midtones, "gs"), (highlights, "bs")]:
-            r = region.get("r", 0)
-            g = region.get("g", 0)
-            b = region.get("b", 0)
-            if any(abs(v) > 0.01 for v in (r, g, b)):
-                cb_parts.append(f"{prefix}={r:.3f}={g:.3f}={b:.3f}")
-        if cb_parts:
-            filters.append("colorbalance=" + ":".join(cb_parts))
+        brightness = float(params.get("brightness", 0.0))
+        contrast = 1.0 + float(params.get("contrast", 0.0))
+        saturation = 1.0 + float(params.get("saturation", 0.0))
+        eq_parts = [
+            f"brightness={max(-1.0, min(1.0, brightness)):.3f}",
+            f"contrast={max(0.1, min(3.0, contrast)):.3f}",
+            f"saturation={max(0.0, min(3.0, saturation)):.3f}",
+        ]
+        filters.append("eq=" + ":".join(eq_parts))
 
     return ",".join(filters)
 
@@ -529,19 +605,21 @@ def _download_assets(clips: list[dict], tmp_dir: "Path") -> dict[str, "Path"]:
     from pathlib import Path
     asset_files: dict[str, Path] = {}
     for c in clips:
-        aid = str(c.get("asset_id", "") or "")
-        cache_key = aid if aid and aid != "synthetic" else str(c.get("id", ""))
+        cache_key = clip_cache_key(c)
         if not cache_key or cache_key in asset_files:
             continue
         try:
-            if _clip_storage_key(c):
-                path = _download_clip_source(c, tmp_dir)
-                if path:
-                    asset_files[cache_key] = path
-            elif aid and aid != "synthetic":
-                asset_files[cache_key] = _download_asset(aid, tmp_dir)
+            path = _download_clip_source(c, tmp_dir)
+            if path:
+                asset_files[cache_key] = path
+                aid = str(c.get("asset_id", "") or "")
+                if aid:
+                    asset_files[aid] = path
         except Exception:
-            log.warning("render_skip_download: asset=%s clip=%s", aid, c.get("id"))
+            log.warning(
+                "render_skip_download: cache_key=%s clip=%s",
+                cache_key, c.get("id"),
+            )
     return asset_files
 
 
@@ -575,8 +653,8 @@ def _render_audio_mix(
 
     for clip in music_clips:
         aid = str(clip.get("asset_id", "") or "")
-        cache_key = aid if aid and aid != "synthetic" else str(clip.get("id", ""))
-        src = asset_files.get(cache_key)
+        cache_key = clip_cache_key(clip)
+        src = asset_files.get(cache_key) or asset_files.get(aid)
         if not src:
             continue
         ss = float(clip.get("source_start", 0.0))
@@ -653,49 +731,76 @@ def _composite_overlays(
     width = int(render_settings.get("width", 1920))
     height = int(render_settings.get("height", 1080))
 
-    # Build filter complex with one overlay per clip
     filter_parts: list[str] = []
     overlay_inputs: list[Path] = []
-    # Map main video input to [base] label so overlay filters can reference it
     filter_parts.append("[0:v]null[base]")
     current_label = "base"
 
     for clip in overlay_clips:
-        src = asset_files.get(clip["asset_id"])
+        if not overlay_is_media_clip(clip):
+            params = _visual_overlay_params(clip)
+            text = str(params.get("display_value") or clip.get("label") or "").strip()
+            secondary = str(params.get("secondary_text") or "").strip()
+            if not text and not secondary:
+                continue
+            tl_start = float(clip.get("timeline_start", 0.0))
+            tl_end = float(clip.get("timeline_end", tl_start + 1.0))
+            layout = overlay_layout(clip, width, height)
+            x = int(layout["x"])
+            y = int(layout["y"])
+            next_label = f"txt{len(filter_parts)}"
+            esc = _ffmpeg_escape_drawtext(text)
+            primary_size = 64 if layout.get("mode") == "fullscreen" else 48
+            filter_parts.append(
+                f"[{current_label}]drawtext=text='{esc}':x={x}:y={y}:"
+                f"fontsize={primary_size}:fontcolor=white:borderw=3:bordercolor=black:"
+                f"enable='between(t,{tl_start:.4f},{tl_end:.4f})'[{next_label}]"
+            )
+            current_label = next_label
+            if secondary:
+                next2 = f"txt{len(filter_parts)}"
+                esc2 = _ffmpeg_escape_drawtext(secondary)
+                filter_parts.append(
+                    f"[{current_label}]drawtext=text='{esc2}':x={x}:y={y + primary_size + 12}:"
+                    f"fontsize={max(28, int(primary_size * 0.68))}:fontcolor=white:borderw=2:bordercolor=black:"
+                    f"enable='between(t,{tl_start:.4f},{tl_end:.4f})'[{next2}]"
+                )
+                current_label = next2
+            continue
+
+        cache_key = clip_cache_key(clip)
+        src = asset_files.get(cache_key) or asset_files.get(str(clip.get("asset_id", "")))
         if not src:
+            log.warning("render_overlay_missing_source: clip=%s key=%s", clip.get("id"), cache_key)
             continue
 
         ss = float(clip.get("source_start", 0.0))
         to = float(clip.get("source_end", ss + 0.1))
         tl_start = float(clip.get("timeline_start", 0.0))
         tl_end = float(clip.get("timeline_end", tl_start + 1.0))
-        dur = tl_end - tl_start
 
-        # Position from effects if available
-        x = 0
-        y = 0
-        for eff in _clip_effects_by_type(clip, "visual_overlay"):
-            params = eff.get("params") or {}
-            x_pct = params.get("x_pct", 50)
-            y_pct = params.get("y_pct", 50)
-            x = int((x_pct / 100.0) * width - width * 0.15)
-            y = int((y_pct / 100.0) * height - height * 0.15)
+        layout = overlay_layout(clip, width, height)
+        x = int(layout["x"])
+        y = int(layout["y"])
+        ow = int(layout["w"])
+        oh = int(layout["h"])
+        opacity = float(layout.get("opacity", 1.0))
 
         overlay_inputs.append(src)
-        input_idx = len(overlay_inputs)  # 1-based: 1, 2, 3...
+        input_idx = len(overlay_inputs)
 
-        # Trim to source range + scale to reasonable size (max 30% of output)
-        scale_w = int(width * 0.3)
-        scale_h = int(height * 0.3)
         trim_filter = f"trim=start={ss}:end={to},setpts=PTS-STARTPTS"
-        scale_filter = f"scale='min({scale_w},iw)':'min({scale_h},ih)':force_original_aspect_ratio=decrease"
+        if layout.get("mode") == "fullscreen":
+            scale_filter = f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height}"
+        else:
+            scale_filter = f"scale={ow}:{oh}:force_original_aspect_ratio=decrease"
 
         label = f"ov{input_idx}"
-        filter_parts.append(
-            f"[{input_idx}:v]{trim_filter},{scale_filter}[{label}]"
-        )
+        chain = f"[{input_idx}:v]{trim_filter},{scale_filter}"
+        if opacity < 0.99:
+            chain += f",format=rgba,colorchannelmixer=aa={opacity:.3f}"
+        filter_parts.append(f"{chain}[{label}]")
 
-        # Overlay base with this overlay
         enable = f"between(t,{tl_start:.4f},{tl_end:.4f})"
         next_label = f"v{input_idx}"
         filter_parts.append(
@@ -736,6 +841,110 @@ def _composite_overlays(
     return output
 
 
+def _transition_for_clip(clip: dict) -> tuple[str, float]:
+    """Resolve FFmpeg xfade transition + duration from clip transition effect."""
+    transition = "cut"
+    duration = 0.0
+    for eff in clip_effects_by_type(clip, "transition_out"):
+        params = eff.get("params") or {}
+        transition = str(params.get("type") or transition or "cut").lower()
+        duration = float(params.get("duration") or duration or 0.0)
+        break
+    if transition in ("crossfade", "dissolve"):
+        return "fade", max(0.0, duration)
+    if transition in ("zoom", "zoom-in", "zoom_in"):
+        return "zoomin", max(0.0, duration)
+    if transition in ("slide", "whip-pan", "whip_pan"):
+        return "slideleft", max(0.0, duration)
+    if transition in ("fade",):
+        return "fade", max(0.0, duration)
+    return "fade", 0.0
+
+
+def _concat_with_transitions(
+    tmp: "Path",
+    segments: list["Path"],
+    video_clips: list[dict],
+    crf: int,
+) -> "Path":
+    """Concatenate rendered segments with xfade/acrossfade transitions."""
+    import subprocess
+    from pathlib import Path
+    from config import settings
+
+    if len(segments) == 1:
+        return segments[0]
+
+    durations = [max(0.1, _ffprobe_duration(s)) for s in segments]
+    transitions: list[tuple[str, float]] = []
+    has_transition = False
+    for i in range(len(segments) - 1):
+        tname, req = _transition_for_clip(video_clips[i])
+        max_allowed = max(0.0, min(durations[i], durations[i + 1]) - 0.08)
+        d = min(req, max_allowed)
+        if d >= 0.06:
+            has_transition = True
+        else:
+            d = 0.001
+            tname = "fade"
+        transitions.append((tname, d))
+
+    if not has_transition:
+        concat_video = tmp / "concat_video.mp4"
+        listfile = tmp / "concat.txt"
+        listfile.write_text(
+            "\n".join(f"file '{p.as_posix()}'" for p in segments), encoding="utf-8"
+        )
+        subprocess.run(
+            [settings.FFMPEG_PATH, "-y", "-f", "concat", "-safe", "0",
+             "-i", str(listfile), "-c", "copy", str(concat_video)],
+            check=True, capture_output=True,
+        )
+        return concat_video
+
+    filter_parts: list[str] = []
+    current_v = "0:v"
+    current_a = "0:a"
+    current_len = durations[0]
+
+    for i in range(1, len(segments)):
+        tname, d = transitions[i - 1]
+        offset = max(0.0, current_len - d)
+        next_v = f"v{i}"
+        next_a = f"a{i}"
+        filter_parts.append(
+            f"[{current_v}][{i}:v]xfade=transition={tname}:duration={d:.3f}:offset={offset:.3f}[{next_v}]"
+        )
+        filter_parts.append(
+            f"[{current_a}][{i}:a]acrossfade=d={d:.3f}:c1=tri:c2=tri[{next_a}]"
+        )
+        current_v = next_v
+        current_a = next_a
+        current_len = current_len + durations[i] - d
+
+    out = Path(tmp) / "concat_video.mp4"
+    cmd = [settings.FFMPEG_PATH, "-y"]
+    for seg in segments:
+        cmd.extend(["-i", str(seg)])
+    cmd.extend([
+        "-filter_complex", "; ".join(filter_parts),
+        "-map", f"[{current_v}]",
+        "-map", f"[{current_a}]",
+        "-c:v", "libx264",
+        "-crf", str(crf),
+        "-preset", "veryfast",
+        "-pix_fmt", "yuv420p",
+        "-c:a", "aac",
+        "-b:a", "192k",
+        "-ar", "48000",
+        "-ac", "2",
+        "-movflags", "+faststart",
+        str(out),
+    ])
+    subprocess.run(cmd, check=True, capture_output=True, timeout=900)
+    return out
+
+
 # ── Main render ─────────────────────────────────────────────────────────────
 
 def _real_render(
@@ -769,10 +978,11 @@ def _real_render(
     abr    = str(render_settings["audio_bitrate"])
 
     # Collect clips by track type
-    video_clips    = _collect_track_clips(timeline_data, "video")
-    music_clips    = _collect_track_clips(timeline_data, "music")
-    audio_clips    = _collect_track_clips(timeline_data, "audio")
-    overlay_clips  = _collect_track_clips(timeline_data, "overlay")
+    log_render_plan(timeline_data)
+    video_clips    = collect_render_clips(timeline_data, "video")
+    music_clips    = collect_render_clips(timeline_data, "music")
+    audio_clips    = collect_render_clips(timeline_data, "audio")
+    overlay_clips  = collect_render_clips(timeline_data, "overlay")
 
     if not video_clips:
         raise RuntimeError("Timeline has no video clips to render.")
@@ -794,15 +1004,16 @@ def _real_render(
         # ── Step 1: Render each video clip with effects ──────────────────
         segments: list[Path] = []
         for i, c in enumerate(video_clips):
-            src = asset_files.get(c["asset_id"])
+            cache_key = clip_cache_key(c)
+            src = asset_files.get(cache_key) or asset_files.get(str(c.get("asset_id", "")))
             if not src:
-                log.warning("render_skip_clip: missing asset %s", c.get("asset_id"))
+                log.warning("render_skip_clip: missing asset clip=%s key=%s", c.get("id"), cache_key)
                 continue
             ss = float(c.get("source_start", 0.0))
             to = float(c.get("source_end", 0.0))
             seg = tmp / f"seg{i}.mp4"
 
-            vf = _video_filter_string(c, width, height)
+            vf = _video_filter_string(c, width, height, timeline_data)
             af = _audio_filter_string(c)
 
             cmd = [
@@ -828,19 +1039,7 @@ def _real_render(
             raise RuntimeError("No video segments could be rendered.")
 
         # ── Step 2: Concatenate video segments ───────────────────────────
-        concat_video = tmp / "concat_video.mp4"
-        if len(segments) == 1:
-            shutil.copy(segments[0], concat_video)
-        else:
-            listfile = tmp / "concat.txt"
-            listfile.write_text(
-                "\n".join(f"file '{p.as_posix()}'" for p in segments), encoding="utf-8"
-            )
-            subprocess.run(
-                [settings.FFMPEG_PATH, "-y", "-f", "concat", "-safe", "0",
-                 "-i", str(listfile), "-c", "copy", str(concat_video)],
-                check=True, capture_output=True,
-            )
+        concat_video = _concat_with_transitions(tmp, segments, video_clips, crf)
 
         current_output = concat_video
         _update_render_status(render_id, "processing", progress=65.0)
@@ -925,6 +1124,24 @@ def _real_render(
 
 def _caption_words_from_timeline(timeline_data: dict) -> list[dict]:
     """Build caption segments from saved timeline caption clips."""
+    def _has_word_by_word_fx() -> bool:
+        meta = timeline_data.get("metadata") or {}
+        fx = meta.get("caption_fx")
+        if isinstance(fx, dict) and str(fx.get("animation") or "").lower() == "word-by-word":
+            return True
+        for track in timeline_data.get("tracks", []):
+            if (track.get("type") or "").lower() != "effects":
+                continue
+            for clip in track.get("clips") or []:
+                for eff in clip.get("effects") or []:
+                    if not isinstance(eff, dict) or eff.get("type") != "caption_style":
+                        continue
+                    params = eff.get("params") or {}
+                    if str(params.get("animation") or "").lower() == "word-by-word":
+                        return True
+        return False
+
+    word_by_word = _has_word_by_word_fx()
     words: list[dict] = []
     for track in timeline_data.get("tracks", []):
         if (track.get("type") or "").lower() != "captions":
@@ -943,6 +1160,16 @@ def _caption_words_from_timeline(timeline_data: dict) -> list[dict]:
                     text = str(params.get("text") or text).strip()
             if not text or end <= start + 0.02:
                 continue
+            if word_by_word:
+                parts = [p for p in text.split() if p.strip()]
+                if len(parts) > 1:
+                    total = end - start
+                    step = total / float(len(parts))
+                    for idx, part in enumerate(parts):
+                        w_start = start + step * idx
+                        w_end = end if idx == len(parts) - 1 else (w_start + step)
+                        words.append({"word": part, "start": w_start, "end": w_end})
+                    continue
             words.append({"word": text, "start": start, "end": end})
     return words
 
@@ -951,7 +1178,10 @@ def _resolve_caption_burn_style(timeline_data: dict) -> str:
     from processors.caption_renderer import CAPTION_STYLE_NAMES
 
     meta = timeline_data.get("metadata") or {}
-    style = meta.get("caption_burn_style") or meta.get("caption_style")
+
+    # Always respect the explicit caption_burn_style — overrides are applied
+    # on top via merge_caption_preset() in render_captions.
+    style = meta.get("caption_burn_style")
     if isinstance(style, str) and style in CAPTION_STYLE_NAMES:
         return style
 
@@ -980,14 +1210,17 @@ def _maybe_burn_timeline_captions(
         return output_path, _ffprobe_duration(output_path)
 
     style = _resolve_caption_burn_style(timeline_data)
+    style_overrides = caption_style_from_metadata(timeline_data)
+    log_caption_preview_vs_render(timeline_data, style_overrides)
     out = Path(tmp_dir) / "captioned_export.mp4"
     log.info(
-        "render_burn_captions: segments=%d style=%s",
+        "render_burn_captions: segments=%d style=%s overrides=%s",
         len(words),
         style,
+        list(style_overrides.keys()),
     )
     _update_render_status(render_id, "processing", progress=92.0)
-    render_captions(output_path, out, words, style=style)
+    render_captions(output_path, out, words, style=style, style_overrides=style_overrides)
     return out, _ffprobe_duration(out)
 
 

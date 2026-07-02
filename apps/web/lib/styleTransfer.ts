@@ -5,6 +5,7 @@
 
 import type { ApplySummary, StyleGapReport } from '@/lib/styleGapReport'
 import { api } from '@/lib/api'
+import type { ApiTimelineData } from '@/lib/timelineApi'
 
 export interface StylePreset {
   id: string
@@ -68,8 +69,10 @@ export interface StyleExtractResponse {
 export interface StyleApplyResponse {
   timeline_id: string
   version: number
+  source_timeline_version?: number
   label: string
   preset_name: string
+  data?: ApiTimelineData
   message?: string
   apply_summary?: ApplySummary
 }

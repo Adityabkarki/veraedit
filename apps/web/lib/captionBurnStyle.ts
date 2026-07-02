@@ -3,7 +3,7 @@
  */
 
 import type { BurnInStyle } from '@/lib/captionsApi'
-import type { CaptionPreset } from '@/stores/captionsStore'
+import type { CaptionPreset, CaptionStyle } from '@/stores/captionsStore'
 
 export const PRESET_TO_BURN: Record<CaptionPreset, BurnInStyle> = {
   'nepali-bold': 'nepali_bold',
@@ -27,10 +27,23 @@ export function resolveExportBurnStyle(
 export function captionMetadataForExport(
   burnInStyle: BurnInStyle | null | undefined,
   editorPreset: CaptionPreset | undefined,
-): Record<string, string> {
+  globalStyle?: CaptionStyle,
+): Record<string, string | Record<string, unknown>> {
   const resolved = resolveExportBurnStyle(burnInStyle, editorPreset)
-  return {
+  const meta: Record<string, string | Record<string, unknown>> = {
     caption_burn_style: resolved,
     caption_editor_preset: editorPreset ?? 'nepali-bold',
   }
+  if (globalStyle) {
+    meta.caption_style = {
+      preset: globalStyle.preset,
+      font_size: globalStyle.fontSize,
+      color: globalStyle.color,
+      background_color: globalStyle.backgroundColor,
+      position: globalStyle.position,
+      bold: globalStyle.bold,
+      use_nepali_font: globalStyle.useNepaliFont,
+    }
+  }
+  return meta
 }

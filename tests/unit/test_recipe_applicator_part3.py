@@ -166,3 +166,46 @@ def test_get_music_track_metadata():
     meta = get_music_track_metadata("upbeat_2.mp3")
     assert meta["title"] == "Upbeat 2"
     assert meta["filename"] == "upbeat_2.mp3"
+
+
+def test_text_template_events_do_not_degrade_into_broll_placeholders():
+    recipe = EditRecipe(
+        reference_duration_s=40.0,
+        events=[
+            EditRecipeEvent(kind="hook", start_pct=0.02, end_pct=0.08, label="Hook headline", params={"visual_type": "broll_overlay"}),
+            EditRecipeEvent(kind="lower_third", start_pct=0.20, end_pct=0.30, label="Speaker name", params={"visual_type": "broll_overlay"}),
+            EditRecipeEvent(kind="cta", start_pct=0.90, end_pct=0.98, label="Subscribe now", params={"visual_type": "broll_overlay"}),
+            EditRecipeEvent(kind="graphic", start_pct=0.35, end_pct=0.45, label="Key point", params={"visual_type": "broll_overlay"}),
+        ],
+    )
+    result = RecipeApplicator().apply(_timeline(80.0), recipe, strength=1.0)
+    overlay = next(t for t in result["tracks"] if t["type"] == "overlay")
+    recipe_clips = [c for c in overlay["clips"] if str(c.get("id", "")).startswith("recipe-")]
+    assert len(recipe_clips) == 4
+
+    by_kind = {
+        "hook": next(c for c in recipe_clips if str(c["id"]).startswith("recipe-hook-")),
+        "lower_third": next(c for c in recipe_clips if str(c["id"]).startswith("recipe-lower_third-")),
+        "cta": next(c for c in recipe_clips if str(c["id"]).startswith("recipe-cta-")),
+        "graphic": next(c for c in recipe_clips if str(c["id"]).startswith("recipe-graphic-")),
+    }
+
+    hook_params = by_kind["hook"]["effects"][0]["params"]
+    lower_params = by_kind["lower_third"]["effects"][0]["params"]
+    cta_params = by_kind["cta"]["effects"][0]["params"]
+    graphic_params = by_kind["graphic"]["effects"][0]["params"]
+
+    assert hook_params["visual_type"] == "hook_rewrite"
+    assert lower_params["visual_type"] == "lower_third"
+    assert cta_params["visual_type"] == "cta_banner"
+    assert graphic_params["visual_type"] == "title_banner"
+
+    assert hook_params["overlay_mode"] != "fullscreen"
+    assert lower_params["overlay_mode"] != "fullscreen"
+    assert cta_params["overlay_mode"] != "fullscreen"
+    assert graphic_params["overlay_mode"] != "fullscreen"
+
+    assert hook_params["display_value"] != ""
+    assert lower_params["display_value"] != ""
+    assert cta_params["display_value"] != ""
+    assert graphic_params["display_value"] != ""

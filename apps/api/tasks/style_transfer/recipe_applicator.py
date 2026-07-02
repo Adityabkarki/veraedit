@@ -659,6 +659,9 @@ class RecipeApplicator:
                     "params": {**style_params, "style_transfer": True},
                 })
 
+        meta = data.setdefault("metadata", {})
+        meta["caption_style"] = dict(style_params)
+
     def _get_or_create_overlay_track(self, data: dict) -> dict:
         for track in data.get("tracks", []):
             if track.get("type") == "overlay":
@@ -688,12 +691,26 @@ class RecipeApplicator:
         track = self._get_or_create_overlay_track(data)
         p = event.params
         renderer_meta = overlay_renderer_params(event.kind, p)
-        visual_type = str(renderer_meta.get("visual_type") or p.get("visual_type", event.kind))
+        # Text/brand overlays must never collapse into B-roll placeholders.
+        explicit_visual_types = {
+            "hook": "hook_rewrite",
+            "lower_third": "lower_third",
+            "cta": "cta_banner",
+            "graphic": "title_banner",
+            "logo": "logo",
+        }
+        force_non_broll = event.kind in explicit_visual_types
+        visual_type = str(
+            explicit_visual_types.get(event.kind)
+            or renderer_meta.get("visual_type")
+            or p.get("visual_type", event.kind)
+        )
         if event.kind == "hook" and not renderer_meta.get("visual_type"):
             visual_type = str(p.get("visual_type", "title_banner"))
         overlay_mode = str(renderer_meta.get("overlay_mode") or p.get("overlay_mode", "corner"))
         is_broll = (
-            event.kind == "broll"
+            not force_non_broll
+            and event.kind == "broll"
             or visual_type in ("broll_insert", "broll_overlay", "screen_recording", "broll_cutaway")
             or bool(p.get("broll_type"))
         )
@@ -708,6 +725,8 @@ class RecipeApplicator:
             display = _PLACEHOLDER_LABELS["lower_third"]
         if is_broll:
             display = ""
+        if not display and not is_broll:
+            display = event.label or _PLACEHOLDER_LABELS.get(event.kind, "Overlay")
 
         overlay_params: dict[str, Any] = {
             "visual_type": visual_type,

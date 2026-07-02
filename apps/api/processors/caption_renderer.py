@@ -72,6 +72,71 @@ STYLE_PRESETS: dict[str, dict[str, Any]] = {
 CAPTION_STYLE_NAMES = list(STYLE_PRESETS.keys())
 
 
+def css_color_to_ass(color: str | None, default: str = "&H00FFFFFF") -> str:
+    """
+    Convert CSS #RRGGBB or rgba(r,g,b,a) to ASS &HAABBGGRR (alpha + BGR).
+    User editor colors always win over template presets when passed as overrides.
+    """
+    import re
+
+    if not color:
+        return default
+    c = str(color).strip()
+    if c.startswith("&H"):
+        return c
+
+    rgba = re.match(
+        r"rgba?\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?\s*\)",
+        c,
+        re.IGNORECASE,
+    )
+    if rgba:
+        r, g, b = int(rgba.group(1)), int(rgba.group(2)), int(rgba.group(3))
+        alpha = 255 - int(float(rgba.group(4) or 1) * 255)
+        return f"&H{alpha:02X}{b:02X}{g:02X}{r:02X}"
+
+    if c.startswith("#"):
+        hexv = c[1:]
+        if len(hexv) == 3:
+            hexv = "".join(ch * 2 for ch in hexv)
+        if len(hexv) == 6:
+            r = int(hexv[0:2], 16)
+            g = int(hexv[2:4], 16)
+            b = int(hexv[4:6], 16)
+            return f"&H00{b:02X}{g:02X}{r:02X}"
+
+    return default
+
+
+def merge_caption_preset(
+    style_name: str,
+    overrides: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Merge named preset with user overrides — preview values take priority."""
+    preset = dict(STYLE_PRESETS.get(style_name, STYLE_PRESETS["minimal"]))
+    if not overrides:
+        return preset
+
+    for key, value in overrides.items():
+        if value is None:
+            continue
+        if key == "use_devanagari" and value:
+            preset["font_path"] = settings.DEVANAGARI_FONT_PATH
+            preset["font"] = "NotoSansDevanagari-Regular"
+            continue
+        preset[key] = value
+
+    if overrides.get("primary_color"):
+        preset["primary_color"] = str(overrides["primary_color"])
+    if overrides.get("outline_color"):
+        preset["outline_color"] = str(overrides["outline_color"])
+    if overrides.get("back_color"):
+        preset["back_color"] = str(overrides["back_color"])
+        preset["border_style"] = 3
+
+    return preset
+
+
 def _fill_null_timestamps(words: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Assign fallback timestamps to words with null start/end."""
     if not words:
@@ -108,11 +173,23 @@ def render_captions(
     output_path: str | Path,
     words: list[dict[str, Any]],
     style: str = "hormozi",
+    *,
+    style_overrides: dict[str, Any] | None = None,
 ) -> str:
     """Burn captions into video; returns output path as string."""
     in_path = Path(input_path)
     out_path = Path(output_path)
-    preset = STYLE_PRESETS.get(style, STYLE_PRESETS["minimal"])
+    preset = merge_caption_preset(style, style_overrides)
+    if style_overrides and style_overrides.get("use_devanagari"):
+        preset["font_path"] = settings.DEVANAGARI_FONT_PATH
+        preset["font"] = "NotoSansDevanagari-Regular"
+    log.info(
+        "caption_burn_preset: style=%s primary=%s position=%s fontsize=%s",
+        style,
+        preset.get("primary_color"),
+        preset.get("position"),
+        preset.get("fontsize"),
+    )
     ass_path = in_path.with_name(f"{in_path.stem}_{style}.ass")
     _write_ass(_fill_null_timestamps(words), preset, ass_path)
     fonts_dir = Path(settings.DEVANAGARI_FONT_PATH).parent.as_posix()
@@ -216,8 +293,14 @@ def _write_ass(words: list[dict[str, Any]], preset: dict[str, Any], out_path: Pa
         })
 
     alignment_map = {"bottom_third": 2, "center": 5, "bottom_quarter": 2, "top": 8}
-    alignment = alignment_map.get(preset.get("position", "bottom_third"), 2)
-    marginv = 200 if preset.get("position") == "bottom_third" else 50
+    position = preset.get("position", "bottom_third")
+    alignment = alignment_map.get(position, 2)
+    marginv = 200 if position in ("bottom_third", "bottom_quarter") else 50
+
+    border_style = int(preset.get("border_style", 1))
+    back_color = preset.get("back_color", "&H00000000")
+    secondary_color = preset.get("secondary_color", "&H00000000")
+    bold = int(preset.get("bold", 0))
 
     header = f"""[Script Info]
 ScriptType: v4.00+
@@ -225,8 +308,8 @@ PlayResX: 1080
 PlayResY: 1920
 
 [V4+ Styles]
-Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, Bold, BorderStyle, Outline, Alignment, MarginV, Encoding
-Style: Default,{preset['font']},{preset['fontsize']},{preset['primary_color']},{preset['outline_color']},{preset['bold']},1,{preset['outline']},{alignment},{marginv},1
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,{preset['font']},{preset['fontsize']},{preset['primary_color']},{secondary_color},{preset['outline_color']},{back_color},{bold},0,{border_style},{preset['outline']},0,{alignment},40,40,{marginv},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

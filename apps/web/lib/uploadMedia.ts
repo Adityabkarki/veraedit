@@ -25,6 +25,7 @@ export async function uploadMediaFile(
     name: string
     type: string
     url: string
+    storageKey?: string
     fileSize?: number
   }>(`/projects/${projectId}/media`, formData)
 
@@ -42,5 +43,5 @@ export async function uploadMediaFile(
 
   useMediaStore.getState().addItem(item)
 
-  return { id: item.id }
+  return { id: item.id, storageKey: res.data.storageKey }
 }

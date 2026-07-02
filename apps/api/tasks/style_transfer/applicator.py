@@ -349,6 +349,8 @@ class StyleApplicator:
                     "type": "caption_style",
                     "params": style_params,
                 })
+        meta = data.setdefault("metadata", {})
+        meta["caption_style"] = dict(style_params)
         return data
 
     def _apply_color(

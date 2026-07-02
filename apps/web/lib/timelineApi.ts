@@ -9,6 +9,7 @@ import { colorGradeToCss, mapStyleTransitionType } from '@/lib/styleTransferSync
 import { migrateBrollClipsToTrack, migrateSfxClipsToLanes } from '@/lib/mediaClips'
 import { migrateElementClipsToDedicatedLanes, syntheticTrack } from '@/lib/timelineLayers'
 import { migrateCaptionEffectClips } from '@/lib/captionEffects'
+import { resolveClipAssetId } from '@/lib/exportTimeline'
 
 // ── Backend shapes (subset used by the editor) ────────────────────────────────
 
@@ -146,6 +147,8 @@ function parseEffects(apiClip: ApiTimelineClip): ClipEffects | undefined {
       if (p.is_placeholder != null) result.isPlaceholder = Boolean(p.is_placeholder)
       if (p.media_url) result.mediaUrl = String(p.media_url)
       if (p.media_kind) result.mediaKind = String(p.media_kind) as ClipEffects['mediaKind']
+      if (p.storage_key) result.storageKey = String(p.storage_key)
+      if (p.media_asset_id) result.mediaAssetId = String(p.media_asset_id)
       if (p.media_file_name) result.mediaFileName = String(p.media_file_name)
       if (p.height_pct != null) result.heightPct = Number(p.height_pct)
       if (p.overlay_entrance) result.overlayEntrance = String(p.overlay_entrance)
@@ -344,10 +347,11 @@ export function apiTimelineToStore(data: ApiTimelineData): { tracks: Track[]; cl
 /** Convert frontend store → backend timeline JSON for PUT /timeline. */
 const MIN_CLIP_DURATION = 0.1
 
-function buildApiClip(c: Clip, assetId: string): ApiTimelineClip {
+function buildApiClip(c: Clip, primaryAssetId: string): ApiTimelineClip {
   const duration = Math.max(MIN_CLIP_DURATION, c.duration)
   const timelineStart = Math.max(0, c.startTime)
   const timelineEnd = timelineStart + duration
+  const clipAssetId = resolveClipAssetId(c, primaryAssetId)
 
   let srcStart = c.sourceStart ?? timelineStart
   let srcEnd = c.sourceEnd ?? timelineStart + duration
@@ -357,7 +361,7 @@ function buildApiClip(c: Clip, assetId: string): ApiTimelineClip {
 
   const base: ApiTimelineClip = {
     id:             c.id,
-    asset_id:       assetId,
+    asset_id:       clipAssetId,
     source_start:   srcStart,
     source_end:     srcEnd,
     timeline_start: timelineStart,
@@ -365,36 +369,54 @@ function buildApiClip(c: Clip, assetId: string): ApiTimelineClip {
     label:          c.label ?? '',
     speed:          Math.min(10, Math.max(0.1, c.speed ?? 1)),
     muted:          false,
-    volume:         1.0,
+    volume:         c.effects?.sfxVolume ?? (c.trackId === 'music' ? 0.35 : 1.0),
   }
 
   const effects: NonNullable<ApiTimelineClip['effects']> = []
-  if (c.effects?.visualType) {
+  const isOverlayLane =
+    c.type === 'overlay' ||
+    c.trackId === 'broll' ||
+    c.trackId.startsWith('broll-') ||
+    c.trackId === 'images' ||
+    c.trackId.startsWith('images-') ||
+    c.trackId === 'overlay' ||
+    c.trackId.startsWith('overlay-')
+  if (isOverlayLane || c.effects?.visualType) {
     effects.push({
       type: 'visual_overlay',
       params: {
-        visual_type:      c.effects.visualType,
-        template_id:      c.effects.templateId ?? '',
-        display_value:    c.effects.displayValue ?? '',
-        secondary_text:   c.effects.secondaryText ?? '',
-        suggested_visual: c.effects.suggestedVisual ?? 'animated_graphic',
-        nepali_label:     c.effects.nepaliLabel ?? '',
-        x_pct:            c.effects.xPct,
-        y_pct:            c.effects.yPct,
-        width_pct:        c.effects.widthPct,
-        height_pct:       c.effects.heightPct,
-        overlay_mode:     c.effects.overlayMode,
-        broll_type:       c.effects.brollType,
-        is_placeholder:   c.effects.isPlaceholder,
-        media_url:        c.effects.mediaUrl,
-        media_kind:       c.effects.mediaKind,
-        media_file_name:  c.effects.mediaFileName,
-        scale:            c.effects.scale,
-        rotation:         c.effects.rotation,
-        overlay_entrance: c.effects.overlayEntrance,
-        overlay_exit:     c.effects.overlayExit,
-        chart_as_broll:   c.effects.chartAsBroll,
-        style_transfer:   c.effects.styleTransfer,
+        visual_type:      c.effects?.visualType ?? '',
+        template_id:      c.effects?.templateId ?? '',
+        display_value:    c.effects?.displayValue ?? '',
+        secondary_text:   c.effects?.secondaryText ?? '',
+        suggested_visual: c.effects?.suggestedVisual ?? 'animated_graphic',
+        nepali_label:     c.effects?.nepaliLabel ?? '',
+        x_pct:            c.effects?.xPct,
+        y_pct:            c.effects?.yPct,
+        width_pct:        c.effects?.widthPct,
+        height_pct:       c.effects?.heightPct,
+        overlay_mode:     c.effects?.overlayMode,
+        broll_type:       c.effects?.brollType,
+        is_placeholder:   c.effects?.isPlaceholder,
+        media_url:        c.effects?.mediaUrl,
+        media_kind:       c.effects?.mediaKind,
+        media_file_name:  c.effects?.mediaFileName,
+        storage_key:      c.effects?.storageKey ?? c.effects?.musicStorageKey,
+        media_asset_id:   c.effects?.mediaAssetId,
+        scale:            c.effects?.scale,
+        rotation:         c.effects?.rotation,
+        overlay_entrance: c.effects?.overlayEntrance,
+        overlay_exit:     c.effects?.overlayExit,
+        chart_as_broll:   c.effects?.chartAsBroll,
+        image_opacity:    c.effects?.imageOpacity,
+        brightness:       c.effects?.brightness,
+        contrast:         c.effects?.contrast,
+        saturation:       c.effects?.saturation,
+        blur_px:          c.effects?.blurPx,
+        corner_radius:    c.effects?.cornerRadius,
+        border_width:     c.effects?.borderWidth,
+        border_color:     c.effects?.borderColor,
+        style_transfer:   c.effects?.styleTransfer,
       },
     })
   }
@@ -467,15 +489,17 @@ function buildApiClip(c: Clip, assetId: string): ApiTimelineClip {
       },
     })
   }
-  if (c.effects?.musicBed) {
+  if (c.effects?.musicBed || c.trackId === 'music') {
     effects.push({
       type: 'music_bed',
       params: {
-        style_transfer: true,
-        is_placeholder: c.effects.isPlaceholder !== false,
-        slot_label: c.effects.displayValue || 'Add your background music track',
-        duck_under_voice: c.effects.duckUnderVoice ?? false,
-        storage_key: c.effects.musicStorageKey,
+        style_transfer: Boolean(c.effects?.styleTransfer),
+        is_placeholder: c.effects?.isPlaceholder !== false,
+        slot_label: c.effects?.displayValue || c.label || 'Background music',
+        duck_under_voice: c.effects?.duckUnderVoice ?? false,
+        storage_key: c.effects?.musicStorageKey ?? c.effects?.storageKey,
+        media_url: c.effects?.mediaUrl,
+        media_asset_id: c.effects?.mediaAssetId,
       },
     })
   }

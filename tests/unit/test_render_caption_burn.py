@@ -41,6 +41,33 @@ def test_caption_words_from_timeline_reads_caption_track():
     assert words[1]["word"] == "Second line"
 
 
+def test_caption_words_from_timeline_splits_words_for_word_by_word_fx():
+    from tasks.render_task import _caption_words_from_timeline
+
+    timeline = {
+        "metadata": {"caption_fx": {"animation": "word-by-word"}},
+        "tracks": [
+            {
+                "type": "captions",
+                "clips": [
+                    {
+                        "timeline_start": 1.0,
+                        "timeline_end": 3.0,
+                        "label": "hello world from export",
+                        "effects": [],
+                    },
+                ],
+            }
+        ],
+    }
+    words = _caption_words_from_timeline(timeline)
+    assert len(words) == 4
+    assert words[0]["word"] == "hello"
+    assert words[-1]["word"] == "export"
+    assert words[0]["start"] == 1.0
+    assert words[-1]["end"] == 3.0
+
+
 def test_resolve_caption_burn_style_from_metadata():
     from tasks.render_task import _resolve_caption_burn_style
 
@@ -52,6 +79,17 @@ def test_resolve_caption_burn_style_from_metadata():
     ) == "mrbeast"
     assert _resolve_caption_burn_style(
         {"metadata": {"caption_editor_preset": "subtitle"}}
+    ) == "minimal"
+
+
+def test_resolve_caption_burn_style_prefers_timeline_overrides():
+    from tasks.render_task import _resolve_caption_burn_style
+
+    assert _resolve_caption_burn_style(
+        {
+            "metadata": {"caption_burn_style": "mrbeast", "caption_style": {"color": "#FFFF00"}},
+            "tracks": [],
+        }
     ) == "minimal"
 
 
@@ -79,8 +117,8 @@ def test_maybe_burn_calls_render_captions(tmp_path, monkeypatch):
     inp.write_bytes(b"fake")
     calls: list[dict] = []
 
-    def fake_render(i, o, words, style="hormozi"):
-        calls.append({"style": style, "words": words, "out": str(o)})
+    def fake_render(i, o, words, style="hormozi", style_overrides=None):
+        calls.append({"style": style, "words": words, "out": str(o), "overrides": style_overrides})
         from pathlib import Path
         Path(o).write_bytes(b"burned")
 

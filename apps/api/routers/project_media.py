@@ -147,6 +147,7 @@ async def upload_project_media(
         "name": item.file_name,
         "type": item.media_type,
         "url": url,
+        "storageKey": item.storage_key,
         "fileSize": item.file_size_bytes,
     }
 

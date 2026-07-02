@@ -140,6 +140,8 @@ export interface ClipEffects {
   cropAspect?: string
   maskShape?: string
   storageKey?: string
+  /** Project media / asset row id when clip uses uploaded supplementary media */
+  mediaAssetId?: string
   layerOrder?: number
   /** True after client-side background removal (PNG with alpha). */
   backgroundRemoved?: boolean

@@ -654,6 +654,8 @@ async def apply_style(
         "version": new_tl.version,
         "label": new_tl.name,
         "preset_name": preset.name,
+        "data": new_data,
+        "source_timeline_version": current_tl.version if current_tl else 0,
         "components_applied": components_applied,
         "strength": body.strength,
         "can_undo": True,

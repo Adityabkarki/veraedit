@@ -5,9 +5,9 @@
 import { api } from '@/lib/api'
 import { downloadRenderFile, downloadRemoteFile } from '@/lib/downloadFile'
 import { ensurePrimaryMediaClips, hasVideoLaneClip } from '@/lib/timelineLayers'
-import { storeToApiTimeline } from '@/lib/timelineApi'
+import { storeToApiTimeline, type ApiTimelineResponse } from '@/lib/timelineApi'
 import { syncCaptionsToTimeline } from '@/lib/captionTimelineSync'
-import { captionMetadataForExport } from '@/lib/captionBurnStyle'
+import { prepareTimelineForExport } from '@/lib/exportTimeline'
 import { pollRenderJob } from '@/lib/renderPoll'
 import { useCaptionsStore } from '@/stores/captionsStore'
 import { useTimelineStore } from '@/stores/timelineStore'
@@ -68,24 +68,40 @@ export async function saveProjectTimeline(
     syncCaptionsToTimeline(captionState.captions, { actionLabel: label })
   }
 
-  const timelineState = useTimelineStore.getState()
-  const captionMeta = captionMetadataForExport(
-    captionState.burnInStyle,
-    captionState.globalStyle.preset,
+  const timelineRes = await api.get<ApiTimelineResponse>(`/projects/${projectId}/timeline`)
+  const existingMetadata = timelineRes.data?.data?.metadata
+  const prepared = await prepareTimelineForExport(
+    projectId,
+    existingMetadata && typeof existingMetadata === 'object'
+      ? (existingMetadata as Record<string, unknown>)
+      : undefined,
   )
+  if (prepared.warnings.length > 0) {
+    console.warn('[export] timeline prepare warnings:', prepared.warnings)
+  }
 
+  const timelineState = useTimelineStore.getState()
   const duration = Math.max(
     asset.durationSeconds ?? 0,
     ...timelineState.clips.map((c) => c.startTime + c.duration),
   )
 
   const data = storeToApiTimeline(
-    timelineState.tracks,
-    timelineState.clips,
+    prepared.tracks,
+    prepared.clips,
     asset.id,
     duration,
-    captionMeta,
+    prepared.metadata,
   )
+  console.info('[export] preview_to_render_snapshot', {
+    label,
+    clipCount: prepared.clips.length,
+    trackCount: prepared.tracks.length,
+    durationSeconds: duration,
+    captionStyle: (prepared.metadata.caption_style as Record<string, unknown> | undefined) ?? null,
+    captionFx: (prepared.metadata.caption_fx as Record<string, unknown> | undefined) ?? null,
+    exportWarnings: prepared.warnings.length,
+  })
   const res = await api.put<{ version: number }>(
     `/projects/${projectId}/timeline`,
     { data, label },
