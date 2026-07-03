@@ -6,7 +6,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-from models.asset import AssetStatus, MediaType
+from models.asset import AssetStatus, MediaType, ProxyStatus
 from storage import ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES
 
 
@@ -98,6 +98,9 @@ class AssetResponse(BaseModel):
     status: AssetStatus
     error_message: Optional[str]
     media_metadata: Optional[dict] = None
+    proxy_storage_key: Optional[str] = None
+    proxy_file_size: Optional[int] = None
+    proxy_status: Optional[ProxyStatus] = None
 
     model_config = {"from_attributes": True}
 
@@ -106,3 +109,5 @@ class DownloadURLResponse(BaseModel):
     """Pre-signed download URL for an asset."""
     download_url: str
     expires_in: int = 3600
+    variant: str = Field(description="'edit' (proxy when ready) or 'source' (original)")
+    using_proxy: bool = False

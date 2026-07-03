@@ -13,15 +13,21 @@ import { create } from 'zustand'
 export type AssetStatus =
   | 'uploading' | 'uploaded' | 'transcribing' | 'analyzing' | 'ready' | 'error'
 
+export type ProxyStatus =
+  | 'pending' | 'processing' | 'ready' | 'failed' | 'skipped' | null
+
 export interface EditorAsset {
   id:              string
   filename:        string
   durationSeconds: number | null
   status:          AssetStatus
-  /** MinIO/S3 storage key used for cut/transcode jobs. */
+  /** MinIO/S3 storage key for the full-quality original (export). */
   storageKey:      string
-  /** Pre-signed MinIO URL the <video> element can stream from (1h TTL). */
+  /** Pre-signed URL the <video> element streams (edit proxy when ready). */
   videoUrl:        string | null
+  proxyStatus:     ProxyStatus
+  /** True when videoUrl points at the lightweight edit proxy. */
+  usingProxy:      boolean
   /** Set when status is error (from backend error_message). */
   errorMessage:    string | null
 }
@@ -37,7 +43,12 @@ export const useAssetStore = create<AssetState>((set) => ({
   asset: null,
   setAsset:   (asset) => set({
     asset: asset
-      ? { ...asset, errorMessage: asset.errorMessage ?? null }
+      ? {
+          ...asset,
+          proxyStatus: asset.proxyStatus ?? null,
+          usingProxy: asset.usingProxy ?? false,
+          errorMessage: asset.errorMessage ?? null,
+        }
       : null,
   }),
   patchAsset: (patch) => set((s) => ({

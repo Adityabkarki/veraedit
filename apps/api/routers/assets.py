@@ -22,13 +22,13 @@ from __future__ import annotations
 import uuid
 
 import structlog
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import delete, func, select
 
 from dependencies import CurrentUser, DbDep
 from exceptions import AssetNotFoundError, ProjectNotFoundError, StorageError
 from models import Asset, Project, Transcript
-from models.asset import AssetStatus, MediaType
+from models.asset import AssetStatus, MediaType, ProxyStatus
 from schemas.assets import (
     AssetConfirmRequest,
     AssetCreateRequest,
@@ -37,6 +37,7 @@ from schemas.assets import (
     UploadURLResponse,
 )
 from schemas.pipeline import AnalyzeRequest, RegenerateRequest, RetranscribeRequest
+from services.asset_media import playback_storage_key, should_generate_proxy, source_storage_key
 from services.pipeline_cost import (
     CONFIRM_CHAPTERS,
     CONFIRM_SCOPED_REGENERATE,
@@ -203,6 +204,8 @@ async def confirm_asset_upload(
 
     asset.status = AssetStatus.UPLOADED
     asset.error_message = None
+    if should_generate_proxy(asset):
+        asset.proxy_status = ProxyStatus.PENDING
 
     await db.commit()
     await db.refresh(asset)
@@ -212,6 +215,20 @@ async def confirm_asset_upload(
         asset_id=str(asset_id),
         file_size=asset.file_size,
     )
+
+    # Queue edit proxy (parallel) — smaller file for editor playback; original kept for export
+    if should_generate_proxy(asset):
+        try:
+            from tasks.proxy_tasks import queue_edit_proxy
+
+            queue_edit_proxy(str(asset_id))
+            log.info("edit_proxy_queued", asset_id=str(asset_id))
+        except Exception as exc:
+            log.warning(
+                "edit_proxy_queue_failed",
+                asset_id=str(asset_id),
+                error=str(exc),
+            )
 
     # Queue transcription Celery task (EP-2.1)
     # Runs asynchronously — client polls asset status until status="analyzing" or "ready"
@@ -289,10 +306,17 @@ async def get_download_url(
     db: DbDep,
     current_user: CurrentUser,
     storage: StorageService = StorageDep,
+    variant: str = Query(
+        default="edit",
+        description="edit = lightweight proxy when ready; source = full-quality original",
+    ),
 ) -> DownloadURLResponse:
     """
     Generate a time-limited download URL for an asset.
     Valid for 1 hour. Call again to get a fresh URL.
+
+    Use variant=edit for editor preview (540p proxy when ready).
+    Use variant=source for export pipelines (always original).
     """
     asset = await _get_owned_asset(project_id, asset_id, current_user.id, db)
 
@@ -301,12 +325,31 @@ async def get_download_url(
             "This file hasn't finished uploading yet. Please wait a moment."
         )
 
+    normalized = (variant or "edit").lower().strip()
+    if normalized not in ("edit", "source"):
+        raise HTTPException(
+            status_code=422,
+            detail="Invalid variant. Use 'edit' or 'source'.",
+        )
+
+    if normalized == "source":
+        key = source_storage_key(asset)
+        using_proxy = False
+    else:
+        key = playback_storage_key(asset)
+        using_proxy = key != asset.storage_key
+
     url = await storage.generate_download_url(
-        storage_key=asset.storage_key,
+        storage_key=key,
         bucket=BUCKET_MEDIA,
-        filename=asset.original_filename,
+        filename=asset.original_filename if not using_proxy else f"proxy_{asset.original_filename}",
     )
-    return DownloadURLResponse(download_url=url, expires_in=3600)
+    return DownloadURLResponse(
+        download_url=url,
+        expires_in=3600,
+        variant=normalized,
+        using_proxy=using_proxy,
+    )
 
 
 # ── DELETE /projects/{id}/assets/{asset_id} ───────────────────────────────────
@@ -330,6 +373,7 @@ async def delete_asset(
     """
     asset = await _get_owned_asset(project_id, asset_id, current_user.id, db)
     storage_key = asset.storage_key
+    proxy_key = asset.proxy_storage_key
 
     # Delete DB record first (cascade removes transcript, scenes, suggestions)
     await db.delete(asset)
@@ -337,6 +381,8 @@ async def delete_asset(
 
     # Then delete from MinIO (best-effort — don't fail the request if MinIO is slow)
     await storage.delete_object(storage_key, bucket=BUCKET_MEDIA)
+    if proxy_key:
+        await storage.delete_object(proxy_key, bucket=BUCKET_MEDIA)
 
     log.info("asset_deleted", asset_id=str(asset_id), project_id=str(project_id))
 

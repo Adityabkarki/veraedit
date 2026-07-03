@@ -60,6 +60,7 @@ celery_app = Celery(
         "tasks.caption_tasks",         # Module 03: Captions STT + burn-in
         "tasks.cut_tasks",             # Module 04: Text-based cuts
         "tasks.broll_generation",
+        "tasks.proxy_tasks",
     ],
 )
 
@@ -118,6 +119,7 @@ celery_app.conf.update(
         "tasks.caption.transcribe":    {"queue": "transcription"},
         "tasks.caption.*":           {"queue": "transcription"},
         "tasks.cut.*":               {"queue": "render"},
+        "tasks.proxy.*":             {"queue": "render"},
     },
 
     # Default queue for unrouted tasks

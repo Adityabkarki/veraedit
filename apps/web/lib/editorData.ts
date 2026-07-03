@@ -15,7 +15,7 @@ import { useHighlightsStore, type ApiHighlight } from '@/stores/highlightsStore'
 import { useSuggestionsStore, type ApiSuggestion } from '@/stores/suggestionsStore'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { ensurePrimaryMediaClips } from '@/lib/timelineLayers'
-import { useAssetStore, type AssetStatus } from '@/stores/assetStore'
+import { useAssetStore, type AssetStatus, type ProxyStatus } from '@/stores/assetStore'
 import { useCaptionsStore } from '@/stores/captionsStore'
 import { useMediaStore } from '@/stores/mediaStore'
 import { useEditorStore } from '@/stores/editorStore'
@@ -36,6 +36,7 @@ interface BackendAsset {
   original_filename: string
   duration_seconds: number | null
   storage_key: string
+  proxy_status?: ProxyStatus
   error_message?: string | null
   media_metadata?: { content_type?: string; role?: string; source?: string } | null
 }
@@ -51,6 +52,7 @@ export interface EditorLoadResult {
   projectTitle: string
   assetId: string | null
   assetStatus: AssetStatus | null
+  proxyStatus: ProxyStatus | null
   transcriptStatus: string | null
   transcriptLoaded: boolean
   hasWordTimestamps: boolean
@@ -142,7 +144,7 @@ export async function loadEditorProject(
   if (proj.error || !proj.data) {
     return {
       projectTitle: 'Untitled Project',
-      assetId: null, assetStatus: null, transcriptStatus: null,
+      assetId: null, assetStatus: null, proxyStatus: null, transcriptStatus: null,
       transcriptLoaded: false,
       hasWordTimestamps: false, contentType: null,
       error: proj.error ?? 'Could not load this project.',
@@ -162,7 +164,7 @@ export async function loadEditorProject(
   if (!asset) {
     clearAllStores()
     return {
-      projectTitle, assetId: null, assetStatus: null, transcriptStatus: null,
+      projectTitle, assetId: null, assetStatus: null, proxyStatus: null, transcriptStatus: null,
       transcriptLoaded: false,
       hasWordTimestamps: false, contentType: null, error: null,
     }
@@ -180,6 +182,8 @@ export async function loadEditorProject(
         status: 'error',
         storageKey: asset.storage_key,
         videoUrl: useAssetStore.getState().asset?.videoUrl ?? null,
+        proxyStatus: asset.proxy_status ?? null,
+        usingProxy: false,
         errorMessage: errMsg,
       })
     } else {
@@ -192,6 +196,7 @@ export async function loadEditorProject(
       projectTitle,
       assetId: asset.id,
       assetStatus: 'error',
+      proxyStatus: asset.proxy_status ?? null,
       transcriptStatus: null,
       transcriptLoaded: false,
       hasWordTimestamps: false,
@@ -201,11 +206,30 @@ export async function loadEditorProject(
   }
 
   let videoUrl: string | null = useAssetStore.getState().asset?.videoUrl ?? null
+  let usingProxy = useAssetStore.getState().asset?.usingProxy ?? false
   if (reloadTimeline && asset.status !== 'uploading') {
-    const dl = await api.get<{ download_url: string }>(
-      `/projects/${projectId}/assets/${asset.id}/download-url`,
+    const dl = await api.get<{ download_url: string; using_proxy: boolean }>(
+      `/projects/${projectId}/assets/${asset.id}/download-url?variant=edit`,
     )
-    if (dl.data?.download_url) videoUrl = dl.data.download_url
+    if (dl.data?.download_url) {
+      videoUrl = dl.data.download_url
+      usingProxy = Boolean(dl.data.using_proxy)
+    }
+  } else if (!reloadTimeline) {
+    const prev = useAssetStore.getState().asset
+    const proxyJustReady =
+      asset.proxy_status === 'ready' &&
+      prev?.proxyStatus !== 'ready' &&
+      prev?.id === asset.id
+    if (proxyJustReady || (asset.proxy_status === 'ready' && !prev?.usingProxy)) {
+      const dl = await api.get<{ download_url: string; using_proxy: boolean }>(
+        `/projects/${projectId}/assets/${asset.id}/download-url?variant=edit`,
+      )
+      if (dl.data?.download_url) {
+        videoUrl = dl.data.download_url
+        usingProxy = Boolean(dl.data.using_proxy)
+      }
+    }
   }
 
   if (reloadTimeline) {
@@ -216,6 +240,8 @@ export async function loadEditorProject(
       status: asset.status,
       storageKey: asset.storage_key,
       videoUrl,
+      proxyStatus: asset.proxy_status ?? null,
+      usingProxy,
       errorMessage: null,
     })
     await loadProjectTimeline(projectId, asset, { preservePlayhead })
@@ -223,6 +249,8 @@ export async function loadEditorProject(
     useAssetStore.getState().patchAsset({
       status: asset.status,
       durationSeconds: asset.duration_seconds,
+      proxyStatus: asset.proxy_status ?? null,
+      ...(videoUrl ? { videoUrl, usingProxy } : {}),
     })
   }
 
@@ -305,6 +333,7 @@ export async function loadEditorProject(
     projectTitle,
     assetId: asset.id,
     assetStatus: asset.status,
+    proxyStatus: asset.proxy_status ?? null,
     transcriptStatus,
     transcriptLoaded,
     hasWordTimestamps,

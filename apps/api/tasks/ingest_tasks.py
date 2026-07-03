@@ -102,11 +102,11 @@ def _finish_ingest(
                 INSERT INTO assets (
                     id, project_id, name, original_filename, storage_key,
                     file_size, duration_seconds, media_type, mime_type,
-                    status, media_metadata, created_at, updated_at
+                    status, proxy_status, media_metadata, created_at, updated_at
                 ) VALUES (
                     :id, :project_id, :name, :original_filename, :storage_key,
                     :file_size, :duration_seconds, 'VIDEO', 'video/mp4',
-                    'UPLOADED', CAST(:media_metadata AS jsonb), NOW(), NOW()
+                    'UPLOADED', 'pending', CAST(:media_metadata AS jsonb), NOW(), NOW()
                 )
             """),
             {
@@ -129,6 +129,13 @@ def _finish_ingest(
     }
     _update_job_sync(job_id, status="done", result=result)
     _queue_transcription(asset_id)
+    try:
+        from tasks.proxy_tasks import queue_edit_proxy
+
+        queue_edit_proxy(asset_id)
+        log.info("edit_proxy_queued", asset_id=asset_id)
+    except Exception as exc:
+        log.warning("edit_proxy_queue_failed", asset_id=asset_id, error=str(exc))
 
     for path in (local_path, thumb_path):
         try:
