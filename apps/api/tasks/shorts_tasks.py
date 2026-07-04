@@ -22,6 +22,57 @@ log = structlog.get_logger("viraedit.tasks.shorts_extract")
 PRESIGNED_EXPIRY_SECONDS = 86400  # 24 hours
 
 
+def _sync_db_url() -> str:
+    from config import settings
+
+    return settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
+
+
+def _load_cached_transcript(project_id: str, video_key: str) -> dict | None:
+    """Reuse the project transcript when available (avoids a second ElevenLabs STT run)."""
+    from sqlalchemy import create_engine, text
+
+    engine = create_engine(_sync_db_url(), pool_pre_ping=True)
+    with engine.connect() as conn:
+        row = conn.execute(
+            text(
+                """
+                SELECT t.full_text, t.words, t.language, t.quality_metrics
+                FROM transcripts t
+                JOIN assets a ON a.id = t.asset_id
+                WHERE a.project_id = :project_id
+                  AND a.storage_key = :video_key
+                  AND t.status = 'READY'
+                ORDER BY t.updated_at DESC
+                LIMIT 1
+                """
+            ),
+            {"project_id": project_id, "video_key": video_key},
+        ).mappings().first()
+
+    if not row or not row.get("words"):
+        return None
+
+    words = row["words"] or []
+    if not words:
+        return None
+
+    quality = row.get("quality_metrics") or {}
+    segments = quality.get("segments") or []
+
+    log.info(
+        "shorts_extract_transcript_cache_hit",
+        project_id=project_id,
+        word_count=len(words),
+    )
+    return {
+        "full_text": row.get("full_text") or "",
+        "language": row.get("language") or "ne",
+        "words": words,
+        "segments": segments,
+    }
+
+
 @celery_app.task(bind=True, name="tasks.shorts.extract", time_limit=1800)
 def extract_shorts_task(
     self: Task,
@@ -42,7 +93,11 @@ def extract_shorts_task(
         local_path = storage_sync.download_to_temp(video_key, job_id)
 
         progress("transcribing")
-        transcript = asyncio.run(transcribe_video(local_path))
+        transcript = _load_cached_transcript(project_id, video_key)
+        if transcript is None:
+            transcript = asyncio.run(transcribe_video(local_path))
+        else:
+            progress("transcribing", cached=True)
 
         progress("finding_and_cutting_moments")
         work_dir = Path(tempfile.gettempdir()) / "viraedit" / job_id / "shorts_work"

@@ -5,8 +5,11 @@
  */
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { useAssetStore, type AssetStatus } from '@/stores/assetStore'
 import { useEditorPipelinePoll, shouldPollAssetStatus } from '@/hooks/useEditorPipelinePoll'
+import { PIPELINE_STALE_MS } from '@/lib/pipelineStatus'
+import { kickAssetProcessing } from '@/lib/pipelineApi'
 import { RegenerateConfirmDialog } from '@/components/editor/RegenerateConfirmDialog'
 import { usePipelineRegenerate } from '@/lib/usePipelineRegenerate'
 import type { RegenerateErrorDetail } from '@/lib/pipelineApi'
@@ -66,6 +69,26 @@ export function AnalysisProgressBanner({ projectId }: AnalysisProgressBannerProp
   )
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmMeta, setConfirmMeta] = useState<RegenerateErrorDetail | null>(null)
+  const [kickLoading, setKickLoading] = useState(false)
+
+  const handleKickProcessing = async () => {
+    if (!asset?.id) return
+    setKickLoading(true)
+    try {
+      const res = await kickAssetProcessing(projectId, asset.id)
+      if (res.error) {
+        toast.error(res.error)
+        return
+      }
+      if (res.data?.status === 'pending_worker') {
+        toast.message('Worker not reachable', { description: res.data.message })
+        return
+      }
+      toast.success('Processing restarted', { description: res.data?.message })
+    } finally {
+      setKickLoading(false)
+    }
+  }
 
   const handleRetryChapters = async () => {
     const c = await loadCosts()
@@ -174,6 +197,19 @@ export function AnalysisProgressBanner({ projectId }: AnalysisProgressBannerProp
           {formatElapsed(poll.elapsedMs)}
         </span>
       )}
+
+      {poll.elapsedMs >= PIPELINE_STALE_MS &&
+        (asset.status === 'uploaded' || asset.status === 'transcribing') && (
+          <button
+            type="button"
+            data-testid="kick-processing-btn"
+            disabled={kickLoading}
+            onClick={() => void handleKickProcessing()}
+            className="shrink-0 px-2 py-0.5 rounded text-[10px] font-medium bg-accent/20 text-accent hover:bg-accent/30 disabled:opacity-50"
+          >
+            {kickLoading ? 'Starting…' : 'Retry'}
+          </button>
+        )}
     </div>
   )
 }

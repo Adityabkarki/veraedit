@@ -127,6 +127,41 @@ Output video → S3 → User download
 
 ---
 
+## Remotion + Motion Graphics Pipeline (Phase 11)
+
+Animated typography and pro motion graphics use a **dual-layer render**:
+
+```
+Timeline overlay clips (visual_type = animated_title | kinetic_text | …)
+       │
+       ▼
+motion_graphics_service.plan_from_timeline_clips()
+       │
+       ▼
+Remotion service (:3500)  POST /render-motion-graphics
+  → transparent WebM (yuva420p VP8)
+       │
+       ▼
+FFmpeg overlay composite (step 5b in render_task)
+       │
+       ▼
+Final export (same plan JSON drives CSS preview in editor)
+```
+
+| Layer | Responsibility |
+|-------|----------------|
+| **Next.js preview** | `MotionGraphicsProOverlays` + `motionMath.ts` — CSS approximations at playhead |
+| **Remotion service** | `remotion-service/src/motion/` — canonical frame render |
+| **FastAPI** | `services/motion_graphics_service.py` — registry, validate, AI suggest |
+| **FFmpeg** | Cuts, reframe, audio, b-roll — unchanged from Phase 9 |
+
+Port **3500** is internal only (API → Remotion). Captions still use
+`/render-captions` from Phase 9; motion graphics use `/render-motion-graphics`.
+
+See `references/motion-graphics.md` for the full component library and JSON schema.
+
+---
+
 ## Non-Destructive Editing Principle
 
 ALL edits are stored as a JSON graph. Source files are NEVER modified.
@@ -191,6 +226,7 @@ Everything runs locally via Docker Compose:
 | PostgreSQL | 5432 | Database |
 | Redis | 6379 | Queue + Cache |
 | MinIO | 9000/9001 | S3-compatible storage |
+| Remotion | 3500 | Motion graphics + caption overlay render (internal) |
 | Celery workers | — | Background processing |
 
 One command to start everything:

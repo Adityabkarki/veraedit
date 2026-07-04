@@ -30,6 +30,8 @@ import { openBrollEditor } from '@/lib/brollMedia'
 import { openImageEditor } from '@/lib/imageMedia'
 import { isCaptionEffectClip } from '@/lib/captionEffects'
 import { isCameraZoomClip, cameraZoomLabel, openCameraZoomEditor } from '@/lib/cameraZoom'
+import { isMotionGraphicProType } from '@/lib/motionGraphicsLibrary'
+import { openMotionGraphicEditor } from '@/components/editor/motion/MotionGraphicsEditPanel'
 import { keyframesUseNormalizedOffsets } from '@/lib/effectKeyframes'
 
 const SNAP_THRESHOLD_PX = 8
@@ -349,9 +351,14 @@ export function Clip({ clip, track }: ClipProps) {
             !isBrollClip(clip) &&
             !isImageClip(clip)
           ) {
-            useVisualLibraryStore.getState().startEditOverlay(clip.id)
-            ui.setRightPanelMode('overlay-element')
-            if (!ui.aiPanelOpen) useUIStore.setState({ aiPanelOpen: true })
+            const vt = (clip.effects?.visualType ?? '').toLowerCase()
+            if (isMotionGraphicProType(vt)) {
+              openMotionGraphicEditor(clip.id)
+            } else {
+              useVisualLibraryStore.getState().startEditOverlay(clip.id)
+              ui.setRightPanelMode('overlay-element')
+              if (!ui.aiPanelOpen) useUIStore.setState({ aiPanelOpen: true })
+            }
           }
           if (clip.trackId === 'captions' || isCaptionEffectClip(clip)) {
             openCaptionEditor(clip.id)

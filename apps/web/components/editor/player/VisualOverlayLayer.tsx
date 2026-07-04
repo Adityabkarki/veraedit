@@ -23,6 +23,9 @@ import {
   DataCardOverlay,
   UpperThirdLabelOverlay,
 } from '@/components/editor/player/MotionGraphicOverlays'
+import { MotionGraphicProPreview } from '@/components/editor/player/MotionGraphicsProOverlays'
+import { isMotionGraphicProType } from '@/lib/motionGraphicsLibrary'
+import { motionGraphicIsFullscreen } from '@/lib/motionGraphicEdit'
 import {
   AreaChartOverlay,
   ChecklistOverlay,
@@ -642,6 +645,36 @@ function OverlayRenderer({
 
   const vt = (clip.effects?.visualType || '').toLowerCase()
   let inner: React.ReactNode
+
+  if (isMotionGraphicProType(vt)) {
+    const isFullscreen = motionGraphicIsFullscreen(vt)
+    const mgProps = {
+      clip,
+      currentTime,
+      primary,
+      accent,
+      interactive,
+      embedded: !isFullscreen,
+    }
+    if (isFullscreen) {
+      return (
+        <div
+          className={interactive ? 'absolute inset-0 pointer-events-auto' : 'absolute inset-0 pointer-events-none'}
+        >
+          {interactive && (
+            <div className="absolute inset-0 border-2 border-accent/60 pointer-events-none rounded-sm" aria-hidden />
+          )}
+          <MotionGraphicProPreview {...mgProps} embedded={false} />
+        </div>
+      )
+    }
+    return (
+      <PositionedOverlay clip={clip} interactive={interactive} currentTime={currentTime}>
+        <MotionGraphicProPreview {...mgProps} />
+      </PositionedOverlay>
+    )
+  }
+
   if (vt === 'emoji_element') inner = <EmojiElementOverlay clip={clip} />
   else if (vt === 'bar_chart') inner = <BarChartOverlay clip={clip} primary={primary} accent={accent} />
   else if (vt === 'horizontal_bar') inner = <HorizontalBarOverlay clip={clip} primary={primary} accent={accent} />

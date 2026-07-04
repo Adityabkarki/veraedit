@@ -10,6 +10,7 @@ import pytest
 
 from tasks.broll_suggestion import (
     BRollSuggestion,
+    _normalize_broll_window,
     run_broll_suggestion_engine,
     suggest_broll_from_transcript,
 )
@@ -125,6 +126,45 @@ def test_run_broll_suggestion_engine_llm_failure(mock_call_ai):
         duration=10.0,
     )
     assert actions == []
+
+
+def test_normalize_broll_window_expands_point_anchor():
+    """Equal start/end timestamps become a usable clip window."""
+    ss, et = _normalize_broll_window(1.4, 1.4, duration=116.4)
+    assert ss == pytest.approx(0.9)
+    assert et == pytest.approx(4.9)
+    assert et - ss >= 1.5
+
+
+@patch("tasks.ai_client.call_ai")
+def test_run_broll_suggestion_engine_expands_point_timestamps(mock_call_ai):
+    """LLM point anchors (start==end) should still produce suggestions."""
+    mock_call_ai.return_value = FakeAIResult([
+        {
+            "start_time": 1.4,
+            "end_time": 1.4,
+            "broll_prompt": "Smartphone showing Play Store search",
+            "broll_reason": "technical_term",
+            "confidence": 0.9,
+        },
+        {
+            "start_time": 5.3,
+            "end_time": 5.3,
+            "broll_prompt": "Bhagavad Gita book cover split screen",
+            "broll_reason": "story_narrative",
+            "confidence": 0.85,
+        },
+    ])
+
+    actions = run_broll_suggestion_engine(
+        full_text="Sample transcript about Bhagavad Gita mobile app.",
+        words=SAMPLE_WORDS,
+        duration=116.4,
+    )
+
+    assert len(actions) == 2
+    assert actions[0]["end_time"] > actions[0]["start_time"]
+    assert actions[1]["end_time"] > actions[1]["start_time"]
 
 
 def test_broll_suggestion_to_action_dict():

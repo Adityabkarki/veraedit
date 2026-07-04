@@ -216,38 +216,9 @@ async def confirm_asset_upload(
         file_size=asset.file_size,
     )
 
-    # Queue edit proxy (parallel) — smaller file for editor playback; original kept for export
-    if should_generate_proxy(asset):
-        try:
-            from tasks.proxy_tasks import queue_edit_proxy
+    from services.asset_pipeline import queue_post_upload_tasks
 
-            queue_edit_proxy(str(asset_id))
-            log.info("edit_proxy_queued", asset_id=str(asset_id))
-        except Exception as exc:
-            log.warning(
-                "edit_proxy_queue_failed",
-                asset_id=str(asset_id),
-                error=str(exc),
-            )
-
-    # Queue transcription Celery task (EP-2.1)
-    # Runs asynchronously — client polls asset status until status="analyzing" or "ready"
-    try:
-        from celery_app import celery_app as _celery
-        _celery.send_task(
-            "tasks.transcribe.run",
-            kwargs={"asset_id": str(asset_id)},
-            queue="transcription",
-        )
-        log.info("transcription_queued", asset_id=str(asset_id))
-    except Exception as exc:
-        # Redis/Celery unavailable — log but don't fail the confirm response
-        log.warning(
-            "transcription_queue_failed",
-            asset_id=str(asset_id),
-            error=str(exc),
-            hint="Start the Celery worker: scripts\\worker.bat",
-        )
+    queue_post_upload_tasks(asset)
 
     return AssetResponse.model_validate(asset)
 
@@ -535,6 +506,79 @@ async def get_pipeline_costs(
             "shorts": CONFIRM_SHORTS,
         },
         "spend": spend,
+    }
+
+
+# ── POST /projects/{id}/assets/{asset_id}/kick-processing ─────────────────────
+
+@router.post(
+    "/{project_id}/assets/{asset_id}/kick-processing",
+    summary="Re-queue proxy + transcription when the worker was offline",
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def kick_asset_processing(
+    project_id: uuid.UUID,
+    asset_id: uuid.UUID,
+    db: DbDep,
+    current_user: CurrentUser,
+) -> dict:
+    """
+    Re-queue edit-proxy and transcription for an uploaded asset.
+
+    Use when upload succeeded but Celery was not running, so processing never started.
+    """
+    asset = await _get_owned_asset(project_id, asset_id, current_user.id, db)
+
+    if asset.status == AssetStatus.UPLOADING:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Wait until the upload is confirmed before starting processing.",
+        )
+    if asset.status in (AssetStatus.ANALYZING, AssetStatus.READY):
+        return {
+            "status": "ok",
+            "proxy_queued": False,
+            "transcription_queued": False,
+            "message": "Processing already completed for this asset.",
+        }
+
+    tr = await db.execute(select(Transcript).where(Transcript.asset_id == asset_id))
+    transcript = tr.scalar_one_or_none()
+    has_transcript = bool(transcript and (transcript.full_text or "").strip())
+
+    from services.asset_pipeline import needs_pipeline_kick, queue_post_upload_tasks
+
+    if not needs_pipeline_kick(asset, has_transcript=has_transcript):
+        return {
+            "status": "ok",
+            "proxy_queued": False,
+            "transcription_queued": False,
+            "message": "No pending proxy or transcription work for this asset.",
+        }
+
+    proxy_queued, transcription_queued = queue_post_upload_tasks(asset)
+    if transcription_queued and asset.status == AssetStatus.UPLOADED:
+        asset.status = AssetStatus.TRANSCRIBING
+    if proxy_queued and should_generate_proxy(asset):
+        asset.proxy_status = ProxyStatus.PENDING
+    await db.commit()
+
+    if not proxy_queued and not transcription_queued:
+        return {
+            "status": "pending_worker",
+            "proxy_queued": False,
+            "transcription_queued": False,
+            "message": (
+                "Could not queue processing. Start the Celery worker "
+                "(scripts/worker.sh or scripts/worker.bat all), then try again."
+            ),
+        }
+
+    return {
+        "status": "queued",
+        "proxy_queued": proxy_queued,
+        "transcription_queued": transcription_queued,
+        "message": "Processing restarted. This usually takes 1–3 minutes.",
     }
 
 

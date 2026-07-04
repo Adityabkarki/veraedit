@@ -32,20 +32,20 @@ log = logging.getLogger("viraedit.tasks.broll_suggestion")
 _BROLL_SYSTEM_PROMPT = """You are a professional video editor analyzing a Nepali-language video transcript. Your task is to identify moments where inserting B-roll footage would significantly improve the video.
 
 For each B-roll opportunity, return:
-- start_time: float (seconds)
-- end_time: float (seconds) 
+- start_time: float (seconds) — when the B-roll clip should begin on the timeline
+- end_time: float (seconds) — when the B-roll clip should end (must be at least 2s after start_time)
 - broll_prompt: a vivid, specific description of what the B-roll should show (this will be used for AI image generation or stock footage search — be creative and concrete)
 - broll_reason: why B-roll is needed here (one of: "abstract_concept", "technical_term", "dead_air", "topic_transition", "emotional_beat", "story_narrative", "explanation")
 - confidence: float 0.0-1.0
 
 Rules:
 1. Focus on moments that would benefit from illustration — abstract ideas, technical explanations, topic changes, emotional moments, comparisons
-2. Skip very short segments (<2s)  
+2. Each suggestion must span at least 2 seconds (end_time > start_time + 2)
 3. Skip segments already dense with visual language (the speaker is describing something visual)
 4. Maximum 8 suggestions per video
 5. Prefer spacing suggestions out — don't cluster them
-6. Return ONLY valid JSON array — no markdown, no explanation
-7. Output format: [{"start_time": ..., "end_time": ..., "broll_prompt": "...", "broll_reason": "...", "confidence": ...}]"""
+6. Return ONLY valid JSON — no markdown, no explanation
+7. Output format: {"suggestions": [{"start_time": ..., "end_time": ..., "broll_prompt": "...", "broll_reason": "...", "confidence": ...}]}"""
 
 
 # ── Dataclass ────────────────────────────────────────────────────────────────
@@ -119,6 +119,37 @@ def _find_text_excerpt(
     return " ".join(excerpt_words) if excerpt_words else ""
 
 
+def _normalize_broll_window(
+    start_time: float,
+    end_time: float,
+    duration: float,
+    *,
+    default_span: float = 4.0,
+    min_span: float = 1.5,
+) -> tuple[float, float] | None:
+    """
+    Clamp a suggestion to the video and expand point-in-time anchors.
+
+    The LLM often returns the same timestamp for start and end (a moment marker).
+    In that case we build a clip window around the anchor so suggestions are usable.
+    """
+    ss = max(0.0, float(start_time))
+    et = min(duration, float(end_time))
+
+    if et <= ss + 0.05:
+        anchor = ss
+        span = min(default_span, max(min_span, duration))
+        ss = max(0.0, anchor - 0.5)
+        et = min(duration, ss + span)
+        if et - ss < min_span and duration >= min_span:
+            ss = max(0.0, duration - span)
+            et = duration
+
+    if et - ss < min_span:
+        return None
+    return ss, et
+
+
 # ── LLM suggestion ──────────────────────────────────────────────────────────
 
 def suggest_broll_from_transcript(
@@ -156,8 +187,8 @@ def suggest_broll_from_transcript(
         f"Video duration: {duration:.1f}s\n\n"
         f"Transcript:\n{transcript_preview}\n\n"
         f"Find the best moments to insert B-roll footage. "
-        f"Return a JSON array of objects with start_time, end_time, "
-        f"broll_prompt, broll_reason, and confidence."
+        f"Return a JSON object with a 'suggestions' key containing an array of objects "
+        f"with start_time, end_time, broll_prompt, broll_reason, and confidence."
     )
 
     try:
@@ -173,26 +204,32 @@ def suggest_broll_from_transcript(
         suggestions_data = result.content
         if isinstance(suggestions_data, str):
             suggestions_data = json.loads(suggestions_data)
-        if isinstance(suggestions_data, dict) and "suggestions" in suggestions_data:
-            suggestions_data = suggestions_data["suggestions"]
+        if isinstance(suggestions_data, dict):
+            for val in suggestions_data.values():
+                if isinstance(val, list):
+                    suggestions_data = val
+                    break
 
     except Exception as exc:
         log.warning("broll_llm_failed: %s", exc)
         return []
 
     if not isinstance(suggestions_data, list):
-        log.warning("broll_llm_unexpected_format: type=%s", type(suggestions_data).__name__)
+        log.warning("broll_llm_unexpected_format: type=%s raw=%s", type(suggestions_data).__name__, str(suggestions_data)[:500])
         return []
+
+    log.debug("broll_raw_suggestions: count=%d preview=%s", len(suggestions_data), str(suggestions_data[:3])[:400])
 
     suggestions: list[BRollSuggestion] = []
     for item in suggestions_data:
         try:
-            ss = float(item.get("start_time", 0.0))
-            et = float(item.get("end_time", ss + 3.0))
-            if et - ss < 1.5:
+            raw_ss = float(item.get("start_time", 0.0))
+            raw_et = float(item.get("end_time", raw_ss))
+            window = _normalize_broll_window(raw_ss, raw_et, duration)
+            if window is None:
+                log.debug("broll_skip_too_short: ss=%.1f et=%.1f", raw_ss, raw_et)
                 continue
-            if ss < 0 or et > duration:
-                continue
+            ss, et = window
 
             excerpt = _find_text_excerpt(ss, et, words)
             d = max(3.0, min(8.0, et - ss))
@@ -207,7 +244,7 @@ def suggest_broll_from_transcript(
                 duration_seconds=d,
             ))
         except (ValueError, KeyError, TypeError) as parse_err:
-            log.debug("broll_parse_skipped: %s", parse_err)
+            log.debug("broll_parse_skipped: item=%s err=%s", str(item)[:200], parse_err)
             continue
 
     suggestions.sort(key=lambda s: s.start_time)

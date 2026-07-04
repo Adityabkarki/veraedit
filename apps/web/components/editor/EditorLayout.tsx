@@ -40,6 +40,7 @@ import { BrollEditPanel } from '@/components/editor/broll/BrollEditPanel'
 import { ImageEditPanel } from '@/components/editor/image/ImageEditPanel'
 import { CameraZoomEditPanel } from '@/components/editor/camera/CameraZoomEditPanel'
 import { OverlayElementEditPanel } from '@/components/editor/overlay/OverlayElementEditPanel'
+import { MotionGraphicsEditPanel } from '@/components/editor/motion/MotionGraphicsEditPanel'
 import { EffectKeyframeEditPanel } from '@/components/editor/keyframes/EffectKeyframeEditPanel'
 import { AIBRollPanel } from '@/components/editor/ai/AIBRollPanel'
 import { useAssetStore } from '@/stores/assetStore'
@@ -197,6 +198,8 @@ export function EditorLayout({
                   ? <CameraZoomEditPanel />
                   : rightPanelMode === 'overlay-element'
                   ? <OverlayElementEditPanel />
+                  : rightPanelMode === 'motion-graphic'
+                  ? <MotionGraphicsEditPanel />
                   : rightPanelMode === 'keyframes'
                   ? <EffectKeyframeEditPanel />
                   : rightPanelMode === 'ai-broll'

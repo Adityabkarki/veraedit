@@ -227,6 +227,53 @@ def composite_overlay_onto_video(
     return out.as_posix()
 
 
+async def render_motion_graphics_overlay(
+    plan: dict[str, Any],
+    duration: float,
+    *,
+    width: int = 1080,
+    height: int = 1920,
+    fps: int = 30,
+) -> str:
+    """
+    Render a transparent WebM overlay containing all motion graphic elements
+    from a validated motion plan. Returns local path to the overlay file.
+    """
+    output_path = _temp_overlay_path("motion_graphics_overlay")
+    payload = {
+        "plan": plan,
+        "durationSeconds": duration,
+        "width": width,
+        "height": height,
+        "outputPath": output_path.as_posix(),
+        "fps": fps,
+    }
+
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(
+            connect=5.0,
+            read=settings.REMOTION_RENDER_TIMEOUT,
+            write=60.0,
+            pool=5.0,
+        )
+    ) as client:
+        resp = await client.post(
+            f"{settings.REMOTION_SERVICE_URL.rstrip('/')}/render-motion-graphics",
+            json=payload,
+        )
+        resp.raise_for_status()
+        result = resp.json()
+        if not result.get("success"):
+            raise RuntimeError(
+                f"Remotion motion graphics render failed: {result.get('error', 'unknown error')}"
+            )
+
+    if not output_path.exists():
+        raise RuntimeError("Remotion reported success but motion overlay was not created")
+
+    return output_path.as_posix()
+
+
 async def remotion_service_healthy() -> bool:
     """Return True if the Remotion render service responds to /health."""
     try:

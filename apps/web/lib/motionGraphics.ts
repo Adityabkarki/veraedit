@@ -1,24 +1,40 @@
 /**
- * Motion graphic overlay types — data cards, arrows, conflict highlights.
+ * Motion graphic overlay types — legacy AE-style + pro Remotion components.
  */
 
 import type { Clip } from '@/stores/timelineStore'
 import { isFamilyTrack } from '@/lib/timelineLayers'
+import { isMotionGraphicProType, motionGraphicProLabel } from '@/lib/motionGraphicsLibrary'
 
 export const MOTION_GRAPHIC_TYPES = new Set([
   'data_card',
   'arrow_flow',
   'conflict_box',
   'upper_third_label',
+  'animated_title',
+  'kinetic_text',
+  'lower_third_pro',
+  'stat_counter',
+  'quote_callout',
+  'cta_badge',
+  'progress_timer',
+  'particle_burst',
+  'shape_transition',
+  'background_gradient',
+  'arrow_callout',
+  'end_card',
 ])
 
 export function isMotionGraphicClip(clip: Clip | undefined): boolean {
   if (!clip || !isFamilyTrack(clip.trackId, 'overlay')) return false
   const vt = (clip.effects?.visualType ?? '').toLowerCase()
-  return MOTION_GRAPHIC_TYPES.has(vt)
+  return MOTION_GRAPHIC_TYPES.has(vt) || isMotionGraphicProType(vt)
 }
 
 export function motionGraphicLabel(visualType: string): string {
+  if (isMotionGraphicProType(visualType)) {
+    return motionGraphicProLabel(visualType)
+  }
   switch (visualType) {
     case 'data_card':
       return 'Data card'

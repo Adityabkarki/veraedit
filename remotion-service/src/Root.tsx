@@ -5,6 +5,8 @@ import { loadFont as loadNotoDevanagari } from "@remotion/google-fonts/NotoSansD
 import { CaptionComposition } from "./CaptionComposition";
 import { TitleCardComposition } from "./TitleCardComposition";
 import { LowerThirdComposition } from "./LowerThirdComposition";
+import { MotionGraphicsComposition } from "./motion/MotionGraphicsComposition";
+import type { MotionPlan } from "./motion/types";
 
 const { fontFamily: montserratFamily } = loadMontserrat("normal", {
   weights: ["700", "800"],
@@ -61,6 +63,18 @@ export const RemotionRoot: React.FC = () => (
         fontFamily: montserratFamily,
         brandColor: "#3b82f6",
         animation: "slide_up" as const,
+      }}
+    />
+    <Composition
+      id="MotionGraphicsOverlay"
+      component={MotionGraphicsComposition}
+      durationInFrames={300}
+      fps={30}
+      width={1080}
+      height={1920}
+      defaultProps={{
+        plan: { version: 1, fps: 30, width: 1080, height: 1920, elements: [] } as MotionPlan,
+        fontFamily: montserratFamily,
       }}
     />
   </>

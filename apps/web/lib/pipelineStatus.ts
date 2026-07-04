@@ -55,7 +55,7 @@ export function pipelineDetailMessage(
   ) {
     return (
       `${base} Taking longer than usual — ensure the Celery worker is running ` +
-      '(run scripts\\worker.bat all in the project folder).'
+      '(scripts/worker.sh or scripts/worker.bat all).'
     )
   }
 

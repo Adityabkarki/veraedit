@@ -197,6 +197,48 @@ app.post("/render-lower-third", async (req, res) => {
   }
 });
 
+app.post("/render-motion-graphics", async (req, res) => {
+  try {
+    const { plan, durationSeconds, width, height, outputPath, fps = 30 } = req.body;
+
+    if (!outputPath) {
+      return res.status(400).json({ success: false, error: "outputPath is required" });
+    }
+    if (!plan || !Array.isArray(plan.elements)) {
+      return res.status(400).json({ success: false, error: "plan.elements is required" });
+    }
+
+    const fontFamily = plan.fontFamily || "Montserrat";
+    const bundleLocation = await getBundle();
+    const composition = await selectComposition({
+      serveUrl: bundleLocation,
+      id: "MotionGraphicsOverlay",
+      inputProps: { plan, fontFamily },
+    });
+
+    await renderMedia({
+      composition: {
+        ...composition,
+        durationInFrames: Math.max(1, Math.ceil(durationSeconds * fps)),
+        fps,
+        width,
+        height,
+      },
+      serveUrl: bundleLocation,
+      codec: "vp8",
+      outputLocation: outputPath,
+      inputProps: { plan, fontFamily },
+      pixelFormat: "yuva420p",
+      imageFormat: "png",
+    });
+
+    res.json({ success: true, outputPath });
+  } catch (err) {
+    console.error("render-motion-graphics failed:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.listen(PORT, HOST, () => {
   console.log(`Remotion render service listening on http://${HOST}:${PORT}`);
 });

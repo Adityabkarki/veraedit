@@ -707,6 +707,44 @@ def _render_audio_mix(
     return output if output.exists() else None
 
 
+def _composite_motion_graphics(
+    overlay_clips: list[dict],
+    video_path: "Path",
+    output_path: "Path",
+    width: int,
+    height: int,
+    video_duration: float,
+) -> bool:
+    """
+    Step 5b — render pro motion graphics via Remotion and composite onto video.
+    Non-fatal: returns False if no elements or Remotion unavailable.
+    """
+    import asyncio
+    import shutil
+    from services.motion_graphics_service import render_motion_graphics_for_timeline
+
+    try:
+        ok = asyncio.run(
+            render_motion_graphics_for_timeline(
+                overlay_clips,
+                video_path=video_path.as_posix(),
+                output_path=output_path.as_posix(),
+                width=width,
+                height=height,
+                fps=30,
+                video_duration=video_duration,
+            )
+        )
+        if ok and output_path.exists():
+            return True
+    except Exception as exc:
+        log.warning("render_motion_graphics_step_skipped: %s", exc)
+
+    if video_path != output_path:
+        shutil.copy2(video_path, output_path)
+    return False
+
+
 # ── Overlay compositing ────────────────────────────────────────────────────
 
 def _composite_overlays(
@@ -739,6 +777,14 @@ def _composite_overlays(
     for clip in overlay_clips:
         if not overlay_is_media_clip(clip):
             params = _visual_overlay_params(clip)
+            visual_type = str(params.get("visual_type") or "").lower()
+            # Pro motion graphics render via Remotion in step 5b — skip FFmpeg drawtext
+            try:
+                from services.motion_graphics_service import MOTION_GRAPHIC_TYPES as _MG_TYPES
+                if visual_type in _MG_TYPES:
+                    continue
+            except ImportError:
+                pass
             text = str(params.get("display_value") or clip.get("label") or "").strip()
             secondary = str(params.get("secondary_text") or "").strip()
             if not text and not secondary:
@@ -1083,6 +1129,15 @@ def _real_render(
             )
             current_output = composited
             _update_render_status(render_id, "processing", progress=86.0)
+
+        # ── Step 5b: Motion graphics (Remotion overlay composite) ──────────
+        mg_output = tmp / "motion_graphics_composited.mp4"
+        if _composite_motion_graphics(
+            overlay_clips, current_output, mg_output,
+            width, height, total_duration,
+        ):
+            current_output = mg_output
+            _update_render_status(render_id, "processing", progress=88.0)
 
         # ── Step 6: Apply final faststart ────────────────────────────────
         if current_output != concat_video:

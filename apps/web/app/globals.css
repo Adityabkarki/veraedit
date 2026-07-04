@@ -229,6 +229,46 @@ body {
   animation: motion-conflict-border 1.4s ease-in-out infinite;
 }
 
+@keyframes motion-gfx-word-pop {
+  from { transform: scale(0.7); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.motion-gfx-word-pop {
+  animation: motion-gfx-word-pop 0.35s ease-out both;
+}
+
+@keyframes motion-gfx-kinetic-pop {
+  from { transform: scale(0.5) rotate(-8deg); opacity: 0; }
+  to { transform: scale(1.05) rotate(0deg); opacity: 1; }
+}
+.motion-gfx-kinetic-pop {
+  animation: motion-gfx-kinetic-pop 0.3s ease-out both;
+}
+
+.motion-gfx-lower-third {
+  transition: transform 0.4s ease-out, opacity 0.3s ease;
+}
+
+@keyframes motion-gfx-cta-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+.motion-gfx-cta-pulse {
+  animation: motion-gfx-cta-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes motion-gfx-gradient-shift {
+  0% { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(15deg); }
+}
+.motion-gfx-gradient-shift {
+  animation: motion-gfx-gradient-shift 6s ease-in-out infinite alternate;
+}
+
+.motion-gfx-arrow-draw {
+  transition: width 0.5s ease-out;
+}
+
 /* Caption FX — AE-style text animators */
 @keyframes cap-fx-pop-keyframes {
   0% { transform: scale(0.72); opacity: 0; }

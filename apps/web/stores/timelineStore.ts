@@ -110,6 +110,14 @@ export interface ClipEffects {
   overlayEntrance?: string
   /** Text/overlay exit motion */
   overlayExit?: string
+  /** Pro motion graphics — Remotion render types */
+  motionEnter?: string
+  motionExit?: string
+  motionEnterDuration?: number
+  motionExitDuration?: number
+  motionProps?: Record<string, unknown>
+  brandColor?: string
+  accentColor?: string
   /** Image layer — flip / lock / visibility */
   flipX?: boolean
   flipY?: boolean

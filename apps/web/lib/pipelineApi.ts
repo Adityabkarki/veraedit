@@ -69,6 +69,15 @@ export async function fetchPipelineCosts(projectId: string, assetId: string) {
   )
 }
 
+export async function kickAssetProcessing(projectId: string, assetId: string) {
+  return api.post<{
+    status: string
+    proxy_queued: boolean
+    transcription_queued: boolean
+    message: string
+  }>(`/projects/${projectId}/assets/${assetId}/kick-processing`, {})
+}
+
 export async function regenerateTranscript(
   projectId: string,
   assetId: string,

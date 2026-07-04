@@ -1229,7 +1229,46 @@ Implement whip-pan, speed ramps, SFX-on-cut, progress bars per gap report epics.
 
 ---
 
-## UPDATED EPIC SUMMARY WITH PHASE 10
+# PHASE 11: MOTION GRAPHICS SYSTEM
+
+## EP-11.1 — Pro Motion Graphics (Remotion)
+
+**User Story**: Creator adds professional animated titles, lower thirds, kinetic text,
+transitions, and particle effects from the editor; AI suggests placements; export
+matches preview.
+
+### Tasks
+- T-11.1.1: `references/motion-graphics.md` — component library + JSON schema
+- T-11.1.2: `remotion-service/src/motion/` — 12 Remotion components + dispatcher
+- T-11.1.3: `POST /render-motion-graphics` on Remotion service (:3500)
+- T-11.1.4: `services/motion_graphics_service.py` — registry, validate, plan builder
+- T-11.1.5: `routers/motion_graphics.py` — library / validate / suggest / health
+- T-11.1.6: `render_task.py` step 5b — Remotion overlay + FFmpeg composite
+- T-11.1.7: Frontend `MotionGraphicsTab` + `MotionGraphicsProOverlays` preview
+- T-11.1.8: Shared `motionMath.ts` (preview ↔ export parity)
+- T-11.1.9: AI suggest via gpt-4o-mini + validate_motion_plan guard
+- T-11.1.10: Unit tests (service, motionMath, library)
+
+### Done Criteria
+- User opens Effects → Motion tab, clicks "Animated Title" → preview shows animation
+- Export includes Remotion-rendered overlay (or skips gracefully if service down)
+- `POST /api/v1/motion-graphics/suggest` returns validated plan from transcript
+- Preview scrub matches export timing within shared easing math
+
+### Tests
+```python
+def test_validate_motion_plan_clamps_duration()
+def test_plan_from_timeline_clips_maps_overlay()
+def test_unknown_element_type_dropped_with_warning()
+```
+```typescript
+// motionMath.test.ts — enterProgress / exitProgress parity values
+// motionGraphicsLibrary.test.ts — 12 components registered
+```
+
+---
+
+## UPDATED EPIC SUMMARY WITH PHASE 11
 
 | Epic | Name | Status |
 |------|------|--------|
@@ -1238,5 +1277,6 @@ Implement whip-pan, speed ramps, SFX-on-cut, progress bars per gap report epics.
 | EP-10.2 | Style Templates + Gap Report | ✅ Built |
 | EP-10.3 | Style Fidelity Preview | Planned |
 | EP-10.4 | Missing Effect Renderers | Planned |
+| EP-11.1 | Pro Motion Graphics (Remotion) | ✅ Built |
 
-**Total epics: 45**
+**Total epics: 46**

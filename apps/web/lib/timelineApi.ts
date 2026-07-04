@@ -153,6 +153,14 @@ function parseEffects(apiClip: ApiTimelineClip): ClipEffects | undefined {
       if (p.height_pct != null) result.heightPct = Number(p.height_pct)
       if (p.overlay_entrance) result.overlayEntrance = String(p.overlay_entrance)
       if (p.overlay_exit) result.overlayExit = String(p.overlay_exit)
+      if (p.motion_enter) result.motionEnter = String(p.motion_enter)
+      if (p.motion_exit) result.motionExit = String(p.motion_exit)
+      if (p.motion_enter_duration != null) result.motionEnterDuration = Number(p.motion_enter_duration)
+      if (p.motion_exit_duration != null) result.motionExitDuration = Number(p.motion_exit_duration)
+      if (p.motion_props && typeof p.motion_props === 'object') {
+        result.motionProps = p.motion_props as Record<string, unknown>
+      }
+      if (p.brand_color) result.brandColor = String(p.brand_color)
       if (p.rotation != null) result.rotation = Number(p.rotation)
       if (p.chart_as_broll != null) result.chartAsBroll = Boolean(p.chart_as_broll)
     }
@@ -407,6 +415,12 @@ function buildApiClip(c: Clip, primaryAssetId: string): ApiTimelineClip {
         rotation:         c.effects?.rotation,
         overlay_entrance: c.effects?.overlayEntrance,
         overlay_exit:     c.effects?.overlayExit,
+        motion_enter:     c.effects?.motionEnter,
+        motion_exit:      c.effects?.motionExit,
+        motion_enter_duration: c.effects?.motionEnterDuration,
+        motion_exit_duration:  c.effects?.motionExitDuration,
+        motion_props:     c.effects?.motionProps,
+        brand_color:      c.effects?.brandColor,
         chart_as_broll:   c.effects?.chartAsBroll,
         image_opacity:    c.effects?.imageOpacity,
         brightness:       c.effects?.brightness,

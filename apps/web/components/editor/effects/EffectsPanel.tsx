@@ -5,8 +5,9 @@ import { useEffectsStore } from '@/stores/effectsStore'
 import { openStyleTransfer } from '@/lib/openStyleTransfer'
 import { EditToolboxTab } from '@/components/editor/effects/EditToolboxTab'
 import { ElementsTab } from '@/components/editor/visual/ElementsTab'
+import { MotionGraphicsTab } from '@/components/editor/effects/MotionGraphicsTab'
 
-type SubTab = 'effects' | 'elements'
+type SubTab = 'effects' | 'elements' | 'motion'
 
 export interface EffectsPanelProps {
   projectId?: string
@@ -72,7 +73,7 @@ export function EffectsPanel({ projectId, onClose, showHeader = true }: EffectsP
         aria-label="Effects and elements tabs"
         className="flex border-b border-bg-overlay flex-shrink-0"
       >
-        {(['effects', 'elements'] as SubTab[]).map((tab) => (
+        {(['effects', 'elements', 'motion'] as SubTab[]).map((tab) => (
           <button
             key={tab}
             role="tab"
@@ -86,7 +87,7 @@ export function EffectsPanel({ projectId, onClose, showHeader = true }: EffectsP
                 : 'border-transparent text-text-secondary hover:text-text-primary hover:bg-bg-overlay',
             ].join(' ')}
           >
-            {tab === 'effects' ? 'Effects' : 'Elements'}
+            {tab === 'effects' ? 'Effects' : tab === 'elements' ? 'Elements' : 'Motion'}
           </button>
         ))}
       </div>
@@ -147,6 +148,12 @@ export function EffectsPanel({ projectId, onClose, showHeader = true }: EffectsP
       {subTab === 'elements' && (
         <div className="flex-1 min-h-0 overflow-y-auto">
           <ElementsTab />
+        </div>
+      )}
+
+      {subTab === 'motion' && (
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <MotionGraphicsTab />
         </div>
       )}
     </div>
