@@ -60,6 +60,50 @@ Never invent ad hoc spring values outside this list:
 
 ---
 
+## References (architectural ground truth)
+
+Do **not** invent generic layout code. Emulate DOM structures and Remotion math
+from these sources. Treat them as ground truth — not loose inspiration.
+
+When stuck, re-point at the concrete repo/pattern below rather than re-describing
+the effect with adjectives alone.
+
+| Reference | Status | Use for | Agent instruction |
+|-----------|--------|---------|-------------------|
+| [av/remotion-bits](https://github.com/av/remotion-bits) | Accessible (verified) | 3D device mockups, CSS gradient transitions | Emulate the perspective + rotateY DOM stacking pattern used in av/remotion-bits's 3D card implementations for our device mockup containers. |
+| [stefanwittwer/remotion-animated](https://github.com/stefanwittwer/remotion-animated) | Accessible (verified) | Declarative enter/exit chaining for call-outs & pop-ups | Adopt the declarative animation chaining philosophy from stefanwittwer/remotion-animated so elements mount/unmount cleanly on frame timings. |
+| [lifeprompt-team/remotion-scenes](https://github.com/lifeprompt-team/remotion-scenes) | Accessible (verified) | Glitch overlays, HUDs, self-drawing infographic SVGs | Reference the SVG composite scene construction in lifeprompt-team/remotion-scenes. Structure infographics as standalone `.tsx` compositions that accept a JSON data prop, using `<path>` + `strokeDashoffset` mapped to `useCurrentFrame()`. |
+| [@remotion/fonts](https://www.remotion.dev/docs/fonts) / `@remotion/google-fonts` | Accessible (verified); in-tree via `remotion-service/src/motion/fonts.ts` | Kinetic typography, Devanagari safety | Use `@remotion/fonts` (or `@remotion/google-fonts`) to guarantee font-faces — especially Devanagari — are loaded before Canvas calculates text bounds. Combine with Flexbox gap transitions + spring interpolation so incoming words displace existing ones ("layout smoothing"). |
+
+### Local pattern ports (prefer these when implementing)
+
+These files already encode the reference patterns inside ViraEdit. Extend them;
+do not re-paraphrase from adjectives.
+
+| Pattern | Local path |
+|---------|------------|
+| remotion-bits 3D stacking | `remotion-service/src/motion/transform3d.ts` |
+| remotion-bits device chassis | `remotion-service/src/motion/elementsExtra.tsx` (Blueprint B — Device mockup) |
+| remotion-animated enter/exit | `remotion-service/src/motion/animated.tsx` |
+| remotion-scenes SVG self-draw | `remotion-service/src/motion/compositions/LineChartScene.tsx`, `GlitchScene.tsx` |
+| Font load-before-measure | `remotion-service/src/motion/fonts.ts` (`FONT_DEVANAGARI`, `resolveMotionFont`) |
+
+### Optional local clone (for `@` linking in Cursor)
+
+If an agent needs the upstream source trees on disk:
+
+```bash
+mkdir -p references/motion-ground-truth
+git clone --depth 1 https://github.com/av/remotion-bits.git references/motion-ground-truth/remotion-bits
+git clone --depth 1 https://github.com/stefanwittwer/remotion-animated.git references/motion-ground-truth/remotion-animated
+git clone --depth 1 https://github.com/lifeprompt-team/remotion-scenes.git references/motion-ground-truth/remotion-scenes
+```
+
+Then `@references/motion-ground-truth/remotion-bits` (etc.) as ground truth.
+Do not vendor-commit those clones unless explicitly requested.
+
+---
+
 ## Implementation Map (Steps 3–5)
 
 | Pillar | Folder | Key components |
@@ -166,5 +210,6 @@ Recovery instruction:
 
 > You are violating the layout laws in skills.md — fix it immediately.
 
-Re-point at the concrete structural reference (GitHub pattern or local component)
-rather than re-describing the effect with adjectives alone.
+Re-point at the concrete structural reference in the **References** section
+(GitHub URL, agent instruction, or local pattern port) rather than re-describing
+the effect with adjectives alone.
