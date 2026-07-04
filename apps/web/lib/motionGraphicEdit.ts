@@ -5,6 +5,7 @@
 import type { Clip } from '@/stores/timelineStore'
 import type { ClipEffects } from '@/stores/timelineStore'
 import { getMotionGraphicDef } from '@/lib/motionGraphicsLibrary'
+import { getRegistryProps, primaryDisplayFieldForProp } from '@/lib/motionPropSchema'
 
 /** Types that use x/y placement and canvas drag (via PositionedOverlay). */
 export const POSITIONABLE_MOTION_TYPES = new Set([
@@ -17,7 +18,10 @@ export const POSITIONABLE_MOTION_TYPES = new Set([
   'map_pin', 'accent_stroke', 'data_reveal', 'timeline_flow', 'corporate_timeline',
   'authority_badge', 'product_highlight', 'feature_callout', 'price_popup',
   'before_after', 'device_mockup', 'glass_card', 'liquid_blob', 'icon_pop',
-  'parallax_slide', 'collage_frame', 'hud_loader',
+  'parallax_slide',   'collage_frame', 'hud_loader',
+  'symmetric_audio_strip', 'circular_orbit_equalizer', 'active_speaker_split',
+  'kinetic_karaoke', 'scribble_annotation', 'vertical_clip_template',
+  'dynamic_feature_callout', 'metric_ticker', 'strategy_funnel',
 ])
 
 /** Full-frame types — no x/y placement. */
@@ -122,35 +126,46 @@ export function buildMotionGraphicPatch(
   const out: Partial<ClipEffects> = { ...patch }
   delete (out as { motionProps?: unknown }).motionProps
 
+  const registryProps = getRegistryProps(vt)
+
   if (patch.motionProps || patch.displayValue != null || patch.secondaryText != null) {
     out.motionProps = nextProps
 
     if (patch.displayValue != null) {
-      if ('text' in nextProps || vt.includes('text') || vt === 'animated_title' || vt === 'quote_callout' || vt === 'cta_badge' || vt === 'arrow_callout') {
-        nextProps.text = patch.displayValue
-      }
-      if ('title' in nextProps || vt === 'lower_third_pro' || vt === 'end_card') {
-        nextProps.title = patch.displayValue
+      for (const key of ['text', 'title'] as const) {
+        if (registryProps.includes(key)) nextProps[key] = patch.displayValue
       }
       out.motionProps = { ...nextProps }
     }
 
     if (patch.secondaryText != null) {
-      if (vt === 'quote_callout') nextProps.author = patch.secondaryText
-      else if (vt === 'stat_counter' || vt === 'progress_timer') nextProps.label = patch.secondaryText
-      else nextProps.subtitle = patch.secondaryText
+      for (const key of ['subtitle', 'author', 'label', 'sublabel'] as const) {
+        if (registryProps.includes(key) && nextProps[key] == null) {
+          nextProps[key] = patch.secondaryText
+        }
+      }
+      if (registryProps.includes('subtitle')) nextProps.subtitle = patch.secondaryText
+      if (registryProps.includes('author')) nextProps.author = patch.secondaryText
+      if (registryProps.includes('label')) nextProps.label = patch.secondaryText
+      if (registryProps.includes('sublabel')) nextProps.sublabel = patch.secondaryText
       out.motionProps = { ...nextProps }
     }
   }
 
   if (patch.motionProps) {
-    const p = patch.motionProps
-    if (p.text != null) out.displayValue = String(p.text)
-    if (p.title != null) out.displayValue = String(p.title)
-    if (p.subtitle != null) out.secondaryText = String(p.subtitle)
-    if (p.label != null) out.secondaryText = String(p.label)
-    if (p.author != null) out.secondaryText = String(p.author)
-    if (p.brandColor != null) out.brandColor = String(p.brandColor)
+    for (const [key, val] of Object.entries(patch.motionProps)) {
+      const displayField = primaryDisplayFieldForProp(key)
+      if (displayField === 'displayValue' && val != null) out.displayValue = String(val)
+      if (displayField === 'secondaryText' && val != null) out.secondaryText = String(val)
+      if (key === 'brandColor' && val != null) out.brandColor = String(val)
+    }
+  }
+
+  if (patch.brandColor != null) {
+    out.brandColor = patch.brandColor
+    if (registryProps.includes('brandColor')) {
+      out.motionProps = { ...nextProps, brandColor: patch.brandColor }
+    }
   }
 
   return out

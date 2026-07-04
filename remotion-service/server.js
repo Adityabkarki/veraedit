@@ -209,11 +209,12 @@ app.post("/render-motion-graphics", async (req, res) => {
     }
 
     const fontFamily = plan.fontFamily || "Montserrat";
+    const theme = plan.theme;
     const bundleLocation = await getBundle();
     const composition = await selectComposition({
       serveUrl: bundleLocation,
       id: "MotionGraphicsOverlay",
-      inputProps: { plan, fontFamily },
+      inputProps: { plan, fontFamily, theme },
     });
 
     await renderMedia({
@@ -227,7 +228,7 @@ app.post("/render-motion-graphics", async (req, res) => {
       serveUrl: bundleLocation,
       codec: "vp8",
       outputLocation: outputPath,
-      inputProps: { plan, fontFamily },
+      inputProps: { plan, fontFamily, theme },
       pixelFormat: "yuva420p",
       imageFormat: "png",
     });

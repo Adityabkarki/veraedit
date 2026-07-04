@@ -7,29 +7,36 @@ import type { MotionElement } from "./types";
 import { containsDevanagari } from "./motionMath";
 import { resolveMotionFont } from "./fonts";
 
-/** Social / TikTok — snappy high bounce */
-export const SPRING_SOCIAL = { mass: 0.5, damping: 10, stiffness: 150 };
+/** Physics Constant Manifest (skills.md) — snappy_spring */
+export const SPRING_SOCIAL = { mass: 0.4, damping: 12, stiffness: 180 };
 
-/** Consultancy / corporate — smooth glide, no oscillation */
-export const SPRING_CORPORATE = { mass: 1.0, damping: 25, stiffness: 80 };
+/** Physics Constant Manifest (skills.md) — elegant_glide */
+export const SPRING_CORPORATE = { mass: 1.0, damping: 24, stiffness: 90 };
 
-/** Product showcase — medium bounce with polish */
-export const SPRING_PRODUCT = { mass: 0.7, damping: 14, stiffness: 160 };
+/** Physics Constant Manifest (skills.md) — elastic_overshoot */
+export const SPRING_PRODUCT = { mass: 0.7, damping: 8, stiffness: 140 };
 
-/** Default balanced */
-export const SPRING_DEFAULT = { mass: 1.0, damping: 14, stiffness: 180 };
+/** Default balanced — elegant_glide */
+export const SPRING_DEFAULT = { mass: 1.0, damping: 24, stiffness: 90 };
 
 export type BlueprintFamily = "social" | "corporate" | "product" | "default";
 
 const FAMILY_BY_TYPE: Record<string, BlueprintFamily> = {
-  // Blueprint A — audio / podcast
+  // Blueprint A — audio / podcast (elegant_glide for split cards; social for karaoke)
   voice_waveform: "social",
-  eq_visualizer: "social",
-  circular_waveform: "social",
+  eq_visualizer: "corporate",
+  symmetric_audio_strip: "corporate",
+  circular_waveform: "corporate",
+  circular_orbit_equalizer: "corporate",
+  active_speaker_split: "corporate",
   soundbite: "social",
   karaoke_caption: "social",
+  kinetic_karaoke: "social",
   subscribe_badge: "social",
   social_frame: "social",
+  vertical_clip_template: "social",
+  scribble_annotation: "social",
+  doodle_scribble: "social",
   guest_intro: "social",
   name_plate: "social",
   broadcast_lower_third: "social",
@@ -43,10 +50,12 @@ const FAMILY_BY_TYPE: Record<string, BlueprintFamily> = {
   comparison_chart: "corporate",
   pie_chart: "corporate",
   funnel_chart: "corporate",
+  strategy_funnel: "corporate",
   timeline_flow: "corporate",
   corporate_timeline: "corporate",
   data_reveal: "corporate",
   stat_counter: "corporate",
+  metric_ticker: "corporate",
   authority_badge: "corporate",
   progress_timer: "corporate",
   glass_card: "corporate",
@@ -59,6 +68,7 @@ const FAMILY_BY_TYPE: Record<string, BlueprintFamily> = {
   product_highlight: "product",
   product_reveal: "product",
   feature_callout: "product",
+  dynamic_feature_callout: "product",
   callout_line: "product",
   price_popup: "product",
   before_after: "product",
@@ -108,8 +118,9 @@ export function textLayerStyle(
   return {
     fontFamily: resolveMotionFont(text, fontFamily),
     lineHeight: dev ? 1.55 : 1.25,
-    paddingTop: dev ? "0.2em" : 0,
-    paddingBottom: dev ? "0.25em" : 0,
+    boxSizing: "content-box",
+    paddingTop: "0.25em",
+    paddingBottom: "0.25em",
     overflow: "visible",
     ...extras,
   };

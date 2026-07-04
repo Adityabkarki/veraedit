@@ -47,6 +47,7 @@ import {
   TimelineStepsOverlay,
 } from '@/components/editor/player/ChartProcessOverlays'
 import { isChartOrProcessClip } from '@/lib/chartVisualTypes'
+import { setPreviewBrandTheme } from '@/lib/brandPreviewTheme'
 
 function activeOverlays(clips: Clip[], time: number): Clip[] {
   return activePreviewOverlays(clips, time)
@@ -730,10 +731,13 @@ export function VisualOverlayLayer() {
     [clips, currentTime],
   )
 
-  if (overlays.length === 0) return null
-
   const primary = brand.primaryColor || '#C41E3A'
   const accent = brand.accentColor || '#F59E0B'
+  const secondary = brand.secondaryColor || '#111113'
+
+  setPreviewBrandTheme({ primary, accent, secondary })
+
+  if (overlays.length === 0) return null
 
   return (
     <div

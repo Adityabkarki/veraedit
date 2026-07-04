@@ -82,6 +82,9 @@ do not re-paraphrase from adjectives.
 
 | Pattern | Local path |
 |---------|------------|
+| Theme tokens + provider | `remotion-service/src/types/theme-tokens.ts`, `src/motion/components/theme/ThemeProvider.tsx` |
+| Theme resolution (upstream) | `remotion-service/src/lib/theme/{deriveTokens,resolveTheme,migrateTheme,brandKitToTheme}.ts` |
+| Editor Brand Kit → theme | `apps/web/lib/brandKitTheme.ts`, `apps/api/services/brand_theme_service.py` |
 | remotion-bits 3D stacking | `remotion-service/src/motion/transform3d.ts` |
 | remotion-bits device chassis | `remotion-service/src/motion/elementsExtra.tsx` (Blueprint B — Device mockup) |
 | remotion-animated enter/exit | `remotion-service/src/motion/animated.tsx` |
@@ -115,6 +118,22 @@ Do not vendor-commit those clones unless explicitly requested.
 
 Presets snap atoms together; Magic Mode injects pillar nodes into the layout JSON
 tree via `JitterComponentSchema` — never a raw generic video wrapper div.
+
+---
+
+## The Theme Token Law
+
+No atomic component may hardcode a color, font-family, or logo reference. Every visual
+identity value must be read from a resolved `ThemeToken` object, passed as a prop or
+consumed via a `ThemeProvider` wrapping the composition root.
+
+**Violations to reject:**
+- Literal hex codes (`#0EA5E9`, `bg-slate-900`) inside a component file
+- Literal font-family strings (`font-family: 'Inter'`) outside the theme resolution layer
+- A component that renders correctly with one theme but breaks (invisible text, missing logo) with another
+
+**Required pattern:** every component destructures its colors/fonts from `theme.colors.*` /
+`theme.typography.*`, and degrades gracefully to `DEFAULT_THEME` if no theme is supplied.
 
 ---
 

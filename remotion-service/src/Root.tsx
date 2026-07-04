@@ -6,6 +6,17 @@ import { LowerThirdComposition } from "./LowerThirdComposition";
 import { MotionGraphicsComposition } from "./motion/MotionGraphicsComposition";
 import type { MotionPlan } from "./motion/types";
 import { FONT_DISPLAY, FONT_DEVANAGARI } from "./motion/fonts";
+import { PodcastPillarPreview } from "./motion/components/podcast";
+import { ConsultancyPillarPreview } from "./motion/components/consultancy";
+import { SocialPillarPreview } from "./motion/components/social";
+import { ShowcasePillarPreview } from "./motion/components/showcase";
+import {
+  PodcastPresetPreview,
+  ConsultancyPresetPreview,
+  SocialPresetPreview,
+  ProductShowcasePresetPreview,
+} from "./motion/components/presets";
+import { TEST_LIGHT_THEME } from "./lib/theme/resolveTheme";
 
 const montserratFamily = FONT_DISPLAY;
 const notoFamily = FONT_DEVANAGARI;
@@ -68,6 +79,108 @@ export const RemotionRoot: React.FC = () => (
         plan: { version: 1, fps: 30, width: 1080, height: 1920, elements: [] } as MotionPlan,
         fontFamily: montserratFamily,
       }}
+    />
+    {/* Atomic pillar previews — duration in seconds (6s @ 30fps = 180 frames) */}
+    <Composition
+      id="PodcastPillarPreview"
+      component={PodcastPillarPreview}
+      durationInFrames={180}
+      fps={30}
+      width={1920}
+      height={1080}
+    />
+    <Composition
+      id="PodcastPillarPreviewLight"
+      component={PodcastPillarPreview}
+      durationInFrames={180}
+      fps={30}
+      width={1920}
+      height={1080}
+      defaultProps={{ theme: TEST_LIGHT_THEME }}
+    />
+    <Composition
+      id="ConsultancyPillarPreview"
+      component={ConsultancyPillarPreview}
+      durationInFrames={180}
+      fps={30}
+      width={1920}
+      height={1080}
+    />
+    <Composition
+      id="ConsultancyPillarPreviewLight"
+      component={ConsultancyPillarPreview}
+      durationInFrames={180}
+      fps={30}
+      width={1920}
+      height={1080}
+      defaultProps={{ theme: TEST_LIGHT_THEME }}
+    />
+    <Composition
+      id="SocialPillarPreview"
+      component={SocialPillarPreview}
+      durationInFrames={180}
+      fps={30}
+      width={1080}
+      height={1920}
+    />
+    <Composition
+      id="SocialPillarPreviewLight"
+      component={SocialPillarPreview}
+      durationInFrames={180}
+      fps={30}
+      width={1080}
+      height={1920}
+      defaultProps={{ theme: TEST_LIGHT_THEME }}
+    />
+    <Composition
+      id="ShowcasePillarPreview"
+      component={ShowcasePillarPreview}
+      durationInFrames={180}
+      fps={30}
+      width={1920}
+      height={1080}
+    />
+    <Composition
+      id="ShowcasePillarPreviewLight"
+      component={ShowcasePillarPreview}
+      durationInFrames={180}
+      fps={30}
+      width={1920}
+      height={1080}
+      defaultProps={{ theme: TEST_LIGHT_THEME }}
+    />
+    {/* Step 4 — one-tap atomic presets (full stacks) */}
+    <Composition
+      id="PodcastPresetPreview"
+      component={PodcastPresetPreview}
+      durationInFrames={180}
+      fps={30}
+      width={1920}
+      height={1080}
+    />
+    <Composition
+      id="ConsultancyPresetPreview"
+      component={ConsultancyPresetPreview}
+      durationInFrames={180}
+      fps={30}
+      width={1920}
+      height={1080}
+    />
+    <Composition
+      id="SocialPresetPreview"
+      component={SocialPresetPreview}
+      durationInFrames={180}
+      fps={30}
+      width={1080}
+      height={1920}
+    />
+    <Composition
+      id="ProductShowcasePresetPreview"
+      component={ProductShowcasePresetPreview}
+      durationInFrames={180}
+      fps={30}
+      width={1920}
+      height={1080}
     />
   </>
 );

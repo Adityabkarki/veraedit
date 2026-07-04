@@ -11,6 +11,7 @@ from services.motion_graphics_service import (
     MOTION_GRAPHIC_TYPES,
     SPRING_PROFILES,
     apply_preset_layout,
+    build_atomic_preset_plan,
     detect_content_type,
     direct_motion_plan,
     get_component_library,
@@ -28,6 +29,9 @@ def test_component_registry_has_rich_library():
     assert len(COMPONENT_REGISTRY) == len(MOTION_GRAPHIC_TYPES)
     for t in (
         "animated_title", "guest_intro", "eq_visualizer", "circular_waveform",
+        "symmetric_audio_strip", "active_speaker_split", "strategy_funnel",
+        "metric_ticker", "kinetic_karaoke", "vertical_clip_template",
+        "dynamic_feature_callout",
         "broadcast_lower_third", "subscribe_badge", "device_mockup", "kinetic_line",
         "glass_card", "liquid_blob", "callout_line", "pie_chart", "funnel_chart",
         "corporate_timeline", "parallax_slide", "icon_pop", "whip_transition",
@@ -67,8 +71,8 @@ def test_validate_motion_plan_clamps_duration():
     assert el["endSeconds"] <= 10.0
     assert el["startSeconds"] >= 0
     assert "spring" in el["animation"]
-    # animated_title uses corporate blueprint spring (smooth glide)
-    assert el["animation"]["spring"]["damping"] == 25
+    # animated_title uses elegant_glide (corporate) from Physics Constant Manifest
+    assert el["animation"]["spring"]["damping"] == 24
 
 
 def test_validate_drops_unknown_type():
@@ -228,7 +232,7 @@ def test_detect_content_type_from_keywords():
 
 def test_magic_presets_defined():
     for pid in (
-        "auto", "podcast", "interview", "social_reel",
+        "auto", "podcast", "interview", "social_reel", "social",
         "consultancy", "pitch", "product", "launch", "demo",
         "explainer", "minimal",
     ):
@@ -236,17 +240,59 @@ def test_magic_presets_defined():
         assert MAGIC_PRESETS[pid].get("one_tap") is True
         assert "package" in MAGIC_PRESETS[pid]
     assert MAGIC_PRESETS["interview"]["package"] == "podcast"
+    assert MAGIC_PRESETS["social_reel"]["package"] == "social"
     assert MAGIC_PRESETS["pitch"]["package"] == "consultancy"
     assert MAGIC_PRESETS["launch"]["package"] == "product"
     assert MAGIC_PRESETS["minimal"]["density"] == "sparse"
-    assert "eq_visualizer" in MAGIC_PRESETS["podcast"]["preferred"]
+    assert "active_speaker_split" in MAGIC_PRESETS["podcast"]["preferred"]
     assert "device_mockup" in MAGIC_PRESETS["product"]["preferred"]
+    assert MAGIC_PRESETS["podcast"].get("atomic_preset") == "podcast"
+    assert MAGIC_PRESETS["social"].get("atomic_preset") == "social"
+
+
+def test_build_atomic_preset_plan_podcast():
+    plan = build_atomic_preset_plan("podcast", video_duration=10.0, brand_color="#3B82F6")
+    types = {el["type"] for el in plan["elements"]}
+    assert "active_speaker_split" in types
+    assert "symmetric_audio_strip" in types
+    assert plan["width"] == 1920
+    assert plan["height"] == 1080
+    spring = plan["elements"][0]["animation"]["spring"]
+    assert spring["damping"] == SPRING_PROFILES["corporate"]["damping"]
+
+
+def test_build_atomic_preset_plan_social_forces_snappy():
+    plan = build_atomic_preset_plan("social", video_duration=8.0)
+    assert plan["width"] == 1080
+    assert plan["height"] == 1920
+    spring = plan["elements"][0]["animation"]["spring"]
+    assert spring == SPRING_PROFILES["social"]
+
+
+def test_apply_preset_layout_forces_package_curve():
+    plan = {
+        "elements": [
+            {
+                "id": "1",
+                "type": "kinetic_karaoke",
+                "position": {"xPct": 50, "yPct": 50},
+                "animation": {},
+                "props": {},
+            },
+        ]
+    }
+    out = apply_preset_layout(plan, "social")
+    assert out["elements"][0]["animation"]["spring"] == SPRING_PROFILES["social"]
+    assert out["elements"][0]["position"]["yPct"] == 72
 
 
 def test_blueprint_springs_differ_by_family():
-    social = spring_for_type("eq_visualizer")
+    social = spring_for_type("karaoke_caption")
     corporate = spring_for_type("line_chart")
     product = spring_for_type("device_mockup")
+    assert social == {"mass": 0.4, "damping": 12, "stiffness": 180}
+    assert corporate == {"mass": 1.0, "damping": 24, "stiffness": 90}
+    assert product == {"mass": 0.7, "damping": 8, "stiffness": 140}
     assert social["damping"] == SPRING_PROFILES["social"]["damping"]
     assert corporate["damping"] == SPRING_PROFILES["corporate"]["damping"]
     assert product["mass"] == SPRING_PROFILES["product"]["mass"]
@@ -275,7 +321,8 @@ def test_apply_preset_layout_snaps_podcast_positions():
     out = apply_preset_layout(plan, "podcast")
     assert out["elements"][0]["position"]["yPct"] == 90
     assert out["elements"][1]["position"]["yPct"] == 86
-    assert out["elements"][0]["animation"]["spring"]["damping"] == 10
+    # eq_visualizer uses elegant_glide (corporate)
+    assert out["elements"][0]["animation"]["spring"]["damping"] == 24
 
 
 def test_thin_llm_plan_replaced_by_fallback():
@@ -289,8 +336,10 @@ def test_thin_llm_plan_replaced_by_fallback():
             preset="podcast",
             brand_color="#3B82F6",
         )
-    # Thin LLM plan (< min for balanced) must be replaced with full fallback
-    assert len(plan["elements"]) >= 5
+    # Atomic preset injects pillar nodes (active speaker, EQ, lower third, …)
+    assert len(plan["elements"]) >= 4
+    types = {el["type"] for el in plan["elements"]}
+    assert "active_speaker_split" in types
 
 
 def test_direct_motion_plan_fallback_when_llm_empty():
@@ -329,8 +378,8 @@ def test_podcast_fallback_uses_podcast_components():
             brand_color="#3B82F6",
         )
     types = {el["type"] for el in plan["elements"]}
-    assert "guest_intro" in types or "name_plate" in types
-    assert "end_card" in types
+    assert "active_speaker_split" in types
+    assert "symmetric_audio_strip" in types or "circular_orbit_equalizer" in types
 
 
 def test_product_fallback_uses_product_components():
@@ -345,7 +394,8 @@ def test_product_fallback_uses_product_components():
             brand_color="#3B82F6",
         )
     types = {el["type"] for el in plan["elements"]}
-    assert "product_reveal" in types or "product_highlight" in types
+    assert "device_mockup" in types
+    assert "dynamic_feature_callout" in types
 
 
 def test_suggest_delegates_to_director_for_vox_style():

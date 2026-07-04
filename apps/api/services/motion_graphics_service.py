@@ -20,20 +20,22 @@ log = structlog.get_logger("viraedit.motion_graphics")
 MOTION_GRAPHIC_TYPES: frozenset[str] = frozenset(
     {
         # Typography & captions
-        "animated_title", "kinetic_text", "kinetic_line", "karaoke_caption",
+        "animated_title", "kinetic_text", "kinetic_line", "karaoke_caption", "kinetic_karaoke",
         "quote_callout", "soundbite", "accent_stroke", "arrow_callout",
-        "callout_line", "doodle_scribble", "cta_badge", "subscribe_badge", "end_card",
+        "callout_line", "doodle_scribble", "scribble_annotation", "cta_badge", "subscribe_badge", "end_card",
         # Podcast / broadcast
         "lower_third_pro", "broadcast_lower_third", "name_plate", "guest_intro",
         "chapter_marker", "voice_waveform", "eq_visualizer", "circular_waveform",
-        "focus_frame", "social_frame",
+        "symmetric_audio_strip", "circular_orbit_equalizer", "active_speaker_split",
+        "focus_frame", "social_frame", "vertical_clip_template",
         # Consultancy / infographics
         "stat_counter", "data_reveal", "bar_chart", "line_chart", "comparison_chart",
-        "pie_chart", "funnel_chart", "timeline_flow", "corporate_timeline",
+        "pie_chart", "funnel_chart", "strategy_funnel", "timeline_flow", "corporate_timeline",
         "authority_badge", "progress_timer", "map_pin", "icon_pop", "glass_card",
-        "parallax_slide",
+        "metric_ticker", "parallax_slide",
         # Product
-        "product_highlight", "product_reveal", "feature_callout", "price_popup",
+        "product_highlight", "product_reveal", "feature_callout", "dynamic_feature_callout",
+        "price_popup",
         "before_after", "device_mockup", "split_screen", "grid_layout",
         # Effects / transitions / backgrounds
         "particle_burst", "shape_transition", "pro_wipe", "whip_transition",
@@ -55,30 +57,40 @@ _LOCATION_RE = re.compile(
 _MAX_ELEMENTS = 30
 _MAX_AI_ELEMENTS = 18
 _MIN_DURATION = 0.3
-_DEFAULT_SPRING = {"damping": 14, "stiffness": 180, "mass": 1.0}
+# Physics Constant Manifest (skills.md) — elegant_glide as default
+_DEFAULT_SPRING = {"damping": 24, "stiffness": 90, "mass": 1.0}
 
-# Blueprint spring profiles — distinct motion signatures per aesthetic family
+# Blueprint spring profiles — Physics Constant Manifest (skills.md)
 SPRING_PROFILES: dict[str, dict[str, float]] = {
-    "social": {"mass": 0.5, "damping": 10, "stiffness": 150},      # Podcast / TikTok snap
-    "corporate": {"mass": 1.0, "damping": 25, "stiffness": 80},    # Consultancy glide
-    "product": {"mass": 0.7, "damping": 14, "stiffness": 160},     # Product polish
+    "social": {"mass": 0.4, "damping": 12, "stiffness": 180},      # snappy_spring
+    "corporate": {"mass": 1.0, "damping": 24, "stiffness": 90},    # elegant_glide
+    "product": {"mass": 0.7, "damping": 8, "stiffness": 140},      # elastic_overshoot
     "default": dict(_DEFAULT_SPRING),
 }
 
 _FAMILY_BY_TYPE: dict[str, str] = {
-    "voice_waveform": "social", "eq_visualizer": "social", "circular_waveform": "social",
-    "soundbite": "social", "karaoke_caption": "social", "subscribe_badge": "social",
-    "social_frame": "social", "guest_intro": "social", "name_plate": "social",
+    "voice_waveform": "social",
+    "eq_visualizer": "corporate", "symmetric_audio_strip": "corporate",
+    "circular_waveform": "corporate", "circular_orbit_equalizer": "corporate",
+    "active_speaker_split": "corporate",
+    "soundbite": "social", "karaoke_caption": "social", "kinetic_karaoke": "social",
+    "subscribe_badge": "social", "social_frame": "social",
+    "vertical_clip_template": "social", "scribble_annotation": "social",
+    "doodle_scribble": "social",
+    "guest_intro": "social", "name_plate": "social",
     "broadcast_lower_third": "social", "lower_third_pro": "social",
     "chapter_marker": "social", "focus_frame": "social", "cta_badge": "social",
     "bar_chart": "corporate", "line_chart": "corporate", "comparison_chart": "corporate",
-    "pie_chart": "corporate", "funnel_chart": "corporate", "timeline_flow": "corporate",
+    "pie_chart": "corporate", "funnel_chart": "corporate", "strategy_funnel": "corporate",
+    "timeline_flow": "corporate",
     "corporate_timeline": "corporate", "data_reveal": "corporate", "stat_counter": "corporate",
+    "metric_ticker": "corporate",
     "authority_badge": "corporate", "progress_timer": "corporate", "glass_card": "corporate",
     "icon_pop": "corporate", "parallax_slide": "corporate", "animated_title": "corporate",
     "accent_stroke": "corporate",
     "device_mockup": "product", "product_highlight": "product", "product_reveal": "product",
-    "feature_callout": "product", "callout_line": "product", "price_popup": "product",
+    "feature_callout": "product", "dynamic_feature_callout": "product",
+    "callout_line": "product", "price_popup": "product",
     "before_after": "product", "split_screen": "product", "grid_layout": "product",
     "liquid_blob": "product",
 }
@@ -87,8 +99,11 @@ _FAMILY_BY_TYPE: dict[str, str] = {
 _PRESET_LAYOUT: dict[str, dict[str, dict[str, float]]] = {
     "podcast": {
         "eq_visualizer": {"xPct": 50, "yPct": 90},
+        "symmetric_audio_strip": {"xPct": 50, "yPct": 90},
         "voice_waveform": {"xPct": 50, "yPct": 90},
         "circular_waveform": {"xPct": 50, "yPct": 42},
+        "circular_orbit_equalizer": {"xPct": 50, "yPct": 42},
+        "active_speaker_split": {"xPct": 50, "yPct": 50},
         "broadcast_lower_third": {"xPct": 18, "yPct": 86},
         "name_plate": {"xPct": 22, "yPct": 86},
         "lower_third_pro": {"xPct": 22, "yPct": 86},
@@ -100,9 +115,12 @@ _PRESET_LAYOUT: dict[str, dict[str, dict[str, float]]] = {
     },
     "consultancy": {
         "animated_title": {"xPct": 50, "yPct": 22},
-        "glass_card": {"xPct": 50, "yPct": 48},
+        "glass_card": {"xPct": 72, "yPct": 28},
+        "metric_ticker": {"xPct": 72, "yPct": 28},
         "line_chart": {"xPct": 50, "yPct": 52},
         "bar_chart": {"xPct": 50, "yPct": 52},
+        "funnel_chart": {"xPct": 32, "yPct": 48},
+        "strategy_funnel": {"xPct": 32, "yPct": 48},
         "corporate_timeline": {"xPct": 38, "yPct": 50},
         "progress_timer": {"xPct": 50, "yPct": 92},
         "authority_badge": {"xPct": 50, "yPct": 78},
@@ -112,11 +130,112 @@ _PRESET_LAYOUT: dict[str, dict[str, dict[str, float]]] = {
         "device_mockup": {"xPct": 50, "yPct": 48},
         "product_reveal": {"xPct": 50, "yPct": 45},
         "product_highlight": {"xPct": 50, "yPct": 48},
-        "feature_callout": {"xPct": 28, "yPct": 38},
+        "feature_callout": {"xPct": 68, "yPct": 36},
+        "dynamic_feature_callout": {"xPct": 68, "yPct": 36},
         "callout_line": {"xPct": 62, "yPct": 48},
         "price_popup": {"xPct": 50, "yPct": 58},
         "subscribe_badge": {"xPct": 50, "yPct": 82},
     },
+    "social": {
+        "vertical_clip_template": {"xPct": 50, "yPct": 50},
+        "social_frame": {"xPct": 50, "yPct": 50},
+        "kinetic_karaoke": {"xPct": 50, "yPct": 72},
+        "karaoke_caption": {"xPct": 50, "yPct": 72},
+        "scribble_annotation": {"xPct": 68, "yPct": 36},
+        "doodle_scribble": {"xPct": 68, "yPct": 36},
+        "subscribe_badge": {"xPct": 50, "yPct": 82},
+    },
+}
+
+# Step 4 — package-level forced physics (overrides per-type when preset applied)
+PACKAGE_FORCED_CURVE: dict[str, dict[str, float]] = {
+    "podcast": SPRING_PROFILES["corporate"],           # elegant_glide
+    "consultancy": SPRING_PROFILES["corporate"],
+    "social": SPRING_PROFILES["social"],                 # snappy_spring
+    "product": SPRING_PROFILES["product"],               # elastic_overshoot
+    "product_showcase": SPRING_PROFILES["product"],
+}
+
+# Atomic one-tap preset node templates (mirrors remotion-service presets/definitions.ts)
+_ATOMIC_PRESET_NODES: dict[str, list[dict[str, Any]]] = {
+    "podcast": [
+        {"id": "pod-split", "type": "active_speaker_split", "startRatio": 0.0, "endRatio": 1.0,
+         "position": {"xPct": 50, "yPct": 50}, "layerDepth": 12,
+         "props": {"activeSpeakerId": "host"}, "animation": {"enter": "fade", "exit": "fade"}},
+        {"id": "pod-orbit-eq", "type": "circular_orbit_equalizer", "startRatio": 0.05, "endRatio": 0.85,
+         "position": {"xPct": 50, "yPct": 38}, "layerDepth": 52,
+         "props": {"monogram": "H", "spokes": 36}, "animation": {"enter": "reveal", "exit": "fade"}},
+        {"id": "pod-eq-strip", "type": "symmetric_audio_strip", "startRatio": 0.08, "endRatio": 0.9,
+         "position": {"xPct": 50, "yPct": 90}, "layerDepth": 54,
+         "props": {"bars": 28}, "animation": {"enter": "grow", "exit": "fade"}},
+        {"id": "pod-l3", "type": "broadcast_lower_third", "startRatio": 0.1, "endRatio": 0.45,
+         "position": {"xPct": 18, "yPct": 86}, "layerDepth": 82,
+         "props": {"title": "Host Name", "subtitle": "Podcast Episode"},
+         "animation": {"enter": "slide_left", "exit": "fade"}},
+    ],
+    "consultancy": [
+        {"id": "con-title", "type": "animated_title", "startRatio": 0.0, "endRatio": 0.18,
+         "position": {"xPct": 50, "yPct": 22}, "layerDepth": 14,
+         "props": {"text": "Strategy Report", "fontSize": 56, "showAccentStroke": False},
+         "animation": {"enter": "fade_up", "exit": "fade"}},
+        {"id": "con-funnel", "type": "strategy_funnel", "startRatio": 0.08, "endRatio": 0.75,
+         "position": {"xPct": 32, "yPct": 48}, "layerDepth": 22,
+         "props": {"labels": ["Discover", "Design", "Deliver", "Scale"], "values": [100, 72, 48, 24]},
+         "animation": {"enter": "draw", "exit": "fade"}},
+        {"id": "con-metric", "type": "metric_ticker", "startRatio": 0.12, "endRatio": 0.7,
+         "position": {"xPct": 72, "yPct": 28}, "layerDepth": 56,
+         "props": {"title": "Pipeline", "value": 2480, "suffix": "k", "trend": 1},
+         "animation": {"enter": "fade_up", "exit": "fade"}},
+        {"id": "con-timeline", "type": "corporate_timeline", "startRatio": 0.2, "endRatio": 0.85,
+         "position": {"xPct": 38, "yPct": 72}, "layerDepth": 26,
+         "props": {"title": "Roadmap", "steps": ["2024", "2025", "2026"]},
+         "animation": {"enter": "draw", "exit": "fade"}},
+        {"id": "con-progress", "type": "progress_timer", "startRatio": 0.15, "endRatio": 0.9,
+         "position": {"xPct": 50, "yPct": 92}, "layerDepth": 56,
+         "props": {"label": "Q4 Progress", "progress": 0.68},
+         "animation": {"enter": "fill", "exit": "fade"}},
+    ],
+    "social": [
+        {"id": "soc-frame", "type": "vertical_clip_template", "startRatio": 0.0, "endRatio": 1.0,
+         "position": {"xPct": 50, "yPct": 50}, "layerDepth": 14,
+         "props": {"platform": "tiktok", "caption": "Hook that stops the scroll"},
+         "animation": {"enter": "fade", "exit": "fade"}},
+        {"id": "soc-karaoke", "type": "kinetic_karaoke", "startRatio": 0.05, "endRatio": 0.85,
+         "position": {"xPct": 50, "yPct": 72}, "layerDepth": 60,
+         "props": {"text": "Your words light up here", "accentColor": "#FFD600"},
+         "animation": {"enter": "word_pop", "exit": "fade"}},
+        {"id": "soc-scribble", "type": "scribble_annotation", "startRatio": 0.15, "endRatio": 0.75,
+         "position": {"xPct": 68, "yPct": 36}, "layerDepth": 62,
+         "props": {"variant": "circle", "label": "Look"},
+         "animation": {"enter": "draw", "exit": "fade"}},
+    ],
+    "product_showcase": [
+        {"id": "show-device", "type": "device_mockup", "startRatio": 0.05, "endRatio": 0.9,
+         "position": {"xPct": 50, "yPct": 48}, "layerDepth": 18,
+         "props": {"device": "phone", "title": "Your App"},
+         "animation": {"enter": "spring_in", "exit": "scale_out"}},
+        {"id": "show-callout", "type": "dynamic_feature_callout", "startRatio": 0.2, "endRatio": 0.8,
+         "position": {"xPct": 68, "yPct": 36}, "layerDepth": 66,
+         "props": {"text": "One-tap export"},
+         "animation": {"enter": "draw", "exit": "fade"}},
+        {"id": "show-callout-2", "type": "dynamic_feature_callout", "startRatio": 0.35, "endRatio": 0.85,
+         "position": {"xPct": 32, "yPct": 58}, "layerDepth": 67,
+         "props": {"text": "Real-time sync", "angle": 12},
+         "animation": {"enter": "draw", "exit": "fade"}},
+    ],
+}
+
+_PRESET_TO_ATOMIC: dict[str, str] = {
+    "podcast": "podcast",
+    "interview": "podcast",
+    "consultancy": "consultancy",
+    "pitch": "consultancy",
+    "minimal": "consultancy",
+    "social": "social",
+    "social_reel": "social",
+    "product": "product_showcase",
+    "launch": "product_showcase",
+    "demo": "product_showcase",
 }
 
 
@@ -125,17 +244,98 @@ def spring_for_type(type_id: str) -> dict[str, float]:
     return dict(SPRING_PROFILES[family])
 
 
+def build_atomic_preset_plan(
+    preset_id: str,
+    *,
+    video_duration: float,
+    brand_color: str = "#3B82F6",
+    accent_color: str = "#FFD600",
+    brand_kit: dict[str, Any] | None = None,
+    width: int = 1920,
+    height: int = 1080,
+    fps: int = 30,
+    title: str = "",
+) -> dict[str, Any]:
+    """
+    One-tap preset: inject atomic pillar nodes into a MotionPlan.
+    Never returns a raw generic video wrapper — only typed motion elements.
+    """
+    atomic_id = _PRESET_TO_ATOMIC.get(preset_id, preset_id)
+    templates = _ATOMIC_PRESET_NODES.get(atomic_id)
+    if not templates:
+        raise ValueError(f"Unknown atomic preset: {preset_id}")
+
+    dur = max(3.0, float(video_duration))
+    forced = PACKAGE_FORCED_CURVE.get(atomic_id) or PACKAGE_FORCED_CURVE.get(
+        _PRESET_TO_ATOMIC.get(preset_id, ""), SPRING_PROFILES["default"]
+    )
+    if atomic_id == "social":
+        width, height = 1080, 1920
+    elif atomic_id in ("podcast", "consultancy", "product_showcase"):
+        width, height = 1920, 1080
+
+    elements: list[dict[str, Any]] = []
+    for tpl in templates:
+        start = max(0.0, float(tpl["startRatio"]) * dur)
+        end = max(start + 0.3, float(tpl["endRatio"]) * dur)
+        anim_tpl = tpl.get("animation") or {}
+        props = dict(tpl.get("props") or {})
+        props.setdefault("brandColor", brand_color)
+        props.setdefault("accentColor", accent_color)
+        props["layerDepth"] = tpl.get("layerDepth", 50)
+        if title and tpl["type"] == "animated_title":
+            props["text"] = title[:80]
+        if title and tpl["type"] == "vertical_clip_template":
+            props["caption"] = title[:80]
+        elements.append({
+            "id": tpl["id"],
+            "type": tpl["type"],
+            "startSeconds": start,
+            "endSeconds": end,
+            "position": dict(tpl["position"]),
+            "animation": {
+                "enter": anim_tpl.get("enter", "fade"),
+                "exit": anim_tpl.get("exit", "fade"),
+                "enterDuration": anim_tpl.get("enterDuration", 0.4),
+                "exitDuration": anim_tpl.get("exitDuration", 0.35),
+                "spring": dict(forced),
+            },
+            "props": props,
+        })
+
+    package_key = atomic_id if atomic_id != "product_showcase" else "product"
+    plan = {
+        "version": 1,
+        "fps": fps,
+        "width": width,
+        "height": height,
+        "durationSeconds": dur,
+        "preset": atomic_id,
+        "elements": elements,
+    }
+    plan = apply_preset_layout(plan, package_key if package_key in _PRESET_LAYOUT else atomic_id)
+    from services.brand_theme_service import attach_theme_to_plan
+
+    return attach_theme_to_plan(
+        plan,
+        brand_kit=brand_kit,
+        brand_color=brand_color,
+        accent_color=accent_color,
+    )
+
+
 def apply_preset_layout(plan: dict[str, Any], package: str) -> dict[str, Any]:
     """Snap element positions and springs to package blueprint rules."""
     layout = _PRESET_LAYOUT.get(package) or {}
+    forced_curve = PACKAGE_FORCED_CURVE.get(package)
     elements = plan.get("elements") or []
     for el in elements:
         if not isinstance(el, dict):
             continue
         type_id = str(el.get("type") or "")
-        # Family spring always wins for aesthetic differentiation
         anim = el.get("animation") if isinstance(el.get("animation"), dict) else {}
-        anim["spring"] = spring_for_type(type_id)
+        # Package forced curve wins (Step 4); else per-type family
+        anim["spring"] = dict(forced_curve) if forced_curve else spring_for_type(type_id)
         el["animation"] = anim
         snap = layout.get(type_id)
         if snap:
@@ -160,19 +360,19 @@ MAGIC_PRESETS: dict[str, dict[str, Any]] = {
     },
     "podcast": {
         "label": "Podcast",
-        "hint": "Guests, EQ, lower thirds, subscribe",
+        "hint": "Dual speakers, EQ rails, lower thirds",
         "prompt": (
-            "Podcast highlight reel: guest intro, broadcast lower thirds, "
-            "EQ/waveform visualizers, soundbites, karaoke captions, chapter markers, "
-            "focus frame, subscribe badge, and end card"
+            "Podcast highlight reel: active speaker split cards, circular orbit equalizer, "
+            "symmetric audio strip, broadcast lower thirds, chapter markers, end card"
         ),
         "density": "balanced",
         "max_elements": 12,
         "package": "podcast",
+        "atomic_preset": "podcast",
         "preferred": [
-            "guest_intro", "broadcast_lower_third", "name_plate", "eq_visualizer",
-            "voice_waveform", "soundbite", "karaoke_caption", "chapter_marker",
-            "focus_frame", "split_screen", "subscribe_badge", "end_card",
+            "active_speaker_split", "circular_orbit_equalizer", "symmetric_audio_strip",
+            "eq_visualizer", "broadcast_lower_third", "name_plate", "guest_intro",
+            "soundbite", "chapter_marker", "end_card",
         ],
         "one_tap": True,
     },
@@ -194,35 +394,52 @@ MAGIC_PRESETS: dict[str, dict[str, Any]] = {
     },
     "social_reel": {
         "label": "Social Reel",
-        "hint": "9:16 frame, karaoke, subscribe CTA",
+        "hint": "9:16 karaoke, scribbles, vertical template",
         "prompt": (
-            "Vertical social reel: social frame, karaoke captions, kinetic titles, "
-            "subscribe badge, particle bursts, end card"
+            "Vertical social reel: vertical clip template, kinetic karaoke captions, "
+            "scribble annotations, subscribe badge, end card"
         ),
         "density": "balanced",
         "max_elements": 10,
-        "package": "podcast",
+        "package": "social",
+        "atomic_preset": "social",
         "preferred": [
-            "social_frame", "karaoke_caption", "kinetic_text", "animated_title",
-            "subscribe_badge", "particle_burst", "eq_visualizer", "end_card",
+            "vertical_clip_template", "kinetic_karaoke", "karaoke_caption",
+            "scribble_annotation", "doodle_scribble", "subscribe_badge", "end_card",
+        ],
+        "one_tap": True,
+    },
+    "social": {
+        "label": "Social",
+        "hint": "9:16 karaoke, scribbles, snappy spring",
+        "prompt": (
+            "Vertical social clip: vertical clip template, kinetic karaoke, "
+            "scribble annotations"
+        ),
+        "density": "balanced",
+        "max_elements": 8,
+        "package": "social",
+        "atomic_preset": "social",
+        "preferred": [
+            "vertical_clip_template", "kinetic_karaoke", "scribble_annotation", "end_card",
         ],
         "one_tap": True,
     },
     "consultancy": {
         "label": "Consultancy",
-        "hint": "Glass UI, timelines, charts",
+        "hint": "Self-drawing funnels, glass metrics, timelines",
         "prompt": (
-            "Professional consultancy video: kinetic titles, glass cards, authority badges, "
-            "data reveals, corporate timelines, pie/funnel/bar charts, icon pops, "
-            "broadcast lower thirds, pro/whip transitions, and end card"
+            "Professional consultancy video: minimal animated titles, strategy funnel, "
+            "glass metric tickers, corporate timelines, progress bars — no flashy bursts"
         ),
         "density": "balanced",
         "max_elements": 12,
         "package": "consultancy",
+        "atomic_preset": "consultancy",
         "preferred": [
-            "animated_title", "glass_card", "authority_badge", "stat_counter",
-            "data_reveal", "corporate_timeline", "pie_chart", "comparison_chart",
-            "icon_pop", "broadcast_lower_third", "pro_wipe", "end_card",
+            "animated_title", "strategy_funnel", "metric_ticker", "glass_card",
+            "corporate_timeline", "progress_timer", "data_reveal", "bar_chart",
+            "broadcast_lower_third", "end_card",
         ],
         "one_tap": True,
     },
@@ -244,19 +461,18 @@ MAGIC_PRESETS: dict[str, dict[str, Any]] = {
     },
     "product": {
         "label": "Product",
-        "hint": "Mockups, features, offers",
+        "hint": "3D device frame, tracking callouts",
         "prompt": (
-            "Product showcase: device mockups, product reveal/highlight, feature callouts "
-            "with callout lines, price popup, before-after, kinetic lines, "
-            "subscribe CTA, and end card"
+            "Product showcase: 3D device mockup, dynamic feature callouts, "
+            "fluid gloss overlay, end card"
         ),
         "density": "rich",
         "max_elements": 12,
         "package": "product",
+        "atomic_preset": "product_showcase",
         "preferred": [
-            "product_reveal", "device_mockup", "product_highlight", "feature_callout",
-            "callout_line", "price_popup", "before_after", "kinetic_line",
-            "particle_burst", "subscribe_badge", "end_card",
+            "device_mockup", "dynamic_feature_callout", "feature_callout",
+            "callout_line", "product_reveal", "end_card",
         ],
         "one_tap": True,
     },
@@ -339,9 +555,11 @@ COMPONENT_REGISTRY: dict[str, dict[str, Any]] = {
             "fontSize": 72,
             "color": "#FFFFFF",
             "accentColor": "#FFD600",
+            "strokeColor": "#000000",
             "showAccentStroke": True,
+            "textColor": "#FFFFFF",
         },
-        "props": ["text", "fontSize", "color", "accentColor", "showAccentStroke"],
+        "props": ["text", "fontSize", "color", "accentColor", "strokeColor", "showAccentStroke", "textColor", "textColor", "textColor", "textColor", "textColor", "textColor", "textColor", "textColor", "textColor", "textColor", "textColor", "textColor", "textColor", "textColor", "textColor", "textColor", "textColor", "textColor", "textColor"],
     },
     "kinetic_text": {
         "label": "Kinetic Text",
@@ -372,8 +590,9 @@ COMPONENT_REGISTRY: dict[str, dict[str, Any]] = {
             "subtitle": "Role or topic",
             "brandColor": "#3B82F6",
             "variant": "slide",
+            "textColor": "#FFFFFF",
         },
-        "props": ["title", "subtitle", "brandColor", "variant"],
+        "props": ["title", "subtitle", "brandColor", "variant", "textColor"],
     },
     "stat_counter": {
         "label": "Stat Counter",
@@ -389,8 +608,9 @@ COMPONENT_REGISTRY: dict[str, dict[str, Any]] = {
             "suffix": "",
             "label": "Metric",
             "brandColor": "#3B82F6",
+            "textColor": "#FFFFFF",
         },
-        "props": ["value", "prefix", "suffix", "label", "brandColor"],
+        "props": ["value", "prefix", "suffix", "label", "brandColor", "textColor"],
     },
     "quote_callout": {
         "label": "Quote Callout",
@@ -404,8 +624,9 @@ COMPONENT_REGISTRY: dict[str, dict[str, Any]] = {
             "text": "A memorable quote from the video",
             "author": "",
             "brandColor": "#3B82F6",
+            "textColor": "#FFFFFF",
         },
-        "props": ["text", "author", "brandColor"],
+        "props": ["text", "author", "brandColor", "textColor"],
     },
     "cta_badge": {
         "label": "CTA Badge",
@@ -433,9 +654,11 @@ COMPONENT_REGISTRY: dict[str, dict[str, Any]] = {
         "defaults": {
             "label": "Chapter 1",
             "brandColor": "#3B82F6",
+            "textColor": "#FFFFFF",
             "direction": "ltr",
+            "progress": 1.0,
         },
-        "props": ["label", "brandColor", "direction"],
+        "props": ["label", "brandColor", "textColor", "direction", "progress"],
     },
     "particle_burst": {
         "label": "Particle Burst",
@@ -511,8 +734,9 @@ COMPONENT_REGISTRY: dict[str, dict[str, Any]] = {
             "subtitle": "Like & subscribe",
             "handle": "@yourchannel",
             "brandColor": "#3B82F6",
+            "textColor": "#FFFFFF",
         },
-        "props": ["title", "subtitle", "handle", "brandColor"],
+        "props": ["title", "subtitle", "handle", "brandColor", "textColor"],
     },
     "bar_chart": {
         "label": "Bar Chart",
@@ -564,8 +788,9 @@ COMPONENT_REGISTRY: dict[str, dict[str, Any]] = {
             "brandColor": "#EF4444",
             "accentColor": "#FFD600",
             "region": "asia",
+            "textColor": "#FFFFFF",
         },
-        "props": ["label", "sublabel", "brandColor", "accentColor", "region"],
+        "props": ["label", "sublabel", "brandColor", "accentColor", "region", "textColor"],
     },
     "background_shader": {
         "label": "Background Shader",
@@ -599,8 +824,9 @@ COMPONENT_REGISTRY: dict[str, dict[str, Any]] = {
             "brandColor": "#3B82F6",
             "accentColor": "#FFD600",
             "unit": "%",
+            "textColor": "#FFFFFF",
         },
-        "props": ["title", "labels", "values", "brandColor", "accentColor", "unit"],
+        "props": ["title", "labels", "values", "brandColor", "accentColor", "unit", "textColor"],
     },
     "halftone": {
         "label": "Halftone",
@@ -630,8 +856,9 @@ COMPONENT_REGISTRY: dict[str, dict[str, Any]] = {
             "label": "Key point",
             "brandColor": "#FFD600",
             "variant": "underline",
+            "textColor": "#FFFFFF",
         },
-        "props": ["label", "text", "brandColor", "variant"],
+        "props": ["label", "text", "brandColor", "variant", "textColor"],
     },
     # ── Podcast ──────────────────────────────────────────────────────────
     "name_plate": {
@@ -658,8 +885,9 @@ COMPONENT_REGISTRY: dict[str, dict[str, Any]] = {
             "label": "EPISODE GUEST",
             "brandColor": "#3B82F6",
             "accentColor": "#FFD600",
+            "textColor": "#FFFFFF",
         },
-        "props": ["title", "subtitle", "label", "brandColor", "accentColor"],
+        "props": ["title", "subtitle", "label", "brandColor", "accentColor", "textColor"],
     },
     "chapter_marker": {
         "label": "Chapter Marker",
@@ -671,8 +899,9 @@ COMPONENT_REGISTRY: dict[str, dict[str, Any]] = {
             "subtitle": "Getting started",
             "brandColor": "#3B82F6",
             "accentColor": "#FFD600",
+            "textColor": "#FFFFFF",
         },
-        "props": ["title", "subtitle", "brandColor", "accentColor"],
+        "props": ["title", "subtitle", "brandColor", "accentColor", "textColor"],
     },
     "voice_waveform": {
         "label": "Voice Waveform",
@@ -737,8 +966,9 @@ COMPONENT_REGISTRY: dict[str, dict[str, Any]] = {
             "steps": ["Discover", "Design", "Deliver", "Scale"],
             "brandColor": "#3B82F6",
             "accentColor": "#FFD600",
+            "textColor": "#FFFFFF",
         },
-        "props": ["title", "steps", "brandColor", "accentColor"],
+        "props": ["title", "steps", "brandColor", "accentColor", "textColor"],
     },
     "authority_badge": {
         "label": "Authority Badge",
@@ -863,6 +1093,83 @@ COMPONENT_REGISTRY: dict[str, dict[str, Any]] = {
         "defaults": {"brandColor": "#3B82F6", "accentColor": "#FFD600"},
         "props": ["brandColor", "accentColor"],
     },
+    "symmetric_audio_strip": {
+        "label": "Symmetric Audio Strip",
+        "category": "audio",
+        "description": "Center-out reactive EQ bars (podcast lower third)",
+        "animations": {"enter": ["grow", "fade"], "exit": ["fade"]},
+        "defaults": {"brandColor": "#22D3EE", "accentColor": "#A78BFA", "bars": 28, "seed": 4},
+        "props": ["brandColor", "accentColor", "bars", "seed", "amplitudes"],
+    },
+    "circular_orbit_equalizer": {
+        "label": "Circular Orbit Equalizer",
+        "category": "audio",
+        "description": "Radial EQ bars around speaker profile mask",
+        "animations": {"enter": ["reveal", "fade"], "exit": ["fade"]},
+        "defaults": {"brandColor": "#22D3EE", "accentColor": "#F472B6", "spokes": 36, "monogram": "H", "seed": 7},
+        "props": ["brandColor", "accentColor", "spokes", "monogram", "seed", "profileSrc", "sizePct"],
+    },
+    "active_speaker_split": {
+        "label": "Active Speaker Split",
+        "category": "podcast",
+        "description": "Dual-speaker split cards with active highlight",
+        "animations": {"enter": ["fade", "spring_in"], "exit": ["fade"]},
+        "defaults": {"activeSpeakerId": "host", "speakers": []},
+        "props": ["activeSpeakerId", "speakers", "brandColor", "accentColor"],
+    },
+    "strategy_funnel": {
+        "label": "Strategy Funnel",
+        "category": "consultancy",
+        "description": "Self-drawing trapezoid strategy funnel",
+        "animations": {"enter": ["draw", "fade"], "exit": ["fade"]},
+        "defaults": {"labels": ["Awareness", "Interest", "Convert"], "values": [100, 60, 30], "brandColor": "#475569", "accentColor": "#10B981"},
+        "props": ["labels", "values", "brandColor", "accentColor"],
+    },
+    "metric_ticker": {
+        "label": "Metric Ticker",
+        "category": "consultancy",
+        "description": "Glassmorphic count-up metric with trend arrow",
+        "animations": {"enter": ["fade_up", "count_up"], "exit": ["fade"]},
+        "defaults": {"title": "Revenue", "value": 1000, "prefix": "", "suffix": "", "trend": 1, "brandColor": "#10B981"},
+        "props": ["title", "value", "prefix", "suffix", "trend", "brandColor"],
+    },
+    "kinetic_karaoke": {
+        "label": "Kinetic Karaoke",
+        "category": "social",
+        "description": "Word-by-word karaoke with snappy spring pop",
+        "animations": {"enter": ["word_pop", "fade"], "exit": ["fade"]},
+        "defaults": {"text": "Your words light up here", "color": "#FFFFFF", "accentColor": "#FFD600", "fontSize": 42},
+        "props": ["text", "color", "accentColor", "fontSize", "words"],
+    },
+    "scribble_annotation": {
+        "label": "Scribble Annotation",
+        "category": "social",
+        "description": "Self-tracing scribble arrow/circle/bracket",
+        "animations": {"enter": ["draw"], "exit": ["fade"]},
+        "defaults": {"variant": "arrow", "label": "", "brandColor": "#FFD600"},
+        "props": ["variant", "label", "brandColor", "text"],
+    },
+    "vertical_clip_template": {
+        "label": "Vertical Clip Template",
+        "category": "social",
+        "description": "9:16 safe-zone caption layout preset",
+        "animations": {"enter": ["fade"], "exit": ["fade"]},
+        "defaults": {
+            "platform": "tiktok",
+            "caption": "Hook line",
+            "brandColor": "#FFFFFF",
+            "accentColor": "#FFD600",
+        },
+        "props": ["platform", "caption", "brandColor", "accentColor", "showSafeGuides"],
+    },
+    "dynamic_feature_callout": {
+        "label": "Dynamic Feature Callout",
+        "category": "product",
+        "description": "Blinking anchor dot + expanding pointer + card",
+        "animations": {"enter": ["draw", "spring_in"], "exit": ["fade", "scale_out"]},
+        "defaults": {"text": "Key feature", "brandColor": "#FBBF24", "angle": -18},
+        "props": ["text", "brandColor", "angle", "lineLengthPct"],
+    },
     "social_frame": {
         "label": "Social Frame",
         "category": "social",
@@ -876,8 +1183,8 @@ COMPONENT_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "lower_thirds",
         "description": "Clean broadcast nameplate for hosts/guests",
         "animations": {"enter": ["slide_left", "spring_in"], "exit": ["fade"]},
-        "defaults": {"title": "Host Name", "subtitle": "Show title", "brandColor": "#E11D48"},
-        "props": ["title", "subtitle", "brandColor"],
+        "defaults": {"title": "Host Name", "subtitle": "Show title", "brandColor": "#E11D48", "textColor": "#FFFFFF"},
+        "props": ["title", "subtitle", "brandColor", "textColor"],
     },
     "subscribe_badge": {
         "label": "Subscribe Badge",
@@ -900,8 +1207,8 @@ COMPONENT_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "typography",
         "description": "Line-by-line kinetic typography",
         "animations": {"enter": ["slide_up", "spring_in"], "exit": ["fade"]},
-        "defaults": {"text": "Bold features | Fast benefits | Clear value", "color": "#FFFFFF", "accentColor": "#FFD600", "fontSize": 48},
-        "props": ["text", "color", "accentColor", "fontSize"],
+        "defaults": {"text": "Bold features | Fast benefits | Clear value", "color": "#FFFFFF", "accentColor": "#FFD600", "fontSize": 48, "textColor": "#FFFFFF"},
+        "props": ["text", "color", "accentColor", "fontSize", "textColor"],
     },
     "glass_card": {
         "label": "Glass Card",
@@ -932,8 +1239,8 @@ COMPONENT_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "data",
         "description": "Animated pie / donut chart",
         "animations": {"enter": ["grow", "spring_in"], "exit": ["fade"]},
-        "defaults": {"title": "Share", "labels": ["A", "B", "C"], "values": [40, 35, 25], "brandColor": "#3B82F6", "accentColor": "#FFD600"},
-        "props": ["title", "labels", "values", "brandColor", "accentColor"],
+        "defaults": {"title": "Share", "labels": ["A", "B", "C"], "values": [40, 35, 25], "brandColor": "#3B82F6", "accentColor": "#FFD600", "textColor": "#FFFFFF"},
+        "props": ["title", "labels", "values", "brandColor", "accentColor", "textColor"],
     },
     "funnel_chart": {
         "label": "Funnel Chart",
@@ -956,16 +1263,16 @@ COMPONENT_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "ui",
         "description": "Minimalist parallax text slide",
         "animations": {"enter": ["fade_up", "fade"], "exit": ["fade"]},
-        "defaults": {"title": "Elegant", "subtitle": "Minimal movement", "brandColor": "#FFFFFF"},
-        "props": ["title", "subtitle", "text", "brandColor"],
+        "defaults": {"title": "Elegant", "subtitle": "Minimal movement", "brandColor": "#FFFFFF", "textColor": "#FFFFFF"},
+        "props": ["title", "subtitle", "text", "brandColor", "textColor"],
     },
     "icon_pop": {
         "label": "Icon Pop",
         "category": "ui",
         "description": "Animated flat business icon",
         "animations": {"enter": ["pop", "spring_in"], "exit": ["fade"]},
-        "defaults": {"label": "★", "title": "Feature", "brandColor": "#3B82F6"},
-        "props": ["label", "title", "brandColor"],
+        "defaults": {"label": "★", "title": "Feature", "brandColor": "#3B82F6", "textColor": "#FFFFFF"},
+        "props": ["label", "title", "brandColor", "textColor"],
     },
     "whip_transition": {
         "label": "Whip Transition",
@@ -1020,8 +1327,8 @@ COMPONENT_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "effects",
         "description": "Mixed-media collage frames",
         "animations": {"enter": ["spring_in", "fade"], "exit": ["fade"]},
-        "defaults": {"title": "COLLAGE", "brandColor": "#3B82F6", "accentColor": "#FFD600"},
-        "props": ["title", "brandColor", "accentColor"],
+        "defaults": {"title": "COLLAGE", "brandColor": "#3B82F6", "accentColor": "#FFD600", "textColor": "#FFFFFF"},
+        "props": ["title", "brandColor", "accentColor", "textColor"],
     },
     "karaoke_caption": {
         "label": "Karaoke Caption",
@@ -1052,8 +1359,8 @@ COMPONENT_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "effects",
         "description": "HUD loading ring animation",
         "animations": {"enter": ["grow", "fade"], "exit": ["fade"]},
-        "defaults": {"label": "LOADING", "brandColor": "#22D3EE"},
-        "props": ["label", "brandColor"],
+        "defaults": {"label": "LOADING", "brandColor": "#22D3EE", "textColor": "#FFFFFF"},
+        "props": ["label", "brandColor", "textColor"],
     },
     "geometric_pattern": {
         "label": "Geometric Pattern",
@@ -1143,11 +1450,16 @@ def _props_from_clip_params(params: dict[str, Any], type_id: str) -> dict[str, A
         val = props.get(key, defaults.get(key))
         if val is None:
             continue
-        if key in ("fontSize", "value", "particleCount", "shapeCount", "seed", "angle", "density", "bars"):
+        if key in ("fontSize", "value", "particleCount", "shapeCount", "seed", "angle", "density", "bars", "spokes", "sizePct", "lineLengthPct", "trend"):
             try:
                 cleaned[key] = int(val)
             except (TypeError, ValueError):
                 cleaned[key] = defaults.get(key)
+        elif key == "progress":
+            try:
+                cleaned[key] = max(0.0, min(1.0, float(val)))
+            except (TypeError, ValueError):
+                cleaned[key] = defaults.get(key, 1.0)
         elif key == "intensity":
             try:
                 cleaned[key] = max(0.0, min(1.0, float(val)))
@@ -1168,7 +1480,7 @@ def _props_from_clip_params(params: dict[str, Any], type_id: str) -> dict[str, A
                     continue
             cleaned[key] = nums or list(defaults.get("values", []))
         elif key in (
-            "color", "accentColor", "brandColor", "textColor",
+            "color", "accentColor", "brandColor", "textColor", "strokeColor",
             "colorA", "colorB", "colorC",
         ):
             cleaned[key] = _normalize_color(val, str(defaults.get(key, "#FFFFFF")))
@@ -1320,6 +1632,8 @@ def validate_motion_plan(
         "durationSeconds": duration if duration > 0 else None,
         "elements": normalized_elements,
     }
+    if isinstance(plan.get("theme"), dict):
+        normalized["theme"] = plan["theme"]
     return normalized, warnings
 
 
@@ -1889,6 +2203,7 @@ def direct_motion_plan(
     user_prompt: str = "",
     content_type: str = "podcast",
     brand_color: str = "#3B82F6",
+    brand_kit: dict[str, Any] | None = None,
     max_elements: int = 12,
     style: str = "vox",
     density: str = "balanced",
@@ -1967,21 +2282,49 @@ def direct_motion_plan(
     min_els = _MIN_ELEMENTS_BY_DENSITY.get(density, 5)
     # Guarantee a usable plan for one-tap non-editors (LLM empty or too thin)
     if len(plan.get("elements") or []) < min_els:
-        log.info(
-            "motion_director_using_fallback",
-            style=style,
-            density=density,
-            content_type=content_type,
-            llm_elements=len(plan.get("elements") or []),
-        )
-        plan = _fallback_vox_plan(
-            video_duration=video_duration,
-            brand_color=brand_color,
-            assets=assets,
-            user_prompt=user_prompt,
-            density=density,
-            content_type=content_type if content_type in _CONTENT_TYPE_RULES else "explainer",
-        )
+        atomic_id = (preset_cfg or {}).get("atomic_preset")
+        if atomic_id and preset_cfg and preset_cfg.get("one_tap"):
+            log.info(
+                "motion_director_using_atomic_preset",
+                atomic_preset=atomic_id,
+                preset=preset,
+            )
+            try:
+                plan = build_atomic_preset_plan(
+                    str(atomic_id),
+                    video_duration=video_duration,
+                    brand_color=brand_color,
+                    brand_kit=brand_kit,
+                    width=width,
+                    height=height,
+                    fps=fps,
+                    title=str(assets.get("hookText") or user_prompt or "")[:80],
+                )
+            except ValueError:
+                plan = _fallback_vox_plan(
+                    video_duration=video_duration,
+                    brand_color=brand_color,
+                    assets=assets,
+                    user_prompt=user_prompt,
+                    density=density,
+                    content_type=content_type if content_type in _CONTENT_TYPE_RULES else "explainer",
+                )
+        else:
+            log.info(
+                "motion_director_using_fallback",
+                style=style,
+                density=density,
+                content_type=content_type,
+                llm_elements=len(plan.get("elements") or []),
+            )
+            plan = _fallback_vox_plan(
+                video_duration=video_duration,
+                brand_color=brand_color,
+                assets=assets,
+                user_prompt=user_prompt,
+                density=density,
+                content_type=content_type if content_type in _CONTENT_TYPE_RULES else "explainer",
+            )
 
     plan.setdefault("fps", fps)
     plan.setdefault("width", width)
@@ -1995,9 +2338,10 @@ def direct_motion_plan(
     validated, warnings = validate_motion_plan(plan, video_duration=video_duration)
     # Enforce blueprint springs + package layout snaps (aesthetic differentiation)
     package_key = content_type if content_type in _PRESET_LAYOUT else (
-        "podcast" if content_type in ("interview", "social_reel") else
+        "podcast" if content_type in ("interview",) else
+        "social" if content_type in ("social_reel",) else
         "consultancy" if content_type in ("pitch", "minimal") else
-        "product" if content_type in ("launch", "demo") else
+        "product" if content_type in ("launch", "demo", "product_showcase") else
         content_type
     )
     validated = apply_preset_layout(validated, package_key)
@@ -2005,6 +2349,15 @@ def direct_motion_plan(
     if len(validated.get("elements") or []) > cap:
         validated["elements"] = validated["elements"][:cap]
         warnings.append(f"Capped plan at {cap} elements for this preset")
+
+    from services.brand_theme_service import attach_theme_to_plan
+
+    validated = attach_theme_to_plan(
+        validated,
+        brand_kit=brand_kit,
+        brand_color=brand_color,
+        accent_color=(brand_kit or {}).get("accent_color") or (brand_kit or {}).get("accentColor"),
+    )
 
     log.info(
         "motion_director_complete",

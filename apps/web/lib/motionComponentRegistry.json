@@ -1,0 +1,1084 @@
+{
+  "animated_title": {
+    "props": [
+      "text",
+      "fontSize",
+      "color",
+      "accentColor",
+      "strokeColor",
+      "showAccentStroke",
+      "textColor",
+      "textColor",
+      "textColor",
+      "textColor",
+      "textColor",
+      "textColor",
+      "textColor",
+      "textColor",
+      "textColor",
+      "textColor",
+      "textColor",
+      "textColor",
+      "textColor",
+      "textColor",
+      "textColor",
+      "textColor",
+      "textColor",
+      "textColor",
+      "textColor"
+    ],
+    "defaults": {
+      "text": "Your title here",
+      "fontSize": 72,
+      "color": "#FFFFFF",
+      "accentColor": "#FFD600",
+      "strokeColor": "#000000",
+      "showAccentStroke": true,
+      "textColor": "#FFFFFF"
+    }
+  },
+  "kinetic_text": {
+    "props": [
+      "text",
+      "color",
+      "accentColor",
+      "fontSize"
+    ],
+    "defaults": {
+      "text": "Make every word count",
+      "color": "#FFFFFF",
+      "accentColor": "#FF6B00",
+      "fontSize": 76
+    }
+  },
+  "lower_third_pro": {
+    "props": [
+      "title",
+      "subtitle",
+      "brandColor",
+      "variant",
+      "textColor"
+    ],
+    "defaults": {
+      "title": "Speaker Name",
+      "subtitle": "Role or topic",
+      "brandColor": "#3B82F6",
+      "variant": "slide",
+      "textColor": "#FFFFFF"
+    }
+  },
+  "stat_counter": {
+    "props": [
+      "value",
+      "prefix",
+      "suffix",
+      "label",
+      "brandColor",
+      "textColor"
+    ],
+    "defaults": {
+      "value": 1000,
+      "prefix": "",
+      "suffix": "",
+      "label": "Metric",
+      "brandColor": "#3B82F6",
+      "textColor": "#FFFFFF"
+    }
+  },
+  "quote_callout": {
+    "props": [
+      "text",
+      "author",
+      "brandColor",
+      "textColor"
+    ],
+    "defaults": {
+      "text": "A memorable quote from the video",
+      "author": "",
+      "brandColor": "#3B82F6",
+      "textColor": "#FFFFFF"
+    }
+  },
+  "cta_badge": {
+    "props": [
+      "text",
+      "brandColor",
+      "textColor"
+    ],
+    "defaults": {
+      "text": "Subscribe",
+      "brandColor": "#EF4444",
+      "textColor": "#FFFFFF"
+    }
+  },
+  "progress_timer": {
+    "props": [
+      "label",
+      "brandColor",
+      "textColor",
+      "direction",
+      "progress"
+    ],
+    "defaults": {
+      "label": "Chapter 1",
+      "brandColor": "#3B82F6",
+      "textColor": "#FFFFFF",
+      "direction": "ltr",
+      "progress": 1.0
+    }
+  },
+  "particle_burst": {
+    "props": [
+      "particleCount",
+      "colors",
+      "seed",
+      "burstStyle"
+    ],
+    "defaults": {
+      "particleCount": 40,
+      "colors": [
+        "#FFD600",
+        "#FF6B00",
+        "#3B82F6",
+        "#FFFFFF"
+      ],
+      "seed": 42,
+      "burstStyle": "confetti"
+    }
+  },
+  "shape_transition": {
+    "props": [
+      "style",
+      "color"
+    ],
+    "defaults": {
+      "style": "wipe",
+      "color": "#000000"
+    }
+  },
+  "background_gradient": {
+    "props": [
+      "colorA",
+      "colorB",
+      "shapeCount",
+      "seed"
+    ],
+    "defaults": {
+      "colorA": "#1E3A5F",
+      "colorB": "#3B82F6",
+      "shapeCount": 6,
+      "seed": 7
+    }
+  },
+  "arrow_callout": {
+    "props": [
+      "text",
+      "angle",
+      "brandColor"
+    ],
+    "defaults": {
+      "text": "Look here",
+      "angle": 0,
+      "brandColor": "#FFD600"
+    }
+  },
+  "end_card": {
+    "props": [
+      "title",
+      "subtitle",
+      "handle",
+      "brandColor",
+      "textColor"
+    ],
+    "defaults": {
+      "title": "Thanks for watching",
+      "subtitle": "Like & subscribe",
+      "handle": "@yourchannel",
+      "brandColor": "#3B82F6",
+      "textColor": "#FFFFFF"
+    }
+  },
+  "bar_chart": {
+    "props": [
+      "title",
+      "labels",
+      "values",
+      "brandColor",
+      "accentColor",
+      "unit"
+    ],
+    "defaults": {
+      "title": "Key metrics",
+      "labels": [
+        "A",
+        "B",
+        "C"
+      ],
+      "values": [
+        40,
+        70,
+        55
+      ],
+      "brandColor": "#3B82F6",
+      "accentColor": "#FFD600",
+      "unit": ""
+    }
+  },
+  "line_chart": {
+    "props": [
+      "title",
+      "labels",
+      "values",
+      "brandColor",
+      "accentColor",
+      "unit"
+    ],
+    "defaults": {
+      "title": "Trend",
+      "labels": [
+        "Q1",
+        "Q2",
+        "Q3",
+        "Q4"
+      ],
+      "values": [
+        20,
+        45,
+        38,
+        72
+      ],
+      "brandColor": "#3B82F6",
+      "accentColor": "#22D3EE",
+      "unit": ""
+    }
+  },
+  "map_pin": {
+    "props": [
+      "label",
+      "sublabel",
+      "brandColor",
+      "accentColor",
+      "region",
+      "textColor"
+    ],
+    "defaults": {
+      "label": "Kathmandu",
+      "sublabel": "Nepal",
+      "brandColor": "#EF4444",
+      "accentColor": "#FFD600",
+      "region": "asia",
+      "textColor": "#FFFFFF"
+    }
+  },
+  "background_shader": {
+    "props": [
+      "colorA",
+      "colorB",
+      "colorC",
+      "intensity",
+      "seed"
+    ],
+    "defaults": {
+      "colorA": "#0F172A",
+      "colorB": "#1E3A5F",
+      "colorC": "#3B82F6",
+      "intensity": 0.6,
+      "seed": 11
+    }
+  },
+  "comparison_chart": {
+    "props": [
+      "title",
+      "labels",
+      "values",
+      "brandColor",
+      "accentColor",
+      "unit",
+      "textColor"
+    ],
+    "defaults": {
+      "title": "Compared",
+      "labels": [
+        "Option A",
+        "Option B"
+      ],
+      "values": [
+        65,
+        35
+      ],
+      "brandColor": "#3B82F6",
+      "accentColor": "#FFD600",
+      "unit": "%",
+      "textColor": "#FFFFFF"
+    }
+  },
+  "halftone": {
+    "props": [
+      "color",
+      "density",
+      "intensity",
+      "seed"
+    ],
+    "defaults": {
+      "color": "#FFD600",
+      "density": 18,
+      "intensity": 0.35,
+      "seed": 3
+    }
+  },
+  "accent_stroke": {
+    "props": [
+      "label",
+      "text",
+      "brandColor",
+      "variant",
+      "textColor"
+    ],
+    "defaults": {
+      "label": "Key point",
+      "brandColor": "#FFD600",
+      "variant": "underline",
+      "textColor": "#FFFFFF"
+    }
+  },
+  "name_plate": {
+    "props": [
+      "title",
+      "subtitle",
+      "brandColor",
+      "accentColor"
+    ],
+    "defaults": {
+      "title": "Guest Name",
+      "subtitle": "Title / Company",
+      "brandColor": "#3B82F6",
+      "accentColor": "#FFD600"
+    }
+  },
+  "guest_intro": {
+    "props": [
+      "title",
+      "subtitle",
+      "label",
+      "brandColor",
+      "accentColor",
+      "textColor"
+    ],
+    "defaults": {
+      "title": "Today's Guest",
+      "subtitle": "Expert & Founder",
+      "label": "EPISODE GUEST",
+      "brandColor": "#3B82F6",
+      "accentColor": "#FFD600",
+      "textColor": "#FFFFFF"
+    }
+  },
+  "chapter_marker": {
+    "props": [
+      "title",
+      "subtitle",
+      "brandColor",
+      "accentColor",
+      "textColor"
+    ],
+    "defaults": {
+      "title": "Chapter 1",
+      "subtitle": "Getting started",
+      "brandColor": "#3B82F6",
+      "accentColor": "#FFD600",
+      "textColor": "#FFFFFF"
+    }
+  },
+  "voice_waveform": {
+    "props": [
+      "brandColor",
+      "accentColor",
+      "bars",
+      "seed"
+    ],
+    "defaults": {
+      "brandColor": "#3B82F6",
+      "accentColor": "#22D3EE",
+      "bars": 24,
+      "seed": 9
+    }
+  },
+  "focus_frame": {
+    "props": [
+      "brandColor",
+      "intensity"
+    ],
+    "defaults": {
+      "brandColor": "#FFFFFF",
+      "intensity": 0.45
+    }
+  },
+  "soundbite": {
+    "props": [
+      "text",
+      "label",
+      "brandColor",
+      "accentColor"
+    ],
+    "defaults": {
+      "text": "The moment that changed everything",
+      "label": "SOUNDBITE",
+      "brandColor": "#FFD600",
+      "accentColor": "#FFFFFF"
+    }
+  },
+  "data_reveal": {
+    "props": [
+      "title",
+      "value",
+      "prefix",
+      "suffix",
+      "label",
+      "brandColor",
+      "accentColor"
+    ],
+    "defaults": {
+      "title": "Insight",
+      "value": 87,
+      "suffix": "%",
+      "label": "Client satisfaction",
+      "brandColor": "#3B82F6",
+      "accentColor": "#FFD600"
+    }
+  },
+  "timeline_flow": {
+    "props": [
+      "title",
+      "steps",
+      "brandColor",
+      "accentColor",
+      "textColor"
+    ],
+    "defaults": {
+      "title": "Our process",
+      "steps": [
+        "Discover",
+        "Design",
+        "Deliver",
+        "Scale"
+      ],
+      "brandColor": "#3B82F6",
+      "accentColor": "#FFD600",
+      "textColor": "#FFFFFF"
+    }
+  },
+  "authority_badge": {
+    "props": [
+      "title",
+      "subtitle",
+      "brandColor",
+      "accentColor"
+    ],
+    "defaults": {
+      "title": "Trusted by 500+",
+      "subtitle": "Enterprise clients",
+      "brandColor": "#3B82F6",
+      "accentColor": "#FFD600"
+    }
+  },
+  "pro_wipe": {
+    "props": [
+      "color",
+      "accentColor",
+      "style"
+    ],
+    "defaults": {
+      "color": "#0F172A",
+      "accentColor": "#3B82F6",
+      "style": "wipe"
+    }
+  },
+  "product_highlight": {
+    "props": [
+      "title",
+      "subtitle",
+      "brandColor",
+      "accentColor"
+    ],
+    "defaults": {
+      "title": "New Product",
+      "subtitle": "Built for creators",
+      "brandColor": "#3B82F6",
+      "accentColor": "#FFFFFF"
+    }
+  },
+  "product_reveal": {
+    "props": [
+      "title",
+      "subtitle",
+      "brandColor",
+      "accentColor"
+    ],
+    "defaults": {
+      "title": "Introducing",
+      "subtitle": "The future is here",
+      "brandColor": "#8B5CF6",
+      "accentColor": "#FFD600"
+    }
+  },
+  "feature_callout": {
+    "props": [
+      "title",
+      "subtitle",
+      "label",
+      "brandColor",
+      "accentColor"
+    ],
+    "defaults": {
+      "title": "Fast setup",
+      "subtitle": "Go live in minutes",
+      "label": "01",
+      "brandColor": "#3B82F6",
+      "accentColor": "#FFD600"
+    }
+  },
+  "price_popup": {
+    "props": [
+      "title",
+      "subtitle",
+      "label",
+      "brandColor",
+      "accentColor"
+    ],
+    "defaults": {
+      "title": "$49",
+      "subtitle": "Limited offer",
+      "label": "SAVE 40%",
+      "brandColor": "#EF4444",
+      "accentColor": "#FFD600"
+    }
+  },
+  "before_after": {
+    "props": [
+      "beforeLabel",
+      "afterLabel",
+      "brandColor",
+      "accentColor"
+    ],
+    "defaults": {
+      "beforeLabel": "Before",
+      "afterLabel": "After",
+      "brandColor": "#3B82F6",
+      "accentColor": "#22C55E"
+    }
+  },
+  "texture_bg": {
+    "props": [
+      "colorA",
+      "colorB",
+      "intensity",
+      "seed"
+    ],
+    "defaults": {
+      "colorA": "#0F172A",
+      "colorB": "#1E293B",
+      "intensity": 0.4,
+      "seed": 5
+    }
+  },
+  "eq_visualizer": {
+    "props": [
+      "brandColor",
+      "accentColor",
+      "bars",
+      "seed"
+    ],
+    "defaults": {
+      "brandColor": "#3B82F6",
+      "accentColor": "#22D3EE",
+      "bars": 20,
+      "seed": 4
+    }
+  },
+  "circular_waveform": {
+    "props": [
+      "brandColor",
+      "accentColor"
+    ],
+    "defaults": {
+      "brandColor": "#3B82F6",
+      "accentColor": "#FFD600"
+    }
+  },
+  "symmetric_audio_strip": {
+    "props": [
+      "brandColor",
+      "accentColor",
+      "bars",
+      "seed",
+      "amplitudes"
+    ],
+    "defaults": {
+      "brandColor": "#22D3EE",
+      "accentColor": "#A78BFA",
+      "bars": 28,
+      "seed": 4
+    }
+  },
+  "circular_orbit_equalizer": {
+    "props": [
+      "brandColor",
+      "accentColor",
+      "spokes",
+      "monogram",
+      "seed",
+      "profileSrc",
+      "sizePct"
+    ],
+    "defaults": {
+      "brandColor": "#22D3EE",
+      "accentColor": "#F472B6",
+      "spokes": 36,
+      "monogram": "H",
+      "seed": 7
+    }
+  },
+  "active_speaker_split": {
+    "props": [
+      "activeSpeakerId",
+      "speakers",
+      "brandColor",
+      "accentColor"
+    ],
+    "defaults": {
+      "activeSpeakerId": "host",
+      "speakers": []
+    }
+  },
+  "strategy_funnel": {
+    "props": [
+      "labels",
+      "values",
+      "brandColor",
+      "accentColor"
+    ],
+    "defaults": {
+      "labels": [
+        "Awareness",
+        "Interest",
+        "Convert"
+      ],
+      "values": [
+        100,
+        60,
+        30
+      ],
+      "brandColor": "#475569",
+      "accentColor": "#10B981"
+    }
+  },
+  "metric_ticker": {
+    "props": [
+      "title",
+      "value",
+      "prefix",
+      "suffix",
+      "trend",
+      "brandColor"
+    ],
+    "defaults": {
+      "title": "Revenue",
+      "value": 1000,
+      "prefix": "",
+      "suffix": "",
+      "trend": 1,
+      "brandColor": "#10B981"
+    }
+  },
+  "kinetic_karaoke": {
+    "props": [
+      "text",
+      "color",
+      "accentColor",
+      "fontSize",
+      "words"
+    ],
+    "defaults": {
+      "text": "Your words light up here",
+      "color": "#FFFFFF",
+      "accentColor": "#FFD600",
+      "fontSize": 42
+    }
+  },
+  "scribble_annotation": {
+    "props": [
+      "variant",
+      "label",
+      "brandColor",
+      "text"
+    ],
+    "defaults": {
+      "variant": "arrow",
+      "label": "",
+      "brandColor": "#FFD600"
+    }
+  },
+  "vertical_clip_template": {
+    "props": [
+      "platform",
+      "caption",
+      "brandColor",
+      "accentColor",
+      "showSafeGuides"
+    ],
+    "defaults": {
+      "platform": "tiktok",
+      "caption": "Hook line",
+      "brandColor": "#FFFFFF",
+      "accentColor": "#FFD600"
+    }
+  },
+  "dynamic_feature_callout": {
+    "props": [
+      "text",
+      "brandColor",
+      "angle",
+      "lineLengthPct"
+    ],
+    "defaults": {
+      "text": "Key feature",
+      "brandColor": "#FBBF24",
+      "angle": -18
+    }
+  },
+  "social_frame": {
+    "props": [
+      "platform",
+      "label",
+      "brandColor"
+    ],
+    "defaults": {
+      "platform": "tiktok",
+      "label": "TIKTOK",
+      "brandColor": "#FFFFFF"
+    }
+  },
+  "broadcast_lower_third": {
+    "props": [
+      "title",
+      "subtitle",
+      "brandColor",
+      "textColor"
+    ],
+    "defaults": {
+      "title": "Host Name",
+      "subtitle": "Show title",
+      "brandColor": "#E11D48",
+      "textColor": "#FFFFFF"
+    }
+  },
+  "subscribe_badge": {
+    "props": [
+      "text",
+      "platform",
+      "brandColor"
+    ],
+    "defaults": {
+      "text": "Subscribe",
+      "platform": "youtube",
+      "brandColor": "#FF0000"
+    }
+  },
+  "device_mockup": {
+    "props": [
+      "device",
+      "title",
+      "brandColor",
+      "accentColor"
+    ],
+    "defaults": {
+      "device": "phone",
+      "title": "App",
+      "brandColor": "#3B82F6",
+      "accentColor": "#FFFFFF"
+    }
+  },
+  "kinetic_line": {
+    "props": [
+      "text",
+      "color",
+      "accentColor",
+      "fontSize",
+      "textColor"
+    ],
+    "defaults": {
+      "text": "Bold features | Fast benefits | Clear value",
+      "color": "#FFFFFF",
+      "accentColor": "#FFD600",
+      "fontSize": 48,
+      "textColor": "#FFFFFF"
+    }
+  },
+  "glass_card": {
+    "props": [
+      "title",
+      "subtitle",
+      "brandColor"
+    ],
+    "defaults": {
+      "title": "Insight",
+      "subtitle": "Premium detail",
+      "brandColor": "#3B82F6"
+    }
+  },
+  "liquid_blob": {
+    "props": [
+      "colorA",
+      "colorB"
+    ],
+    "defaults": {
+      "colorA": "#8B5CF6",
+      "colorB": "#3B82F6"
+    }
+  },
+  "callout_line": {
+    "props": [
+      "text",
+      "angle",
+      "brandColor"
+    ],
+    "defaults": {
+      "text": "Tap here",
+      "angle": -25,
+      "brandColor": "#FFD600"
+    }
+  },
+  "pie_chart": {
+    "props": [
+      "title",
+      "labels",
+      "values",
+      "brandColor",
+      "accentColor",
+      "textColor"
+    ],
+    "defaults": {
+      "title": "Share",
+      "labels": [
+        "A",
+        "B",
+        "C"
+      ],
+      "values": [
+        40,
+        35,
+        25
+      ],
+      "brandColor": "#3B82F6",
+      "accentColor": "#FFD600",
+      "textColor": "#FFFFFF"
+    }
+  },
+  "funnel_chart": {
+    "props": [
+      "labels",
+      "values",
+      "steps",
+      "brandColor",
+      "accentColor"
+    ],
+    "defaults": {
+      "labels": [
+        "Awareness",
+        "Interest",
+        "Convert"
+      ],
+      "values": [
+        100,
+        60,
+        30
+      ],
+      "brandColor": "#3B82F6",
+      "accentColor": "#FFD600"
+    }
+  },
+  "corporate_timeline": {
+    "props": [
+      "title",
+      "steps",
+      "brandColor",
+      "accentColor"
+    ],
+    "defaults": {
+      "title": "Roadmap",
+      "steps": [
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "brandColor": "#3B82F6",
+      "accentColor": "#FFD600"
+    }
+  },
+  "parallax_slide": {
+    "props": [
+      "title",
+      "subtitle",
+      "text",
+      "brandColor",
+      "textColor"
+    ],
+    "defaults": {
+      "title": "Elegant",
+      "subtitle": "Minimal movement",
+      "brandColor": "#FFFFFF",
+      "textColor": "#FFFFFF"
+    }
+  },
+  "icon_pop": {
+    "props": [
+      "label",
+      "title",
+      "brandColor",
+      "textColor"
+    ],
+    "defaults": {
+      "label": "\u2605",
+      "title": "Feature",
+      "brandColor": "#3B82F6",
+      "textColor": "#FFFFFF"
+    }
+  },
+  "whip_transition": {
+    "props": [
+      "color",
+      "accentColor"
+    ],
+    "defaults": {
+      "color": "#0F172A",
+      "accentColor": "#FFFFFF"
+    }
+  },
+  "zoom_transition": {
+    "props": [
+      "color"
+    ],
+    "defaults": {
+      "color": "#000000"
+    }
+  },
+  "split_screen": {
+    "props": [
+      "leftLabel",
+      "rightLabel",
+      "brandColor",
+      "accentColor"
+    ],
+    "defaults": {
+      "leftLabel": "Before",
+      "rightLabel": "After",
+      "brandColor": "#3B82F6",
+      "accentColor": "#FFD600"
+    }
+  },
+  "grid_layout": {
+    "props": [
+      "brandColor"
+    ],
+    "defaults": {
+      "brandColor": "#FFFFFF"
+    }
+  },
+  "glitch_overlay": {
+    "props": [
+      "brandColor",
+      "accentColor",
+      "intensity"
+    ],
+    "defaults": {
+      "brandColor": "#22D3EE",
+      "accentColor": "#EF4444",
+      "intensity": 0.5
+    }
+  },
+  "paper_rip": {
+    "props": [
+      "color",
+      "side"
+    ],
+    "defaults": {
+      "color": "#F8FAFC",
+      "side": "bottom"
+    }
+  },
+  "collage_frame": {
+    "props": [
+      "title",
+      "brandColor",
+      "accentColor",
+      "textColor"
+    ],
+    "defaults": {
+      "title": "COLLAGE",
+      "brandColor": "#3B82F6",
+      "accentColor": "#FFD600",
+      "textColor": "#FFFFFF"
+    }
+  },
+  "karaoke_caption": {
+    "props": [
+      "text",
+      "color",
+      "accentColor",
+      "fontSize"
+    ],
+    "defaults": {
+      "text": "Every word hits different",
+      "color": "#FFFFFF",
+      "accentColor": "#FFD600",
+      "fontSize": 42
+    }
+  },
+  "doodle_scribble": {
+    "props": [
+      "text",
+      "variant",
+      "brandColor"
+    ],
+    "defaults": {
+      "text": "",
+      "variant": "circle",
+      "brandColor": "#FFD600"
+    }
+  },
+  "hud_grid": {
+    "props": [
+      "brandColor",
+      "intensity"
+    ],
+    "defaults": {
+      "brandColor": "#22D3EE",
+      "intensity": 0.35
+    }
+  },
+  "hud_loader": {
+    "props": [
+      "label",
+      "brandColor",
+      "textColor"
+    ],
+    "defaults": {
+      "label": "LOADING",
+      "brandColor": "#22D3EE",
+      "textColor": "#FFFFFF"
+    }
+  },
+  "geometric_pattern": {
+    "props": [
+      "colorA",
+      "colorB",
+      "intensity"
+    ],
+    "defaults": {
+      "colorA": "#1E3A5F",
+      "colorB": "#3B82F6",
+      "intensity": 0.4
+    }
+  }
+}

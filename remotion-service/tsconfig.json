@@ -9,7 +9,13 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noEmit": true
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@types/*": ["src/types/*"],
+      "@components/*": ["src/motion/components/*"],
+      "@lib/*": ["src/lib/*"]
+    }
   },
   "include": ["src/**/*"]
 }

@@ -2,6 +2,10 @@
  * Motion graphics pro component catalog — mirrors backend COMPONENT_REGISTRY.
  */
 
+import registry from '@/lib/motionComponentRegistry.json'
+
+const REGISTRY_TYPES = new Set(Object.keys(registry as Record<string, unknown>))
+
 export interface MotionGraphicComponentDef {
   type: string
   label: string
@@ -30,6 +34,9 @@ export const MOTION_GRAPHIC_PRO_TYPES = new Set([
   'background_gradient', 'background_shader', 'texture_bg', 'halftone',
   'geometric_pattern', 'liquid_blob', 'glitch_overlay', 'paper_rip',
   'collage_frame', 'hud_grid', 'hud_loader',
+  'symmetric_audio_strip', 'circular_orbit_equalizer', 'active_speaker_split',
+  'kinetic_karaoke', 'scribble_annotation', 'vertical_clip_template',
+  'dynamic_feature_callout', 'metric_ticker', 'strategy_funnel',
 ])
 
 export const MOTION_GRAPHICS_LIBRARY: MotionGraphicComponentDef[] = [
@@ -498,6 +505,15 @@ export const MOTION_GRAPHICS_LIBRARY: MotionGraphicComponentDef[] = [
   { type: 'hud_grid', label: 'HUD Grid', category: 'effects', description: 'Digital HUD grid', icon: '#', duration: 6, animations: { enter: ['fade'], exit: ['fade'] }, defaults: { brandColor: '#22D3EE', intensity: 0.35 }, position: { xPct: 50, yPct: 50 } },
   { type: 'hud_loader', label: 'HUD Loader', category: 'effects', description: 'HUD loading ring', icon: '◌', duration: 3, animations: { enter: ['grow', 'fade'], exit: ['fade'] }, defaults: { label: 'LOADING', brandColor: '#22D3EE' }, position: { xPct: 50, yPct: 50 } },
   { type: 'geometric_pattern', label: 'Geometric Pattern', category: 'effects', description: 'Animated geometric backdrop', icon: '◈', duration: 8, animations: { enter: ['fade'], exit: ['fade'] }, defaults: { colorA: '#1E3A5F', colorB: '#3B82F6', intensity: 0.4 }, position: { xPct: 50, yPct: 50 } },
+  { type: 'symmetric_audio_strip', label: 'Audio Strip EQ', category: 'podcast', description: 'Center-out symmetric equalizer', icon: '▮', duration: 5, animations: { enter: ['grow'], exit: ['fade'] }, defaults: { brandColor: '#22D3EE', accentColor: '#A78BFA', bars: 28, seed: 4 }, position: { xPct: 50, yPct: 90 } },
+  { type: 'circular_orbit_equalizer', label: 'Orbit Equalizer', category: 'podcast', description: 'Circular radial EQ with profile', icon: '◎', duration: 5, animations: { enter: ['reveal'], exit: ['fade'] }, defaults: { brandColor: '#22D3EE', accentColor: '#F472B6', spokes: 36, monogram: 'H', seed: 7, sizePct: 28 }, position: { xPct: 50, yPct: 50 } },
+  { type: 'active_speaker_split', label: 'Speaker Split', category: 'podcast', description: 'Dual speaker cards with active highlight', icon: '▥', duration: 6, animations: { enter: ['fade'], exit: ['fade'] }, defaults: { activeSpeakerId: 'host', brandColor: '#3B82F6', accentColor: '#FFD600' }, position: { xPct: 50, yPct: 50 } },
+  { type: 'strategy_funnel', label: 'Strategy Funnel', category: 'consultancy', description: 'Self-drawing funnel phases', icon: '▽', duration: 5, animations: { enter: ['stroke_draw'], exit: ['fade'] }, defaults: { labels: ['Discover', 'Design', 'Deliver', 'Scale'], values: [100, 72, 48, 24], brandColor: '#475569', accentColor: '#10B981' }, position: { xPct: 32, yPct: 48 } },
+  { type: 'metric_ticker', label: 'Metric Ticker', category: 'consultancy', description: 'Glass count-up metric card', icon: '▣', duration: 4, animations: { enter: ['count_up'], exit: ['fade'] }, defaults: { title: 'Pipeline', value: 2480, suffix: 'k', trend: 1, brandColor: '#10B981' }, position: { xPct: 72, yPct: 28 } },
+  { type: 'kinetic_karaoke', label: 'Kinetic Karaoke', category: 'social', description: 'Word-by-word karaoke captions', icon: '♪', duration: 4, animations: { enter: ['word_pop'], exit: ['fade'] }, defaults: { text: 'Your words light up here', color: '#FFFFFF', accentColor: '#FFD600', fontSize: 42 }, position: { xPct: 50, yPct: 72 } },
+  { type: 'scribble_annotation', label: 'Scribble Annotation', category: 'social', description: 'Hand-drawn circle or arrow', icon: '✎', duration: 3, animations: { enter: ['draw'], exit: ['fade'] }, defaults: { variant: 'circle', label: 'Look', brandColor: '#FFD600', text: '' }, position: { xPct: 68, yPct: 36 } },
+  { type: 'vertical_clip_template', label: 'Vertical Clip', category: 'social', description: '9:16 safe-zone template', icon: '▯', duration: 8, animations: { enter: ['fade'], exit: ['fade'] }, defaults: { platform: 'tiktok', caption: 'Hook line', brandColor: '#FFFFFF', accentColor: '#FFD600' }, position: { xPct: 50, yPct: 50 } },
+  { type: 'dynamic_feature_callout', label: 'Feature Callout', category: 'product', description: 'Dot + line + feature card', icon: '↗', duration: 4, animations: { enter: ['draw', 'spring_in'], exit: ['fade'] }, defaults: { text: 'Key feature', brandColor: '#FBBF24', angle: -18, lineLengthPct: 14 }, position: { xPct: 62, yPct: 40 } },
 ]
 
 export function getMotionGraphicDef(type: string): MotionGraphicComponentDef | undefined {
@@ -505,7 +521,8 @@ export function getMotionGraphicDef(type: string): MotionGraphicComponentDef | u
 }
 
 export function isMotionGraphicProType(visualType: string): boolean {
-  return MOTION_GRAPHIC_PRO_TYPES.has(visualType.toLowerCase())
+  const t = visualType.toLowerCase()
+  return MOTION_GRAPHIC_PRO_TYPES.has(t) || REGISTRY_TYPES.has(t)
 }
 
 export function motionGraphicProLabel(type: string): string {

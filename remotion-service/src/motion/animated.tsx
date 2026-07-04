@@ -75,22 +75,27 @@ export function useElementAnimation(el: MotionElement): ElementAnimState {
   };
 }
 
+const CLAMP = {
+  extrapolateLeft: "clamp" as const,
+  extrapolateRight: "clamp" as const,
+};
+
 function mountTransform(mount: MountPreset, enter: number, exit: number): string {
   const e = Math.min(enter, 1);
   const x = e * exit;
   switch (mount) {
     case "slide-up":
-      return `translateY(${interpolate(x, [0, 1], [36, 0])}px)`;
+      return `translateY(${interpolate(x, [0, 1], [36, 0], CLAMP)}px)`;
     case "slide-left":
-      return `translateX(${interpolate(x, [0, 1], [-80, 0])}px)`;
+      return `translateX(${interpolate(x, [0, 1], [-80, 0], CLAMP)}px)`;
     case "slide-right":
-      return `translateX(${interpolate(x, [0, 1], [80, 0])}px)`;
+      return `translateX(${interpolate(x, [0, 1], [80, 0], CLAMP)}px)`;
     case "scale":
-      return `scale(${interpolate(x, [0, 1], [0.82, 1])})`;
+      return `scale(${interpolate(x, [0, 1], [0.82, 1], CLAMP)})`;
     case "pop":
-      return `scale(${interpolate(enter, [0, 0.7, 1], [0.4, 1.08, 1]) * exit})`;
+      return `scale(${interpolate(enter, [0, 0.7, 1], [0.4, 1.08, 1], CLAMP) * exit})`;
     case "draw":
-      return `scaleX(${interpolate(x, [0, 1], [0.2, 1])})`;
+      return `scaleX(${interpolate(x, [0, 1], [0.2, 1], CLAMP)})`;
     case "fade":
     case "none":
     default:

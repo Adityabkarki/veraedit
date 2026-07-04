@@ -13,6 +13,8 @@ export interface MotionPlan {
   elements: Array<Record<string, unknown>>
   style?: string
   directorPrompt?: string
+  /** Resolved ThemeToken — derived from Brand Kit upstream. */
+  theme?: Record<string, unknown>
 }
 
 export interface MagicMotionResult {
@@ -101,6 +103,7 @@ export async function magicVoxMotionGraphics(body: {
   video_duration: number
   content_type?: string
   brand_color?: string
+  brand_kit?: Record<string, string>
   max_elements?: number
   width?: number
   height?: number

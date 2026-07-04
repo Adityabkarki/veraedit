@@ -17,6 +17,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from processors.remotion_client import remotion_service_healthy
+from services.brand_theme_service import brand_kit_to_theme
 from services.motion_graphics_service import (
     MAGIC_PRESETS,
     direct_motion_plan,
@@ -30,6 +31,14 @@ router = APIRouter(prefix="/api/v1/motion-graphics", tags=["motion-graphics"])
 log = structlog.get_logger("viraedit.motion_graphics")
 
 
+class BrandKitPayload(BaseModel):
+    primary_color: str = "#C41E3A"
+    secondary_color: str = "#111113"
+    accent_color: str = "#F59E0B"
+    font_style: str = "nepali"
+    logo_text: str = "ViraEdit"
+
+
 class ValidateRequest(BaseModel):
     plan: dict[str, Any]
     video_duration: Optional[float] = Field(None, ge=0)
@@ -40,6 +49,7 @@ class SuggestRequest(BaseModel):
     video_duration: float = Field(..., ge=0)
     content_type: str = "podcast"
     brand_color: str = "#3B82F6"
+    brand_kit: Optional[BrandKitPayload] = None
     max_elements: int = Field(8, ge=1, le=16)
     user_prompt: str = ""
     style: str = "default"
@@ -57,6 +67,7 @@ class MagicRequest(BaseModel):
     video_duration: float = Field(..., ge=0.5)
     content_type: str = "auto"
     brand_color: str = "#3B82F6"
+    brand_kit: Optional[BrandKitPayload] = None
     max_elements: int = Field(12, ge=1, le=18)
     width: int = Field(1080, ge=320, le=3840)
     height: int = Field(1920, ge=320, le=3840)
@@ -69,6 +80,11 @@ class MagicRequest(BaseModel):
 class PrepareRequest(BaseModel):
     transcript_segments: list[dict[str, Any]] = Field(default_factory=list)
     brand_color: str = "#3B82F6"
+    brand_kit: Optional[BrandKitPayload] = None
+
+
+class ResolveThemeRequest(BaseModel):
+    brand_kit: BrandKitPayload
 
 
 @router.get("/library")
@@ -96,6 +112,12 @@ async def motion_graphics_presets() -> dict[str, Any]:
             for pid, cfg in MAGIC_PRESETS.items()
         ]
     }
+
+
+@router.post("/resolve-theme")
+async def resolve_theme(body: ResolveThemeRequest) -> dict[str, Any]:
+    """Resolve editor Brand Kit → ThemeToken JSON."""
+    return {"theme": brand_kit_to_theme(body.brand_kit.model_dump())}
 
 
 @router.post("/validate")
@@ -152,6 +174,7 @@ async def magic_vox_mode(body: MagicRequest) -> dict[str, Any]:
         user_prompt=prompt,
         content_type=body.content_type,
         brand_color=body.brand_color,
+        brand_kit=body.brand_kit.model_dump() if body.brand_kit else None,
         max_elements=body.max_elements,
         style=body.style or "vox",
         density=density,

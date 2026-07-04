@@ -11,6 +11,7 @@ import { uploadVideoFile } from '@/lib/upload'
 import { captionMetadataForExport } from '@/lib/captionBurnStyle'
 import { useCaptionsStore, type CaptionStyle } from '@/stores/captionsStore'
 import { useTimelineStore, type Clip, type Track } from '@/stores/timelineStore'
+import { resolveBrandKitTheme } from '@/lib/brandKitTheme'
 import { useVisualLibraryStore } from '@/stores/visualLibraryStore'
 import { resolveCaptionEffectAt, isCaptionEffectClip } from '@/lib/captionEffects'
 import { isBrollClip, isImageClip } from '@/lib/mediaClips'
@@ -219,7 +220,14 @@ export async function prepareTimelineForExport(
 
   const metadataPatch: Record<string, unknown> = {
     ...buildCaptionExportMetadata(captionState.burnInStyle, captionState.globalStyle, clips),
-    brand_kit: { primary_color: brand.primaryColor, accent_color: brand.accentColor },
+    brand_kit: {
+      primary_color: brand.primaryColor,
+      secondary_color: brand.secondaryColor,
+      accent_color: brand.accentColor,
+      font_style: brand.fontStyle,
+      logo_text: brand.logoText,
+    },
+    theme: resolveBrandKitTheme(brand),
     export_schema_version: 2,
   }
   const metadata = deepMergeMetadata(baseMetadata ?? {}, metadataPatch)

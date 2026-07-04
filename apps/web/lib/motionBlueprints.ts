@@ -1,26 +1,37 @@
 /**
  * Aesthetic blueprints — spring profiles + Devanagari-safe text.
  * Keep in lockstep with remotion-service/src/motion/motionBlueprints.ts
+ * Physics Constant Manifest (skills.md).
  */
 
 import type { CSSProperties } from 'react'
 import { containsDevanagari } from '@/lib/motionMath'
 
-export const SPRING_SOCIAL = { mass: 0.5, damping: 10, stiffness: 150 }
-export const SPRING_CORPORATE = { mass: 1.0, damping: 25, stiffness: 80 }
-export const SPRING_PRODUCT = { mass: 0.7, damping: 14, stiffness: 160 }
-export const SPRING_DEFAULT = { mass: 1.0, damping: 14, stiffness: 180 }
+/** snappy_spring */
+export const SPRING_SOCIAL = { mass: 0.4, damping: 12, stiffness: 180 }
+/** elegant_glide */
+export const SPRING_CORPORATE = { mass: 1.0, damping: 24, stiffness: 90 }
+/** elastic_overshoot */
+export const SPRING_PRODUCT = { mass: 0.7, damping: 8, stiffness: 140 }
+export const SPRING_DEFAULT = { mass: 1.0, damping: 24, stiffness: 90 }
 
 export type BlueprintFamily = 'social' | 'corporate' | 'product' | 'default'
 
 const FAMILY_BY_TYPE: Record<string, BlueprintFamily> = {
   voice_waveform: 'social',
-  eq_visualizer: 'social',
-  circular_waveform: 'social',
+  eq_visualizer: 'corporate',
+  symmetric_audio_strip: 'corporate',
+  circular_waveform: 'corporate',
+  circular_orbit_equalizer: 'corporate',
+  active_speaker_split: 'corporate',
   soundbite: 'social',
   karaoke_caption: 'social',
+  kinetic_karaoke: 'social',
   subscribe_badge: 'social',
   social_frame: 'social',
+  vertical_clip_template: 'social',
+  scribble_annotation: 'social',
+  doodle_scribble: 'social',
   guest_intro: 'social',
   name_plate: 'social',
   broadcast_lower_third: 'social',
@@ -28,6 +39,9 @@ const FAMILY_BY_TYPE: Record<string, BlueprintFamily> = {
   bar_chart: 'corporate',
   line_chart: 'corporate',
   corporate_timeline: 'corporate',
+  strategy_funnel: 'corporate',
+  funnel_chart: 'corporate',
+  metric_ticker: 'corporate',
   glass_card: 'corporate',
   animated_title: 'corporate',
   device_mockup: 'product',
@@ -35,6 +49,7 @@ const FAMILY_BY_TYPE: Record<string, BlueprintFamily> = {
   product_reveal: 'product',
   callout_line: 'product',
   feature_callout: 'product',
+  dynamic_feature_callout: 'product',
 }
 
 export function blueprintFamily(typeId: string): BlueprintFamily {
@@ -53,7 +68,7 @@ export function springForType(typeId: string): {
   return { ...SPRING_DEFAULT }
 }
 
-/** Devanagari-safe text style — extra line-height so matras are never clipped. */
+/** Devanagari-safe text style — content-box + py-[0.25em] minimum. */
 export function textLayerStyle(
   text: string,
   extras: CSSProperties = {},
@@ -61,9 +76,10 @@ export function textLayerStyle(
   const dev = containsDevanagari(text)
   return {
     fontFamily: dev ? 'Noto Sans Devanagari, sans-serif' : 'inherit',
+    boxSizing: 'content-box',
     lineHeight: dev ? 1.55 : 1.25,
-    paddingTop: dev ? '0.2em' : 0,
-    paddingBottom: dev ? '0.25em' : 0,
+    paddingTop: '0.25em',
+    paddingBottom: '0.25em',
     overflow: 'visible',
     ...extras,
   }

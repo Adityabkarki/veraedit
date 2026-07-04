@@ -13,6 +13,7 @@ import {
   containsDevanagari,
 } from '@/lib/motionMath'
 import { getMotionGraphicDef } from '@/lib/motionGraphicsLibrary'
+import { getPreviewBrandTheme } from '@/lib/brandPreviewTheme'
 
 interface ProOverlayProps {
   clip: Clip
@@ -24,6 +25,7 @@ interface ProOverlayProps {
 }
 
 function readProps(clip: Clip): Record<string, unknown> {
+  const theme = getPreviewBrandTheme()
   const base = (clip.effects?.motionProps as Record<string, unknown>) ?? {}
   return {
     ...base,
@@ -31,7 +33,10 @@ function readProps(clip: Clip): Record<string, unknown> {
     title: base.title ?? clip.effects?.displayValue ?? '',
     subtitle: base.subtitle ?? clip.effects?.secondaryText ?? '',
     label: base.label ?? clip.effects?.secondaryText ?? '',
-    brandColor: base.brandColor ?? clip.effects?.brandColor ?? '#3B82F6',
+    // Live Brand Kit wins over values baked in at insert time (Theme Token Law).
+    brandColor: theme.primary,
+    accentColor: theme.accent,
+    backgroundColor: theme.secondary,
   }
 }
 
@@ -699,6 +704,51 @@ function BackgroundShaderProPreview({ clip, currentTime }: ProOverlayProps) {
   )
 }
 
+function ActiveSpeakerSplitProPreview({ clip, currentTime, primary, accent, embedded }: ProOverlayProps) {
+  const { active, enter, exit } = useMotionTiming(clip, currentTime)
+  if (!active) return null
+  const props = readProps(clip)
+  const brand = String(props.brandColor ?? primary)
+  const accentColor = String(props.accentColor ?? accent)
+  const activeId = String(props.activeSpeakerId ?? 'host')
+  const speakers = [
+    { id: 'host', name: 'Host', monogram: 'H' },
+    { id: 'guest', name: 'Guest', monogram: 'G' },
+  ]
+
+  return (
+    <Positioned clip={clip} opacity={exit} embedded={embedded} transform={`scale(${0.85 + enter * 0.15})`}>
+      <div className="flex gap-2 min-w-[240px]">
+        {speakers.map((sp) => {
+          const isActive = sp.id === activeId
+          const border = isActive ? brand : `${accentColor}55`
+          const glow = isActive ? `0 0 16px ${brand}66` : 'none'
+          return (
+            <div
+              key={sp.id}
+              className="flex-1 rounded-xl px-3 py-3 text-center"
+              style={{
+                background: 'rgba(15,23,42,0.85)',
+                border: `2px solid ${border}`,
+                boxShadow: glow,
+                transform: isActive ? 'scale(1.05)' : 'scale(1)',
+              }}
+            >
+              <div
+                className="w-8 h-8 rounded-full mx-auto mb-1 flex items-center justify-center text-xs font-black text-white"
+                style={{ background: isActive ? brand : accentColor }}
+              >
+                {sp.monogram}
+              </div>
+              <div className="text-xs font-bold text-white">{sp.name}</div>
+            </div>
+          )
+        })}
+      </div>
+    </Positioned>
+  )
+}
+
 export function MotionGraphicProPreview({ clip, currentTime, primary, accent, embedded, interactive }: ProOverlayProps) {
   const vt = (clip.effects?.visualType ?? '').toLowerCase()
   const common = { clip, currentTime, primary, accent, embedded, interactive }
@@ -751,9 +801,25 @@ export function MotionGraphicProPreview({ clip, currentTime, primary, accent, em
       return <GlassCardProPreview {...common} />
     case 'voice_waveform':
     case 'eq_visualizer':
+    case 'symmetric_audio_strip':
       return <WaveformProPreview {...common} />
     case 'circular_waveform':
+    case 'circular_orbit_equalizer':
       return <CircularWaveProPreview {...common} />
+    case 'kinetic_karaoke':
+      return <KineticTextProPreview {...common} />
+    case 'scribble_annotation':
+      return <CalloutLineProPreview {...common} />
+    case 'vertical_clip_template':
+      return <SocialFrameProPreview clip={clip} currentTime={currentTime} primary={primary} accent={accent} />
+    case 'dynamic_feature_callout':
+      return <CalloutLineProPreview {...common} />
+    case 'metric_ticker':
+      return <StatCounterProPreview {...common} />
+    case 'strategy_funnel':
+      return <FunnelChartProPreview {...common} />
+    case 'active_speaker_split':
+      return <ActiveSpeakerSplitProPreview {...common} />
     case 'subscribe_badge':
     case 'cta_badge':
       return <SubscribeBadgeProPreview {...common} />
@@ -1050,7 +1116,8 @@ function CircularWaveProPreview({ clip, currentTime, primary, accent, embedded }
   const props = readProps(clip)
   const brand = String(props.brandColor ?? primary)
   const accentColor = String(props.accentColor ?? accent)
-  const spokes = 24
+  const spokes = Math.min(48, Math.max(16, Number(props.spokes ?? 24)))
+  const monogram = String(props.monogram ?? 'A').slice(0, 2)
   return (
     <Positioned clip={clip} opacity={enter * exit} embedded={embedded}>
       <svg width={120} height={120} viewBox="0 0 120 120" style={{ filter: `drop-shadow(0 0 12px ${brand}88)` }}>
@@ -1076,6 +1143,9 @@ function CircularWaveProPreview({ clip, currentTime, primary, accent, embedded }
           )
         })}
         <circle cx={60} cy={60} r={14} fill={`${brand}33`} stroke={brand} strokeWidth={2} />
+        <text x={60} y={65} textAnchor="middle" fill={brand} fontSize={14} fontWeight={800}>
+          {monogram}
+        </text>
       </svg>
     </Positioned>
   )

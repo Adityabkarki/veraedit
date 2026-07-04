@@ -17,6 +17,7 @@ import {
 } from "./motionMath";
 import { EXTRA_RENDERERS } from "./elementsExtra";
 import { springConfigForElement, textLayerStyle, hexToRgba } from "./motionBlueprints";
+import { propStrokeColor, propTextColor } from "./propColors";
 import { LineChartScene } from "./compositions/LineChartScene";
 
 interface ElementProps {
@@ -71,6 +72,7 @@ export const AnimatedTitle: React.FC<ElementProps> = ({ el, fontFamily }) => {
   const fontSize = Number(el.props.fontSize ?? 72);
   const cfg = springConfig(el);
   const showStroke = el.props.showAccentStroke !== false;
+  const strokeColor = propStrokeColor(el.props as Record<string, unknown>);
   const strokeProgress = enterProgress(
     Math.max(0, local - el.animation.enterDuration * 0.55),
     el.animation.enterDuration * 0.45,
@@ -114,7 +116,7 @@ export const AnimatedTitle: React.FC<ElementProps> = ({ el, fontFamily }) => {
                   fontWeight: 900,
                   letterSpacing: "-0.02em",
                   color: isLast ? accent : color,
-                  WebkitTextStroke: "4px #000",
+                  WebkitTextStroke: `4px ${strokeColor}`,
                   paintOrder: "stroke fill",
                   transform: `scale(${scale})`,
                   transformOrigin: "left bottom",
@@ -160,6 +162,7 @@ export const KineticText: React.FC<ElementProps> = ({ el, fontFamily }) => {
   const accent = String(el.props.accentColor ?? "#FF6B00");
   const fontSize = Number(el.props.fontSize ?? 76);
   const cfg = springConfig(el);
+  const strokeColor = propStrokeColor(el.props as Record<string, unknown>);
   const gap = interpolate(
     spring({ frame: Math.round(local * fps), fps, config: cfg }),
     [0, 1],
@@ -200,7 +203,7 @@ export const KineticText: React.FC<ElementProps> = ({ el, fontFamily }) => {
                 transformOrigin: "left bottom",
                 display: "inline-block",
                 marginInline: interpolate(pop, [0, 1], [0, 2]),
-                WebkitTextStroke: "3px #000",
+                WebkitTextStroke: `3px ${strokeColor}`,
                 paintOrder: "stroke fill",
               })}
             >
@@ -225,6 +228,7 @@ export const LowerThirdPro: React.FC<ElementProps> = ({ el, fontFamily }) => {
   const brand = String(el.props.brandColor ?? "#3B82F6");
   const title = String(el.props.title ?? "");
   const subtitle = String(el.props.subtitle ?? "");
+  const textColor = propTextColor(el.props as Record<string, unknown>);
   const variant = String(el.props.variant ?? "slide");
   const family = pickFontFamily(title + subtitle, fontFamily);
   const slideX = el.animation.enter === "slide_left" ? interpolate(enter, [0, 1], [-120, 0]) : 0;
@@ -257,9 +261,9 @@ export const LowerThirdPro: React.FC<ElementProps> = ({ el, fontFamily }) => {
           textAlign: "left",
         }}
       >
-        <div style={{ fontSize: 36, fontWeight: 800, color: "#fff" }}>{title}</div>
+        <div style={{ fontSize: 36, fontWeight: 800, color: textColor }}>{title}</div>
         {subtitle && (
-          <div style={{ fontSize: 22, fontWeight: 600, color: "rgba(255,255,255,0.85)", marginTop: 4 }}>
+          <div style={{ fontSize: 22, fontWeight: 600, color: textColor, opacity: 0.85, marginTop: 4 }}>
             {subtitle}
           </div>
         )}
@@ -281,17 +285,19 @@ export const StatCounter: React.FC<ElementProps> = ({ el, fontFamily }) => {
   const suffix = String(el.props.suffix ?? "");
   const label = String(el.props.label ?? "");
   const brand = String(el.props.brandColor ?? "#3B82F6");
+  const textColor = propTextColor(el.props as Record<string, unknown>);
+  const strokeColor = propStrokeColor(el.props as Record<string, unknown>);
   const progress = enterProgress(local, el.animation.enterDuration, "count_up");
   const display = Math.round(target * progress);
 
   return (
     <Positioned el={el} opacity={exit}>
       <div style={{ fontFamily, textAlign: "center" }}>
-        <div style={{ fontSize: 80, fontWeight: 900, color: brand, WebkitTextStroke: "3px #000", paintOrder: "stroke fill" }}>
+        <div style={{ fontSize: 80, fontWeight: 900, color: brand, WebkitTextStroke: `3px ${strokeColor}`, paintOrder: "stroke fill" }}>
           {prefix}{display.toLocaleString()}{suffix}
         </div>
         {label && (
-          <div style={{ fontSize: 24, fontWeight: 700, color: "#fff", marginTop: 8, textTransform: "uppercase", letterSpacing: 2 }}>
+          <div style={{ fontSize: 24, fontWeight: 700, color: textColor, marginTop: 8, textTransform: "uppercase", letterSpacing: 2 }}>
             {label}
           </div>
         )}
@@ -375,12 +381,14 @@ export const ProgressTimer: React.FC<ElementProps> = ({ el, fontFamily }) => {
   const exit = exitProgress(local, duration, el.animation.exitDuration, el.animation.exit);
   const label = String(el.props.label ?? "");
   const brand = String(el.props.brandColor ?? "#3B82F6");
-  const fill = enterProgress(local, duration * 0.9, "fill");
+  const textColor = propTextColor(el.props as Record<string, unknown>);
+  const progressTarget = Number(el.props.progress ?? 1);
+  const fill = enterProgress(local, duration * 0.9, "fill") * progressTarget;
 
   return (
     <div style={{ position: "absolute", left: 48, right: 48, bottom: "8%", opacity: exit }}>
       {label && (
-        <div style={{ fontFamily, fontSize: 18, fontWeight: 700, color: "#fff", marginBottom: 8 }}>{label}</div>
+        <div style={{ fontFamily, fontSize: 18, fontWeight: 700, color: textColor, marginBottom: 8 }}>{label}</div>
       )}
       <div style={{ height: 8, background: "rgba(255,255,255,0.2)", borderRadius: 4, overflow: "hidden" }}>
         <div style={{ width: `${fill * 100}%`, height: "100%", background: brand, borderRadius: 4 }} />
@@ -560,6 +568,7 @@ export const EndCard: React.FC<ElementProps> = ({ el, fontFamily }) => {
   const subtitle = String(el.props.subtitle ?? "");
   const handle = String(el.props.handle ?? "");
   const brand = String(el.props.brandColor ?? "#3B82F6");
+  const textColor = propTextColor(el.props as Record<string, unknown>);
   const family = pickFontFamily(title, fontFamily);
   const translateY = interpolate(rise, [0, 1], [60, 0]);
 
@@ -574,9 +583,9 @@ export const EndCard: React.FC<ElementProps> = ({ el, fontFamily }) => {
       }}
     >
       <div style={{ fontFamily: family, textAlign: "center" }}>
-        <div style={{ fontSize: 56, fontWeight: 900, color: "#fff" }}>{title}</div>
+        <div style={{ fontSize: 56, fontWeight: 900, color: textColor }}>{title}</div>
         {subtitle && (
-          <div style={{ fontSize: 28, fontWeight: 600, color: "rgba(255,255,255,0.85)", marginTop: 12 }}>
+          <div style={{ fontSize: 28, fontWeight: 600, color: textColor, opacity: 0.85, marginTop: 12 }}>
             {subtitle}
           </div>
         )}
@@ -1084,6 +1093,7 @@ export const GuestIntro: React.FC<ElementProps> = ({ el, fontFamily }) => {
   const label = String(el.props.label ?? "GUEST");
   const brand = String(el.props.brandColor ?? "#3B82F6");
   const accent = String(el.props.accentColor ?? "#FFD600");
+  const textColor = propTextColor(el.props as Record<string, unknown>);
   const family = pickFontFamily(title, fontFamily);
   const y = interpolate(enter, [0, 1], [40, 0]);
 
@@ -1091,8 +1101,8 @@ export const GuestIntro: React.FC<ElementProps> = ({ el, fontFamily }) => {
     <Positioned el={el} opacity={enter * exit} transform={`translateY(${y}px)`}>
       <div style={{ fontFamily: family, textAlign: "center", background: "rgba(15,23,42,0.75)", padding: "28px 40px", borderRadius: 16, border: `2px solid ${brand}66`, minWidth: 320 }}>
         <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: 3, color: accent, marginBottom: 10 }}>{label}</div>
-        <div style={{ fontSize: 44, fontWeight: 900, color: "#fff" }}>{title}</div>
-        {subtitle && <div style={{ fontSize: 22, fontWeight: 600, color: "rgba(255,255,255,0.85)", marginTop: 8 }}>{subtitle}</div>}
+        <div style={{ fontSize: 44, fontWeight: 900, color: textColor }}>{title}</div>
+        {subtitle && <div style={{ fontSize: 22, fontWeight: 600, color: textColor, opacity: 0.85, marginTop: 8 }}>{subtitle}</div>}
       </div>
     </Positioned>
   );

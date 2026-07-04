@@ -25,6 +25,7 @@ import { AnimatedAt, useElementAnimation } from "./animated";
 import { interpolateCard3D } from "./transform3d";
 import { LineChartScene } from "./compositions/LineChartScene";
 import { GlitchScene } from "./compositions/GlitchScene";
+import { ATOMIC_RENDERERS } from "./components/adapters";
 
 interface ElementProps {
   el: MotionElement;
@@ -1205,6 +1206,7 @@ export const GeometricPattern: React.FC<ElementProps> = ({ el }) => {
 };
 
 export const EXTRA_RENDERERS: Record<string, React.FC<ElementProps>> = {
+  // Legacy fallbacks (overridden by ATOMIC_RENDERERS for pillar types)
   eq_visualizer: EqVisualizer,
   circular_waveform: CircularWaveform,
   social_frame: SocialFrame,
@@ -1232,4 +1234,6 @@ export const EXTRA_RENDERERS: Record<string, React.FC<ElementProps>> = {
   hud_grid: HudGrid,
   hud_loader: HudLoader,
   geometric_pattern: GeometricPattern,
+  // Atomic pillar library (skills.md) — wins on key collision
+  ...ATOMIC_RENDERERS,
 };

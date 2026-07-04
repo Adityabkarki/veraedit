@@ -10,17 +10,121 @@ overlays (never generative video). Preview uses the same `motionMath` timing.
 ## Architecture
 
 ```
-✨ Magic Mode one-tap presets (Podcast · Consultancy · Product · Explainer)
+✨ Magic Mode one-tap presets (Podcast · Consultancy · Social · Product Showcase)
        │
        ▼
 prepare_motion_assets() → direct_motion_plan() → validate_motion_plan()
        │   content-type package rules + preferred component lists
+       │   thin LLM plans fall back to build_atomic_preset_plan()
        ▼
 Timeline overlay clips → Remotion (:3500) transparent WebM → FFmpeg composite
        │
        ▼
-Final MP4 (preview-to-export fidelity)
+   Final MP4 (preview-to-export fidelity)
 ```
+
+---
+
+## Theming (Brand Theme Token System)
+
+Visual identity is **decoupled from component logic**. Every atomic component reads
+colors, fonts, glass variants, and logo from a resolved `ThemeToken` via
+`ThemeProvider` / `useTheme()` — never hardcoded hex or font-family strings.
+
+### Token shape
+
+`remotion-service/src/types/theme-tokens.ts` — `ThemeToken` + `DEFAULT_THEME`.
+
+| Field | Purpose |
+|-------|---------|
+| `identity.brandName` / `logoUrl` | Wordmark fallback when no logo |
+| `colors.*` | `primary`, `secondary`, `accent`, `background`, `surface` + derived `on*` |
+| `typography.*` | `headingFont`, `bodyFont`, `devanagariFont`, `weightScale` |
+| `motion.defaultCurve` | Brand default physics curve (karaoke/showcase override per manifest) |
+| `glass.*` | `surfaceOpacity`, `borderOpacity`, `blurStrength` for glassmorphic atoms |
+| `meta` | `source`, `sourceUrl`, `resolvedAt` — theme resolved once upstream |
+
+### Resolution paths (Node / build-time only — never inside Remotion render)
+
+| Path | Entry | Output |
+|------|-------|--------|
+| **Brand Kit** | `brandKitToTheme()` — editor Brand tab colors + logo text | `ThemeToken` via `resolveManualTheme()` → `deriveTokens()` |
+| **Manual** | `resolveManualTheme()` — onboarding form colors + curated font pairing | `ThemeToken` via `deriveTokens()` |
+| **Scraped** | `resolveScrapedTheme(url)` — HTML meta/theme-color/og:image + font mapping | Same shape; explicit fallback if extraction fails |
+
+Editor Brand Kit (`visualLibraryStore.brandKit`) syncs through `brandKitToTheme()` / API `POST /motion-graphics/resolve-theme`. Magic Mode sends `brand_kit` on the plan; export metadata includes both `brand_kit` and resolved `theme`.
+
+Pipeline files: `src/lib/theme/{deriveTokens,resolveTheme,migrateTheme,themeSchema}.ts`  
+Provider: `src/motion/components/theme/ThemeProvider.tsx`
+
+### Example scraped theme
+
+Input URL with `<meta name="theme-color" content="#2563EB">` and Roboto body font:
+
+- **Before (DEFAULT_THEME):** dark `#0B1120` plate, sky `#0EA5E9` primary, orange `#F97316` accent
+- **After (scraped):** `primary: #2563EB`, mapped Poppins/Roboto pairing, `meta.source: scraped`
+
+Preview side-by-side: Remotion compositions `PodcastPillarPreview` vs `PodcastPillarPreviewLight`
+(same atoms, `TEST_LIGHT_THEME` with `#F1F5F9` background + rose `#E11D48` accent).
+
+Saved projects: run `migrateTheme(storedTheme)` before `ThemeProvider` (handles legacy
+`brandColor` / `accentColor` v0 JSON).
+
+---
+
+## Atomic pillar library (Jitter-style)
+
+Canonical atoms: `remotion-service/src/motion/components/{podcast,consultancy,social,showcase}/`  
+Presets: `remotion-service/src/motion/components/presets/`
+
+### Pillar 1 — Podcast
+| type | Component | Notes |
+|------|-----------|-------|
+| `active_speaker_split` | ActiveSpeakerSplitCards | Flex dual cards, `activeSpeakerId` highlight |
+| `symmetric_audio_strip` | SymmetricAudioStrip | Center-out EQ, bottom-third anchor |
+| `circular_orbit_equalizer` | CircularOrbitEqualizer | Radial bars + profile mask |
+| `eq_visualizer` | (alias → symmetric_audio_strip) | Legacy type id |
+
+### Pillar 2 — Consultancy
+| type | Component | Notes |
+|------|-----------|-------|
+| `strategy_funnel` | StrategyFunnel | SVG trapezoid self-draw |
+| `metric_ticker` | GlassmorphicMetricTicker | Glass count-up + trend arrow |
+| `corporate_timeline` | CorporateTimelineRoadmap | Axis strokeDashoffset + nodes |
+| `glass_card` | (alias → metric_ticker) | Legacy type id |
+
+### Pillar 3 — Social
+| type | Component | Notes |
+|------|-----------|-------|
+| `vertical_clip_template` | VerticalClipTemplate | 9:16 safe zones |
+| `kinetic_karaoke` | KineticKaraokeText | Word nodes + snappy_spring |
+| `scribble_annotation` | ScribbleAnnotation | Self-tracing SVG arrows/circles |
+| `social_frame` | (alias → vertical_clip_template) | Legacy type id |
+
+### Pillar 4 — Product Showcase
+| type | Component | Notes |
+|------|-----------|-------|
+| `device_mockup` | DeviceMockup3D | 3-layer chassis/screen/glass |
+| `dynamic_feature_callout` | DynamicFeatureCallout | Dot → line → card chain |
+| `feature_callout` / `callout_line` | (aliases) | Legacy type ids |
+
+---
+
+## One-tap atomic presets (Step 4)
+
+| Preset | Forced curve | Atoms injected | Canvas |
+|--------|--------------|----------------|--------|
+| **Podcast** | elegant_glide | split cards + orbit EQ + audio strip + L3 | 1920×1080 |
+| **Consultancy** | elegant_glide | title + funnel + metric + timeline + progress | 1920×1080 |
+| **Social** | snappy_spring | vertical template + karaoke + scribble | 1080×1920 |
+| **Product Showcase** | elastic_overshoot | 3D device + 2× feature callouts | 1920×1080 |
+
+**Usage:** Effects → Motion → One-tap styles → tap preset. Backend uses
+`build_atomic_preset_plan()` when a one-tap atomic preset is selected or when the
+LLM plan is too thin.
+
+Remotion preview compositions: `PodcastPresetPreview`, `ConsultancyPresetPreview`,
+`SocialPresetPreview`, `ProductShowcasePresetPreview`.
 
 ---
 
@@ -124,10 +228,11 @@ emulating open-source Remotion ecosystem patterns:
 
 | Blueprint | Architecture | Ecosystem reference | Spring profile |
 |-----------|--------------|---------------------|----------------|
-| **A — Audio** | Bottom-docked flex of pill bars / circular SVG ring; `sin(frame)` heights; glow | — | Social: mass 0.5, damping 10, stiffness 150 |
-| **B — Device** | Chassis + overflow screen + glass reflection; `interpolateCard3D` (perspective + rotateY/X) | `av/remotion-bits` 3D cards | Product: mass 0.7, damping 14, stiffness 160 |
-| **C — Infographic** | Standalone `LineChartScene` / timeline SVG; `strokeDashoffset` self-draw | `lifeprompt-team/remotion-scenes` | Corporate: mass 1.0, damping 25, stiffness 80 |
-| **D — Glass** | `backdrop-blur`, `bg-slate-900/40`, `border-white/20` floating card | — | Corporate glide |
+| **A — Audio** | Bottom-docked flex / circular SVG ring; seeded sin heights | — | elegant_glide (corporate) |
+| **B — Device** | Chassis + overflow screen + glass; `interpolateCard3D` | `av/remotion-bits` | elastic_overshoot (product) |
+| **C — Infographic** | SVG self-draw via strokeDashoffset | `lifeprompt-team/remotion-scenes` | elegant_glide (corporate) |
+| **D — Glass** | backdrop-blur glassmorphic cards | — | elegant_glide (corporate) |
+| **E — Social** | Karaoke word nodes + scribble SVG | remotion-animated philosophy | snappy_spring (social) |
 
 **Declarative animation** (`motion/animated.tsx`): Call-outs and karaoke captions use
 `Animated` / `AnimatedAt` (philosophy of `stefanwittwer/remotion-animated`) so
@@ -156,7 +261,8 @@ graphic, and a success message says “Press play to preview.”
 | **Auto** | auto-detect | Best package from transcript keywords |
 | **Podcast** | podcast | Guest intro, broadcast L3, EQ, soundbites, subscribe |
 | **Interview** | podcast | Sparse guest/host plates + soundbites |
-| **Social Reel** | podcast | 9:16 frame, karaoke captions, subscribe CTA |
+| **Social Reel** | social | 9:16 template, karaoke, scribbles |
+| **Social** | social | Same atomic stack, snappy_spring |
 | **Consultancy** | consultancy | Glass UI, timelines, charts, authority |
 | **Pitch Deck** | consultancy | Stats, funnel, authority, CTA |
 | **Product** | product | Device mockup, features, offers |
@@ -250,6 +356,8 @@ an empty or thin plan.
 | Layer | Path |
 |-------|------|
 | Spec | `.claude/skills/viraedit/references/motion-graphics.md` |
+| Atomic atoms | `remotion-service/src/motion/components/` |
+| Presets | `remotion-service/src/motion/components/presets/` |
 | Remotion core | `remotion-service/src/motion/elements.tsx` |
 | Remotion packs | `remotion-service/src/motion/elementsExtra.tsx` |
 | Backend | `apps/api/services/motion_graphics_service.py` |

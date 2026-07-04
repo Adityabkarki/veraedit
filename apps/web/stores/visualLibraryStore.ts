@@ -24,6 +24,8 @@ import {
   removeVisualFromTimeline,
   updateVisualOnTimeline,
 } from '@/lib/visualTimelineSync'
+import { setPreviewBrandTheme } from '@/lib/brandPreviewTheme'
+import { syncMotionClipsToBrandKit } from '@/lib/syncMotionClipsToBrandKit'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -301,17 +303,27 @@ export const useVisualLibraryStore = create<VisualLibraryState>()(
       setSearchQuery:     (q)    => set({ searchQuery: q }),
 
       setBrandKit: (updates) =>
-        set((s) => ({ brandKit: { ...s.brandKit, ...updates } })),
-
-      applyBrandToAll: () =>
         set((s) => {
-          // Re-colour placed overlays with brand primary colour
-          const updated = s.placedOverlays.map((o) => ({
+          const brandKit = { ...s.brandKit, ...updates }
+          setPreviewBrandTheme({
+            primary: brandKit.primaryColor || '#C41E3A',
+            accent: brandKit.accentColor || '#F59E0B',
+            secondary: brandKit.secondaryColor || '#111113',
+          })
+          return { brandKit }
+        }),
+
+      applyBrandToAll: () => {
+        const s = get()
+        syncMotionClipsToBrandKit(s.brandKit)
+        set({
+          placedOverlays: s.placedOverlays.map((o) => ({
             ...o,
             color: s.brandKit.primaryColor,
-          }))
-          return { placedOverlays: updated, brandApplied: true }
-        }),
+          })),
+          brandApplied: true,
+        })
+      },
 
       insertTemplate: (templateId, startTime) => {
         insertVisualTemplateAt(templateId, startTime)

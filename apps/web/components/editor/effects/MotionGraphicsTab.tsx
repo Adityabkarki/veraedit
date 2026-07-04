@@ -8,6 +8,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { useTimelineStore, type Clip } from '@/stores/timelineStore'
+import { brandKitToApiPayload, resolveBrandKitTheme } from '@/lib/brandKitTheme'
 import { useVisualLibraryStore } from '@/stores/visualLibraryStore'
 import { useTranscriptStore } from '@/stores/transcriptStore'
 import {
@@ -74,7 +75,8 @@ export function MotionGraphicsTab() {
   const playheadTime = useTimelineStore((s) => s.playheadTime)
   const clips = useTimelineStore((s) => s.clips)
   const tracks = useTimelineStore((s) => s.tracks)
-  const brandColor = useVisualLibraryStore((s) => s.brandKit.primaryColor) || '#3B82F6'
+  const brandKit = useVisualLibraryStore((s) => s.brandKit)
+  const brandColor = brandKit.primaryColor || '#C41E3A'
   const [category, setCategory] = useState('all')
   const [lastAdded, setLastAdded] = useState<string | null>(null)
 
@@ -219,13 +221,19 @@ export function MotionGraphicsTab() {
           transcript_segments: segments,
           video_duration: duration,
           brand_color: brandColor,
+          brand_kit: brandKitToApiPayload(brandKit),
           content_type: presetMeta.package === 'auto' ? 'auto' : presetMeta.package,
           max_elements: presetMeta.maxElements,
           style: 'vox',
         })
 
+        const planWithTheme = {
+          ...(result.plan as MotionPlanLike),
+          theme: (result.plan as { theme?: unknown }).theme ?? resolveBrandKitTheme(brandKit),
+        }
+
         applyMotionPlan(
-          result.plan as MotionPlanLike,
+          planWithTheme,
           presetMeta.label,
           result.summary?.types,
         )
@@ -239,7 +247,7 @@ export function MotionGraphicsTab() {
         setActivePresetId(null)
       }
     },
-    [applyMotionPlan, brandColor, clips, magicDensity, magicPrompt, showAdvanced],
+    [applyMotionPlan, brandColor, brandKit, clips, magicDensity, magicPrompt, showAdvanced],
   )
 
   const filtered = useMemo(
