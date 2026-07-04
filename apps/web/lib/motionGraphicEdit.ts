@@ -8,21 +8,24 @@ import { getMotionGraphicDef } from '@/lib/motionGraphicsLibrary'
 
 /** Types that use x/y placement and canvas drag (via PositionedOverlay). */
 export const POSITIONABLE_MOTION_TYPES = new Set([
-  'animated_title',
-  'kinetic_text',
-  'stat_counter',
-  'quote_callout',
-  'cta_badge',
-  'arrow_callout',
-  'particle_burst',
-  'lower_third_pro',
+  'animated_title', 'kinetic_text', 'kinetic_line', 'karaoke_caption',
+  'stat_counter', 'quote_callout', 'soundbite', 'cta_badge', 'subscribe_badge',
+  'arrow_callout', 'callout_line', 'doodle_scribble', 'particle_burst',
+  'lower_third_pro', 'broadcast_lower_third', 'name_plate', 'guest_intro',
+  'chapter_marker', 'voice_waveform', 'eq_visualizer', 'circular_waveform',
+  'bar_chart', 'line_chart', 'comparison_chart', 'pie_chart', 'funnel_chart',
+  'map_pin', 'accent_stroke', 'data_reveal', 'timeline_flow', 'corporate_timeline',
+  'authority_badge', 'product_highlight', 'feature_callout', 'price_popup',
+  'before_after', 'device_mockup', 'glass_card', 'liquid_blob', 'icon_pop',
+  'parallax_slide', 'collage_frame', 'hud_loader',
 ])
 
 /** Full-frame types — no x/y placement. */
 export const FULLSCREEN_MOTION_TYPES = new Set([
-  'end_card',
-  'background_gradient',
-  'shape_transition',
+  'end_card', 'background_gradient', 'background_shader', 'texture_bg',
+  'geometric_pattern', 'shape_transition', 'pro_wipe', 'whip_transition',
+  'zoom_transition', 'halftone', 'focus_frame', 'product_reveal', 'social_frame',
+  'split_screen', 'grid_layout', 'glitch_overlay', 'paper_rip', 'hud_grid',
 ])
 
 /** Bottom-anchored bar types. */
@@ -54,6 +57,13 @@ export const MOTION_ANIMATION_LABELS: Record<string, string> = {
   wipe: 'Wipe',
   draw: 'Draw',
   rise: 'Rise',
+  grow: 'Grow',
+  drop: 'Drop',
+  spring_in: 'Spring in',
+  stroke_draw: 'Stroke draw',
+  reveal: 'Reveal',
+  pulse_in: 'Pulse in',
+  scale_out: 'Scale out',
 }
 
 export const POSITION_PRESETS: Array<{

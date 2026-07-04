@@ -341,6 +341,67 @@ export function MotionGraphicsEditPanel() {
               onChange={(v) => patchProp('angle', v)}
             />
           )}
+
+          {(vt === 'bar_chart' || vt === 'line_chart') && (
+            <>
+              <TextInput
+                label="Chart title"
+                testId="mg-edit-chart-title"
+                value={String(props.title ?? '')}
+                onChange={(v) => patch({ displayValue: v, motionProps: { title: v } })}
+              />
+              <TextInput
+                label="Labels (comma-separated)"
+                testId="mg-edit-chart-labels"
+                value={Array.isArray(props.labels) ? (props.labels as string[]).join(', ') : ''}
+                placeholder="A, B, C"
+                onChange={(v) =>
+                  patchProp(
+                    'labels',
+                    v.split(',').map((s) => s.trim()).filter(Boolean),
+                  )
+                }
+              />
+              <TextInput
+                label="Values (comma-separated)"
+                testId="mg-edit-chart-values"
+                value={Array.isArray(props.values) ? (props.values as number[]).join(', ') : ''}
+                placeholder="40, 70, 55"
+                onChange={(v) =>
+                  patchProp(
+                    'values',
+                    v
+                      .split(',')
+                      .map((s) => Number(s.trim()))
+                      .filter((n) => Number.isFinite(n)),
+                  )
+                }
+              />
+              <TextInput
+                label="Unit"
+                value={String(props.unit ?? '')}
+                placeholder="%"
+                onChange={(v) => patchProp('unit', v)}
+              />
+            </>
+          )}
+
+          {vt === 'map_pin' && (
+            <>
+              <TextInput
+                label="Location"
+                testId="mg-edit-map-label"
+                value={String(props.label ?? clip.effects?.displayValue ?? '')}
+                onChange={(v) => patch({ displayValue: v, motionProps: { label: v } })}
+              />
+              <TextInput
+                label="Region / country"
+                testId="mg-edit-map-sublabel"
+                value={String(props.sublabel ?? clip.effects?.secondaryText ?? '')}
+                onChange={(v) => patch({ secondaryText: v, motionProps: { sublabel: v } })}
+              />
+            </>
+          )}
         </section>
 
         {/* ── Animation ── */}
@@ -515,7 +576,7 @@ export function MotionGraphicsEditPanel() {
             </>
           )}
 
-          {(vt === 'background_gradient') && (
+          {(vt === 'background_gradient' || vt === 'background_shader') && (
             <>
               <ColorInput
                 label="Gradient start"
@@ -527,6 +588,13 @@ export function MotionGraphicsEditPanel() {
                 value={String(props.colorB ?? '#3B82F6')}
                 onChange={(v) => patchProp('colorB', v)}
               />
+              {vt === 'background_shader' && (
+                <ColorInput
+                  label="Highlight"
+                  value={String(props.colorC ?? '#3B82F6')}
+                  onChange={(v) => patchProp('colorC', v)}
+                />
+              )}
             </>
           )}
 
@@ -538,7 +606,15 @@ export function MotionGraphicsEditPanel() {
             />
           )}
 
-          {!['animated_title', 'kinetic_text', 'cta_badge', 'background_gradient', 'shape_transition'].includes(vt) && (
+          {(vt === 'bar_chart' || vt === 'line_chart' || vt === 'map_pin') && (
+            <ColorInput
+              label="Accent color"
+              value={String(props.accentColor ?? '#FFD600')}
+              onChange={(v) => patchProp('accentColor', v)}
+            />
+          )}
+
+          {!['animated_title', 'kinetic_text', 'cta_badge', 'background_gradient', 'background_shader', 'shape_transition'].includes(vt) && (
             <ColorInput
               label="Brand color"
               testId="mg-edit-brand"

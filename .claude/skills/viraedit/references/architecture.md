@@ -127,12 +127,20 @@ Output video → S3 → User download
 
 ---
 
-## Remotion + Motion Graphics Pipeline (Phase 11)
+## Remotion + Motion Graphics Pipeline (Code-as-Video)
 
-Animated typography and pro motion graphics use a **dual-layer render**:
+VOX-style motion graphics use a **Code-as-Video** pipeline: the AI Director
+writes structured Motion Plan JSON; Remotion renders sharp programmatic
+overlays (never generative video). Full spec: `references/motion-graphics.md`.
 
 ```
-Timeline overlay clips (visual_type = animated_title | kinetic_text | …)
+✨ Magic VOX / manual library
+       │
+       ▼
+prepare_motion_assets() → direct_motion_plan() → validate_motion_plan()
+       │
+       ▼
+Timeline overlay clips (visual_type = animated_title | bar_chart | map_pin | …)
        │
        ▼
 motion_graphics_service.plan_from_timeline_clips()
@@ -152,13 +160,11 @@ Final export (same plan JSON drives CSS preview in editor)
 |-------|----------------|
 | **Next.js preview** | `MotionGraphicsProOverlays` + `motionMath.ts` — CSS approximations at playhead |
 | **Remotion service** | `remotion-service/src/motion/` — canonical frame render |
-| **FastAPI** | `services/motion_graphics_service.py` — registry, validate, AI suggest |
+| **FastAPI** | `motion_graphics_service` — 62-type registry, director, assets, validate |
 | **FFmpeg** | Cuts, reframe, audio, b-roll — unchanged from Phase 9 |
 
 Port **3500** is internal only (API → Remotion). Captions still use
 `/render-captions` from Phase 9; motion graphics use `/render-motion-graphics`.
-
-See `references/motion-graphics.md` for the full component library and JSON schema.
 
 ---
 

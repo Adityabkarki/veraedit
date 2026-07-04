@@ -1,22 +1,14 @@
 import React from "react";
 import { Composition } from "remotion";
-import { loadFont as loadMontserrat } from "@remotion/google-fonts/Montserrat";
-import { loadFont as loadNotoDevanagari } from "@remotion/google-fonts/NotoSansDevanagari";
 import { CaptionComposition } from "./CaptionComposition";
 import { TitleCardComposition } from "./TitleCardComposition";
 import { LowerThirdComposition } from "./LowerThirdComposition";
 import { MotionGraphicsComposition } from "./motion/MotionGraphicsComposition";
 import type { MotionPlan } from "./motion/types";
+import { FONT_DISPLAY, FONT_DEVANAGARI } from "./motion/fonts";
 
-const { fontFamily: montserratFamily } = loadMontserrat("normal", {
-  weights: ["700", "800"],
-  subsets: ["latin"],
-});
-
-const { fontFamily: notoFamily } = loadNotoDevanagari("normal", {
-  weights: ["700"],
-  subsets: ["devanagari"],
-});
+const montserratFamily = FONT_DISPLAY;
+const notoFamily = FONT_DEVANAGARI;
 
 export const RemotionRoot: React.FC = () => (
   <>

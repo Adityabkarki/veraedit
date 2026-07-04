@@ -157,6 +157,12 @@ function parseEffects(apiClip: ApiTimelineClip): ClipEffects | undefined {
       if (p.motion_exit) result.motionExit = String(p.motion_exit)
       if (p.motion_enter_duration != null) result.motionEnterDuration = Number(p.motion_enter_duration)
       if (p.motion_exit_duration != null) result.motionExitDuration = Number(p.motion_exit_duration)
+      if (p.motion_spring && typeof p.motion_spring === 'object') {
+        result.motionSpring = p.motion_spring as ClipEffects['motionSpring']
+      }
+      if (p.motion_animation && typeof p.motion_animation === 'object') {
+        result.motionAnimation = p.motion_animation as ClipEffects['motionAnimation']
+      }
       if (p.motion_props && typeof p.motion_props === 'object') {
         result.motionProps = p.motion_props as Record<string, unknown>
       }
@@ -419,6 +425,8 @@ function buildApiClip(c: Clip, primaryAssetId: string): ApiTimelineClip {
         motion_exit:      c.effects?.motionExit,
         motion_enter_duration: c.effects?.motionEnterDuration,
         motion_exit_duration:  c.effects?.motionExitDuration,
+        motion_spring:    c.effects?.motionSpring,
+        motion_animation: c.effects?.motionAnimation,
         motion_props:     c.effects?.motionProps,
         brand_color:      c.effects?.brandColor,
         chart_as_broll:   c.effects?.chartAsBroll,

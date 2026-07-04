@@ -115,6 +115,14 @@ export interface ClipEffects {
   motionExit?: string
   motionEnterDuration?: number
   motionExitDuration?: number
+  motionSpring?: { damping?: number; stiffness?: number; mass?: number }
+  motionAnimation?: {
+    enter?: string
+    exit?: string
+    enterDuration?: number
+    exitDuration?: number
+    spring?: { damping?: number; stiffness?: number; mass?: number }
+  }
   motionProps?: Record<string, unknown>
   brandColor?: string
   accentColor?: string

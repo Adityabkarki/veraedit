@@ -1,3 +1,9 @@
+export interface SpringConfig {
+  damping: number;
+  stiffness: number;
+  mass: number;
+}
+
 export interface MotionElement {
   id: string;
   type: string;
@@ -9,6 +15,7 @@ export interface MotionElement {
     exit: string;
     enterDuration: number;
     exitDuration: number;
+    spring?: SpringConfig;
   };
   props: Record<string, unknown>;
 }
