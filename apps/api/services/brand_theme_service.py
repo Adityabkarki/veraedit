@@ -110,6 +110,14 @@ def brand_kit_to_theme(kit: dict[str, Any]) -> dict[str, Any]:
         },
         "motion": {"defaultCurve": "elegant_glide"},
         "glass": glass,
+        "grade": {
+            "contrast": 0.05,
+            "saturation": -0.1,
+            "warmth": -0.05,
+            "vignetteIntensity": 0.0,
+            "grainIntensity": 0.0,
+            "blendMode": "normal",
+        },
         "meta": {
             "source": "manual",
             "resolvedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),

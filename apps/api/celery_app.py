@@ -62,6 +62,7 @@ celery_app = Celery(
         "tasks.broll_generation",
         "tasks.proxy_tasks",
         "tasks.audio_analysis_task",
+        "tasks.multicam_sync",
     ],
 )
 

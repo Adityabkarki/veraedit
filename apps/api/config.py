@@ -109,6 +109,14 @@ class Settings(BaseSettings):
     # When true, search Pexels first; AI image gen is fallback only.
     BROLL_PREFER_STOCK: bool = Field(default=False)
 
+    # ── Speaker diarization (pyannote.audio) ───────────────────────────────────
+    HUGGINGFACE_TOKEN: str = Field(default="")
+    HF_TOKEN: str = Field(default="")  # alias accepted by pyannote
+    DIARIZATION_ENABLED: bool = Field(default=True)
+    PYANNOTE_DIARIZATION_MODEL: str = Field(
+        default="pyannote/speaker-diarization-3.1",
+    )
+
     # ── AI Budget ─────────────────────────────────────────────────────────────
     AI_COST_LIMIT_USD_PER_HOUR: float = Field(default=2.00)  # hard limit
     AI_COST_WARN_USD_PER_HOUR: float = Field(default=1.60)   # warning threshold

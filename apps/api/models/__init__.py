@@ -8,6 +8,7 @@ from .asset import Asset, AssetStatus, MediaType
 from .asset_library import LibraryAsset
 from .brand import Brand
 from .cost import Cost
+from .director_timeline import DirectorTimelineRecord
 from .embedding import Embedding, EMBEDDING_DIM
 from .project import ContentType, EditorMode, Project, ProjectStatus
 from .project_media import ProjectMedia
@@ -35,6 +36,7 @@ __all__ = [
     "LibraryAsset",
     "Brand",
     "Cost",
+    "DirectorTimelineRecord",
     "Embedding",
     "EMBEDDING_DIM",
     "ContentType",

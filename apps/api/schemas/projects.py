@@ -28,6 +28,10 @@ class ProjectUpdateRequest(BaseModel):
     description: Optional[str] = Field(None, max_length=2000)
     content_type: Optional[ContentType] = None
     editor_mode: Optional[EditorMode] = None
+    settings: Optional[dict] = Field(
+        None,
+        description="Project settings JSON (merged with existing). useDirectorEngine gates the Director pipeline.",
+    )
 
 
 class ProjectResponse(BaseModel):
@@ -38,5 +42,6 @@ class ProjectResponse(BaseModel):
     content_type: ContentType
     editor_mode: EditorMode
     status: ProjectStatus
+    settings: Optional[dict] = None
 
     model_config = {"from_attributes": True}

@@ -97,12 +97,24 @@ def insert_silence_blocks(words: list[dict], min_gap: float = SILENCE_BLOCK_MIN)
 def enrich_transcript_for_storage(
     words: list[dict],
     segments: list[dict] | None = None,
+    *,
+    diarization_segments: list[dict] | None = None,
+    diarization_source: str = "heuristic",
 ) -> tuple[list[dict], list[dict]]:
     """Full enrichment pipeline for DB persistence."""
     from tasks.nepali_postprocess import postprocess_transcript_words
 
     cleaned = postprocess_transcript_words(words)
     with_conf = attach_word_confidence(cleaned, segments)
-    with_speakers, speakers = assign_speakers_pause_based(with_conf)
+
+    if diarization_segments:
+        from services.diarization.pyannote_diarizer import assign_speakers_from_diarization
+
+        with_speakers, speakers = assign_speakers_from_diarization(with_conf, diarization_segments)
+    else:
+        with_speakers, speakers = assign_speakers_pause_based(with_conf)
+        for speaker in speakers:
+            speaker["diarizationSource"] = diarization_source
+
     final = insert_silence_blocks(with_speakers)
     return final, speakers

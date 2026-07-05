@@ -26,7 +26,7 @@ from config import settings
 from exceptions import ViraEditError
 from logging_config import configure_logging
 from middleware import LanguageDetectionMiddleware, LoggingMiddleware, RequestIDMiddleware
-from routers import asset_library, assets, auth, ai_spend, broll, captions, chapters, costs, gap_resolution, health, ingest, motion_graphics, platform_shorts, project_media, projects, renders, sfx, shorts, sizzle, style_clone, style_intelligence, styles, tasks, template_render, templates, text_editor, timelines
+from routers import asset_library, assets, auth, ai_spend, broll, captions, chapters, costs, director, director_timeline, gap_resolution, health, ingest, motion_graphics, platform_shorts, project_media, projects, renders, sfx, shorts, sizzle, style_clone, style_intelligence, styles, tasks, template_render, templates, text_editor, timelines
 from ws.forwarder import run_redis_forwarder
 from ws.manager import ws_manager
 from ws.router import router as ws_router
@@ -367,6 +367,8 @@ app.include_router(style_clone.router)
 app.include_router(style_intelligence.router)
 app.include_router(captions.router)
 app.include_router(motion_graphics.router)
+app.include_router(director.router)
+app.include_router(director_timeline.router)
 app.include_router(text_editor.router)
 app.include_router(timelines.router)
 app.include_router(styles.router)

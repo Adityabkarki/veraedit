@@ -216,9 +216,11 @@ async def confirm_asset_upload(
         file_size=asset.file_size,
     )
 
-    from services.asset_pipeline import queue_post_upload_tasks
+    from services.asset_pipeline import queue_post_upload_tasks, queue_multicam_sync_if_needed
 
     queue_post_upload_tasks(asset)
+    if asset.media_type == MediaType.VIDEO:
+        queue_multicam_sync_if_needed(project_id)
 
     return AssetResponse.model_validate(asset)
 

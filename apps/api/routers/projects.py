@@ -123,6 +123,10 @@ async def update_project(
         project.content_type = body.content_type
     if body.editor_mode is not None:
         project.editor_mode = body.editor_mode
+    if body.settings is not None:
+        merged = dict(project.settings or {})
+        merged.update(body.settings)
+        project.settings = merged
 
     await db.commit()
     await db.refresh(project)

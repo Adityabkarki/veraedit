@@ -282,3 +282,82 @@ async def remotion_service_healthy() -> bool:
             return resp.status_code == 200 and resp.json().get("ok") is True
     except Exception:
         return False
+
+
+async def compile_director_timeline(payload: dict[str, Any]) -> dict[str, Any]:
+    """
+    Call remotion-service POST /director/compile → runDirector() → DirectorTimeline.
+    """
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(
+            connect=5.0,
+            read=120.0,
+            write=30.0,
+            pool=5.0,
+        )
+    ) as client:
+        resp = await client.post(
+            f"{settings.REMOTION_SERVICE_URL.rstrip('/')}/director/compile",
+            json=payload,
+        )
+        resp.raise_for_status()
+        result = resp.json()
+        if not result.get("success"):
+            raise RuntimeError(
+                f"Director compile failed: {result.get('error', 'unknown error')}"
+            )
+        timeline = result.get("timeline")
+        if not isinstance(timeline, dict):
+            raise RuntimeError("Director compile returned no timeline payload.")
+        return timeline
+
+
+async def render_director_export(
+    timeline: dict[str, Any],
+    *,
+    output_path: str,
+    asset_urls: dict[str, str] | None = None,
+    primary_video_src: str | None = None,
+    dialogue_src: str | None = None,
+    camera_feeds: list[dict[str, Any]] | None = None,
+    sfx_urls: dict[str, str] | None = None,
+    font_family: str = "Montserrat",
+) -> str:
+    """Render a full Director timeline via remotion-service POST /render-director."""
+    payload = {
+        "timeline": timeline,
+        "assetUrls": asset_urls or {},
+        "primaryVideoSrc": primary_video_src,
+        "dialogueSrc": dialogue_src,
+        "cameraFeeds": camera_feeds or [],
+        "sfxUrls": sfx_urls or {},
+        "fontFamily": font_family,
+        "outputPath": output_path,
+        "fps": timeline.get("fps", 30),
+        "width": timeline.get("width"),
+        "height": timeline.get("height"),
+    }
+
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(
+            connect=5.0,
+            read=settings.REMOTION_RENDER_TIMEOUT,
+            write=60.0,
+            pool=5.0,
+        )
+    ) as client:
+        resp = await client.post(
+            f"{settings.REMOTION_SERVICE_URL.rstrip('/')}/render-director",
+            json=payload,
+        )
+        resp.raise_for_status()
+        result = resp.json()
+        if not result.get("success"):
+            raise RuntimeError(
+                f"Director render failed: {result.get('error', 'unknown error')}"
+            )
+
+    out = Path(output_path)
+    if not out.exists():
+        raise RuntimeError("Director render reported success but output file was not created")
+    return out.as_posix()

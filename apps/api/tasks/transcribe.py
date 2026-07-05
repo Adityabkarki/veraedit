@@ -415,6 +415,9 @@ def transcribe_asset(self: Task, asset_id: str, force: bool = False) -> dict[str
         progress_percent=10,
     )
 
+    diarization_segments: list[dict[str, Any]] | None = None
+    diarization_source = "heuristic"
+
     with tempfile.TemporaryDirectory(prefix="viraedit_") as tmp_dir:
         tmp_path = Path(tmp_dir)
 
@@ -519,6 +522,11 @@ def transcribe_asset(self: Task, asset_id: str, force: bool = False) -> dict[str
             # 7. Merge chunks → single transcript
             transcript = merge_chunk_results(results, offsets)
 
+            # 7b. ML diarization while extracted audio is still on disk
+            from services.diarization.pyannote_diarizer import diarize_audio_path
+
+            diarization_segments, diarization_source = diarize_audio_path(audio_path)
+
             # Update duration from STT (more accurate than FFprobe for some formats)
             if transcript.duration > 0:
                 duration_secs = transcript.duration
@@ -566,7 +574,12 @@ def transcribe_asset(self: Task, asset_id: str, force: bool = False) -> dict[str
     from tasks.transcript_enrich import enrich_transcript_for_storage
     from tasks.transcript_quality import compute_transcript_quality
 
-    enriched_words, speakers_meta = enrich_transcript_for_storage(raw_words, seg_dicts)
+    enriched_words, speakers_meta = enrich_transcript_for_storage(
+        raw_words,
+        seg_dicts,
+        diarization_segments=diarization_segments or None,
+        diarization_source=diarization_source,
+    )
     quality_metrics = compute_transcript_quality(enriched_words, seg_dicts)
     from processors.transcriber import _devanagari_language_warning
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+
 import structlog
 
 from models.asset import Asset, AssetStatus, ProxyStatus
@@ -54,6 +56,23 @@ def queue_post_upload_tasks(asset: Asset) -> tuple[bool, bool]:
         )
 
     return proxy_queued, transcription_queued
+
+
+def queue_multicam_sync_if_needed(project_id: uuid.UUID) -> bool:
+    """Queue multicam alignment when a project may have multiple camera feeds."""
+    try:
+        from celery_app import celery_app as _celery
+
+        _celery.send_task(
+            "tasks.multicam_sync.sync_project",
+            kwargs={"project_id": str(project_id)},
+            queue="default",
+        )
+        log.info("multicam_sync_queued", project_id=str(project_id))
+        return True
+    except Exception as exc:
+        log.warning("multicam_sync_queue_failed", project_id=str(project_id), error=str(exc))
+        return False
 
 
 def needs_pipeline_kick(asset: Asset, *, has_transcript: bool) -> bool:

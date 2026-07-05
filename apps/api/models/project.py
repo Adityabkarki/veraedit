@@ -15,6 +15,7 @@ from .base import BaseModel
 if TYPE_CHECKING:
     from .asset import Asset
     from .cost import Cost
+    from .director_timeline import DirectorTimelineRecord
     from .embedding import Embedding
     from .highlight import Highlight
     from .project_media import ProjectMedia
@@ -83,6 +84,9 @@ class Project(BaseModel):
     )
     timelines: Mapped[List["Timeline"]] = relationship(
         "Timeline", back_populates="project", cascade="all, delete-orphan"
+    )
+    director_timelines: Mapped[List["DirectorTimelineRecord"]] = relationship(
+        "DirectorTimelineRecord", back_populates="project", cascade="all, delete-orphan"
     )
     suggestions: Mapped[List["Suggestion"]] = relationship(
         "Suggestion", back_populates="project", cascade="all, delete-orphan"

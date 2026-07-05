@@ -125,9 +125,15 @@ def render_video(
                 render_settings,
             )
         else:
-            storage_key, out_duration = _real_render(
-                render_id, project_id, platform, render_settings, timeline_data
+            director_result = _try_render_director_engine(
+                render_id, project_id, render_settings,
             )
+            if director_result is not None:
+                storage_key, out_duration = director_result
+            else:
+                storage_key, out_duration = _real_render(
+                    render_id, project_id, platform, render_settings, timeline_data
+                )
 
         # Mark render as READY
         _update_render_complete(
@@ -997,6 +1003,109 @@ def _concat_with_transitions(
 
 
 # ── Main render ─────────────────────────────────────────────────────────────
+
+def _try_render_director_engine(
+    render_id: str,
+    project_id: str,
+    render_settings: dict,
+) -> tuple[str, float] | None:
+    """
+    When useDirectorEngine is enabled and a compiled director timeline exists,
+    render via remotion-service DirectorRender composition instead of legacy FFmpeg.
+    Returns None to fall back to the legacy path.
+    """
+    import asyncio
+    import tempfile
+    from pathlib import Path
+    from sqlalchemy import text
+
+    engine = _get_sync_conn()
+    try:
+        with engine.begin() as conn:
+            project_row = conn.execute(
+                text("SELECT settings FROM projects WHERE id = :id"),
+                {"id": project_id},
+            ).fetchone()
+            if not project_row:
+                return None
+            settings = project_row.settings or {}
+            if not (settings.get("useDirectorEngine") or settings.get("use_director_engine")):
+                return None
+
+            tl_row = conn.execute(
+                text(
+                    """
+                    SELECT id, data FROM director_timelines
+                    WHERE project_id = :pid AND is_active = true
+                    ORDER BY version DESC LIMIT 1
+                    """
+                ),
+                {"pid": project_id},
+            ).fetchone()
+            if not tl_row or not tl_row.data:
+                log.info("director_render_skipped_no_timeline", project_id=project_id)
+                return None
+
+            asset_rows = conn.execute(
+                text(
+                    """
+                    SELECT id, storage_key, original_filename
+                    FROM assets WHERE project_id = :pid ORDER BY created_at ASC
+                    """
+                ),
+                {"pid": project_id},
+            ).fetchall()
+    finally:
+        engine.dispose()
+
+    from processors.storage_helpers import S3Storage
+
+    storage = S3Storage()
+    asset_urls: dict[str, str] = {}
+    primary_video_src: str | None = None
+    for row in asset_rows:
+        url = storage.get_presigned_url(row.storage_key, filename=row.original_filename)
+        asset_urls[str(row.id)] = url
+        if primary_video_src is None:
+            primary_video_src = url
+
+    camera_feeds = settings.get("cameraFeeds") or []
+    timeline = tl_row.data
+
+    with tempfile.TemporaryDirectory(prefix="viraedit_director_render_") as tmp_dir:
+        out = Path(tmp_dir) / "director_export.mp4"
+        _update_render_status(render_id, "processing", progress=40.0)
+
+        from processors.remotion_client import render_director_export
+
+        asyncio.run(
+            render_director_export(
+                timeline,
+                output_path=out.as_posix(),
+                asset_urls=asset_urls,
+                primary_video_src=primary_video_src,
+                dialogue_src=primary_video_src,
+                camera_feeds=camera_feeds,
+            )
+        )
+
+        _update_render_status(render_id, "processing", progress=90.0)
+        duration = _ffprobe_duration(out)
+        storage_key = f"renders/{project_id}/{render_settings.get('platform', 'youtube')}/{render_id[:8]}/output.mp4"
+        _s3_client().upload_file(
+            Filename=str(out),
+            Bucket="viraedit-renders",
+            Key=storage_key,
+            ExtraArgs={"ContentType": "video/mp4"},
+        )
+        log.info(
+            "director_render_complete",
+            project_id=project_id,
+            timeline_id=str(tl_row.id),
+            storage_key=storage_key,
+        )
+        return storage_key, duration
+
 
 def _real_render(
     render_id: str,
