@@ -6,7 +6,7 @@ import { LowerThirdComposition } from "./LowerThirdComposition";
 import { MotionGraphicsComposition } from "./motion/MotionGraphicsComposition";
 import type { MotionPlan } from "./motion/types";
 import { FONT_DISPLAY, FONT_DEVANAGARI } from "./motion/fonts";
-import { PodcastPillarPreview } from "./motion/components/podcast";
+import { PodcastPillarPreview, AudioEqualizerDebugStill, PodcastAudioComparisonPreview } from "./motion/components/podcast";
 import { ConsultancyPillarPreview } from "./motion/components/consultancy";
 import { SocialPillarPreview } from "./motion/components/social";
 import { ShowcasePillarPreview } from "./motion/components/showcase";
@@ -178,6 +178,22 @@ export const RemotionRoot: React.FC = () => (
       id="ProductShowcasePresetPreview"
       component={ProductShowcasePresetPreview}
       durationInFrames={180}
+      fps={30}
+      width={1920}
+      height={1080}
+    />
+    <Composition
+      id="AudioEqualizerDebugStill"
+      component={AudioEqualizerDebugStill}
+      durationInFrames={300}
+      fps={30}
+      width={1920}
+      height={1080}
+    />
+    <Composition
+      id="PodcastAudioComparisonPreview"
+      component={PodcastAudioComparisonPreview}
+      durationInFrames={300}
       fps={30}
       width={1920}
       height={1080}

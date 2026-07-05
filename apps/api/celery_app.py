@@ -61,6 +61,7 @@ celery_app = Celery(
         "tasks.cut_tasks",             # Module 04: Text-based cuts
         "tasks.broll_generation",
         "tasks.proxy_tasks",
+        "tasks.audio_analysis_task",
     ],
 )
 
@@ -120,6 +121,7 @@ celery_app.conf.update(
         "tasks.caption.*":           {"queue": "transcription"},
         "tasks.cut.*":               {"queue": "render"},
         "tasks.proxy.*":             {"queue": "render"},
+        "tasks.audio_analysis.*":    {"queue": "analysis"},
     },
 
     # Default queue for unrouted tasks

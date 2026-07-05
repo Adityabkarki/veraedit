@@ -85,6 +85,8 @@ Presets: `remotion-service/src/motion/components/presets/`
 | `circular_orbit_equalizer` | CircularOrbitEqualizer | Radial bars + profile mask |
 | `eq_visualizer` | (alias → symmetric_audio_strip) | Legacy type id |
 
+Podcast equalizers accept `audioAnalysis?: AudioAnalysisTrack` — see **Audio Analysis** below.
+
 ### Pillar 2 — Consultancy
 | type | Component | Notes |
 |------|-----------|-------|
@@ -107,6 +109,85 @@ Presets: `remotion-service/src/motion/components/presets/`
 | `device_mockup` | DeviceMockup3D | 3-layer chassis/screen/glass |
 | `dynamic_feature_callout` | DynamicFeatureCallout | Dot → line → card chain |
 | `feature_callout` / `callout_line` | (aliases) | Legacy type ids |
+
+---
+
+## Audio Analysis (Podcast reactive fidelity)
+
+Frame-accurate amplitude/frequency data for equalizers, waveforms, and speaker-activity
+indicators. Governed by the **Audio-Reactive Fidelity Law** in `skills.md`.
+
+### Data contract
+
+`remotion-service/src/types/audio-analysis.ts`
+
+```typescript
+interface AudioAnalysisFrame {
+  frame: number;
+  overallAmplitude: number;   // 0–1, normalized to track dynamic range
+  bands: number[];            // perceptually-bucketed energy (16–32 bars)
+  isTransient: boolean;       // onset/beat frame flag
+}
+
+interface AudioAnalysisTrack {
+  schemaVersion: number;
+  sourceHash: string;         // cache invalidation key
+  fps: number;
+  bandCount: number;
+  frames: AudioAnalysisFrame[];
+  peakAmplitude: number;      // whole-track peak for normalization
+  meta: { analysisPath: 'client_visualizeAudio' | 'server_librosa'; generatedAt: string };
+}
+```
+
+Normalization scales `overallAmplitude` and each `bands[i]` against `peakAmplitude`
+computed once across the whole track — quiet podcast speech still produces visible bar
+movement; loud tracks don't visually clip.
+
+### Client / server routing
+
+| Path | Threshold | Implementation |
+|------|-----------|----------------|
+| **A — Client** | Duration ≤ **3 min** | `@remotion/media-utils` `getAudioData()` + `visualizeAudio()` per frame |
+| **B — Server** | Duration > **3 min** | Celery `tasks.audio_analysis.precompute` → librosa STFT/mel → MinIO sidecar |
+
+Cache key: `sourceHash + fps + bandCount`. Bump `schemaVersion` + run `migrateAudioAnalysis()`
+on breaking changes (same pattern as `migrateTheme.ts`).
+
+Pipeline files: `src/lib/audio/{bucketBands,analyzeClient,onsetDetection,migrateAudioAnalysis}.ts`  
+Backend: `apps/api/processors/audio_analysis_track.py`, `apps/api/tasks/audio_analysis_task.py`
+
+### Perceptual bucketing
+
+Raw FFT bins are log-bucketed (bass/mid/treble), smoothed via a fixed frame window
+(never mutable cross-frame state), then passed through a `^0.7` response curve.
+See `src/lib/audio/bucketBands.ts`.
+
+### Render pipeline integration
+
+| Stage | What happens |
+|-------|----------------|
+| **Ingest** (>3 min) | `queue_long_form_precompute()` → Celery `tasks.audio_analysis.precompute` → MinIO sidecar |
+| **Export render** | `attach_audio_analysis_to_plan()` before Remotion — short clips get `plan.audio.src`, long-form gets `plan.audio.track` |
+| **Remotion mount** | `useCompositionAudioAnalysis()` — Path A: `delayRender` + `getAudioData`; Path B: reads inline `track` |
+
+Files: `apps/api/services/audio_analysis_service.py`, `remotion-service/src/motion/components/podcast/useCompositionAudioAnalysis.ts`
+
+---
+
+| Composition | Purpose |
+|-------------|---------|
+| `AudioEqualizerDebugStill` | Raw vs bucketed/smoothed bars on 10s synthetic speech clip |
+| `PodcastAudioComparisonPreview` | Side-by-side mock sin-loop vs real `audioAnalysis` equalizers |
+
+```bash
+cd remotion-service
+npx remotion still AudioEqualizerDebugStill --frame=90 out/audio-debug.png
+npx remotion still PodcastAudioComparisonPreview --frame=90 out/eq-comparison.png
+```
+
+**Before/after:** mock equalizer bars follow a decorative sine phase; real analysis bars
+track speech rhythm (envelope bursts ~1.6 Hz on the test clip) with bass-weighted log buckets.
 
 ---
 

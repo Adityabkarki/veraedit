@@ -20,6 +20,23 @@ export interface MotionElement {
   props: Record<string, unknown>;
 }
 
+export interface MotionPlanAudio {
+  /** Presigned HTTP URL for Path A client decode. */
+  src?: string;
+  durationSeconds?: number;
+  bandCount?: number;
+  sourceHash?: string;
+  fps?: number;
+  analysisPath?: "client_visualizeAudio" | "server_librosa";
+  /** Remote sidecar URL (Path B fetch at mount). */
+  sidecarUrl?: string;
+  /** Inline precomputed track (Path B embed from backend). */
+  track?: unknown;
+  /** Legacy alias for inline track. */
+  sidecar?: unknown;
+  error?: string;
+}
+
 export interface MotionPlan {
   version: number;
   fps: number;
@@ -29,6 +46,8 @@ export interface MotionPlan {
   elements: MotionElement[];
   /** Resolved theme from Brand Kit — attached upstream before render. */
   theme?: import("../../types/theme-tokens").ThemeToken;
+  /** Audio-reactive analysis routing — Path A or Path B. */
+  audio?: MotionPlanAudio;
 }
 
 export interface MotionGraphicsProps {

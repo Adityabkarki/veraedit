@@ -15,6 +15,7 @@ Config.overrideWebpackConfig((config) => ({
         ? config.resolve.alias
         : {}),
       "@types/theme-tokens": path.join(root, "src/types/theme-tokens.ts"),
+      "@types/audio-analysis": path.join(root, "src/types/audio-analysis.ts"),
       "@components": path.join(root, "src/motion/components"),
       "@lib": path.join(root, "src/lib"),
     },

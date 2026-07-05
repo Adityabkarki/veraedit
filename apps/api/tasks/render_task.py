@@ -714,6 +714,9 @@ def _composite_motion_graphics(
     width: int,
     height: int,
     video_duration: float,
+    *,
+    project_id: str | None = None,
+    audio_storage_key: str | None = None,
 ) -> bool:
     """
     Step 5b — render pro motion graphics via Remotion and composite onto video.
@@ -733,6 +736,8 @@ def _composite_motion_graphics(
                 height=height,
                 fps=30,
                 video_duration=video_duration,
+                project_id=project_id,
+                audio_storage_key=audio_storage_key,
             )
         )
         if ok and output_path.exists():
@@ -1132,9 +1137,16 @@ def _real_render(
 
         # ── Step 5b: Motion graphics (Remotion overlay composite) ──────────
         mg_output = tmp / "motion_graphics_composited.mp4"
+        primary_audio_key: str | None = None
+        if video_clips:
+            aid = str(video_clips[0].get("asset_id") or "")
+            if aid:
+                primary_audio_key = _asset_storage_key(aid)
         if _composite_motion_graphics(
             overlay_clips, current_output, mg_output,
             width, height, total_duration,
+            project_id=project_id,
+            audio_storage_key=primary_audio_key,
         ):
             current_output = mg_output
             _update_render_status(render_id, "processing", progress=88.0)

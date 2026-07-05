@@ -5,23 +5,24 @@
  */
 
 import React from "react";
-import { seededRandom } from "../../motionMath";
 import { ATOMIC_LAYER_DEPTH } from "../layerDepth";
 import { useAtomicAnimation } from "../useAtomicAnimation";
 import { withAlpha } from "@lib/theme/colorMath";
 import { useTheme } from "@components/theme/ThemeProvider";
+import type { AudioAnalysisTrack } from "@types/audio-analysis";
+import { resolveEqualizerBands } from "@lib/audio/mockFallback";
 
 export interface SymmetricAudioStripProps {
   startSeconds?: number;
   endSeconds?: number;
   brandColor?: string;
   accentColor?: string;
-  /** Bar count (even preferred for symmetry). */
   bars?: number;
-  /** Stable seed for deterministic mock waveform. */
   seed?: number;
-  /** Optional real amplitude samples 0–1; falls back to sin loop. */
+  /** @deprecated Use audioAnalysis — kept for legacy plan JSON. */
   amplitudes?: number[];
+  audioAnalysis?: AudioAnalysisTrack | null;
+  isMockData?: boolean;
 }
 
 export const SymmetricAudioStrip: React.FC<SymmetricAudioStripProps> = ({
@@ -32,6 +33,8 @@ export const SymmetricAudioStrip: React.FC<SymmetricAudioStripProps> = ({
   bars = 28,
   seed = 4,
   amplitudes,
+  audioAnalysis,
+  isMockData: isMockDataProp,
 }) => {
   const theme = useTheme();
   const brandColor = brandColorProp ?? theme.colors.primary;
@@ -52,6 +55,19 @@ export const SymmetricAudioStrip: React.FC<SymmetricAudioStripProps> = ({
   const maxH = 72;
   const enter = Math.min(anim.enter, 1);
 
+  const legacyAnalysis =
+    amplitudes && amplitudes.length > 0
+      ? { frames: [{ frame: anim.frame, bands: amplitudes }] }
+      : null;
+
+  const { bands: barHeights, isMockData } = resolveEqualizerBands(
+    anim.frame,
+    count,
+    seed,
+    audioAnalysis ?? legacyAnalysis,
+  );
+  const usingMock = isMockDataProp ?? isMockData;
+
   return (
     <div
       style={{
@@ -69,17 +85,12 @@ export const SymmetricAudioStrip: React.FC<SymmetricAudioStripProps> = ({
         zIndex: ATOMIC_LAYER_DEPTH.symmetric_audio_strip,
         filter: `drop-shadow(0 0 15px ${withAlpha(accentColor, 0.85)})`,
       }}
+      data-audio-reactive={usingMock ? "mock" : "real"}
+      data-is-mock-data={usingMock ? "true" : "false"}
     >
       {Array.from({ length: count }).map((_, i) => {
         const dist = Math.abs(i - (count - 1) / 2) / Math.max(1, half);
-        let amp: number;
-        if (amplitudes && amplitudes.length > 0) {
-          amp = amplitudes[i % amplitudes.length] ?? 0.3;
-        } else {
-          const phase = seededRandom(seed, i) * Math.PI * 2;
-          const base = 0.25 + seededRandom(seed, i + 50) * 0.75;
-          amp = base * Math.abs(Math.sin(anim.frame * 0.18 + phase + i * 0.35));
-        }
+        const amp = barHeights[i] ?? 0.3;
         const envelope = 1 - dist * 0.35;
         const h = Math.max(6, amp * envelope * maxH * enter);
 

@@ -6,6 +6,10 @@
 
 import React from "react";
 import type { MotionElement } from "../types";
+import type { AudioAnalysisTrack } from "@types/audio-analysis";
+import { migrateAudioAnalysis } from "@lib/audio/migrateAudioAnalysis";
+import type { SpeakerAnalysisMap } from "@lib/audio/frameLookup";
+import { useSharedAudioAnalysis } from "./podcast/AudioAnalysisProvider";
 import {
   SymmetricAudioStrip,
   CircularOrbitEqualizer,
@@ -40,7 +44,23 @@ function strList(val: unknown): string[] | undefined {
   return labels.length ? labels : undefined;
 }
 
-export const AtomicEqVisualizer: React.FC<ElementProps> = ({ el }) => (
+function parseAudioAnalysis(val: unknown): AudioAnalysisTrack | null {
+  return migrateAudioAnalysis(val);
+}
+
+function parseSpeakerAnalysis(val: unknown): SpeakerAnalysisMap | null {
+  if (!val || typeof val !== "object") return null;
+  const out: SpeakerAnalysisMap = {};
+  for (const [key, track] of Object.entries(val as Record<string, unknown>)) {
+    const migrated = migrateAudioAnalysis(track);
+    if (migrated) out[key] = migrated;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+export const AtomicEqVisualizer: React.FC<ElementProps> = ({ el }) => {
+  const shared = useSharedAudioAnalysis();
+  return (
   <SymmetricAudioStrip
     startSeconds={el.startSeconds}
     endSeconds={el.endSeconds}
@@ -49,10 +69,14 @@ export const AtomicEqVisualizer: React.FC<ElementProps> = ({ el }) => (
     bars={Number(el.props.bars ?? 28)}
     seed={Number(el.props.seed ?? 4)}
     amplitudes={numList(el.props.amplitudes)}
+    audioAnalysis={parseAudioAnalysis(el.props.audioAnalysis) ?? shared}
   />
-);
+  );
+};
 
-export const AtomicCircularWaveform: React.FC<ElementProps> = ({ el }) => (
+export const AtomicCircularWaveform: React.FC<ElementProps> = ({ el }) => {
+  const shared = useSharedAudioAnalysis();
+  return (
   <CircularOrbitEqualizer
     startSeconds={el.startSeconds}
     endSeconds={el.endSeconds}
@@ -61,15 +85,18 @@ export const AtomicCircularWaveform: React.FC<ElementProps> = ({ el }) => (
     spokes={Number(el.props.spokes ?? el.props.bars ?? 36)}
     seed={Number(el.props.seed ?? 7)}
     amplitudes={numList(el.props.amplitudes)}
+    audioAnalysis={parseAudioAnalysis(el.props.audioAnalysis) ?? shared}
     profileSrc={el.props.profileSrc ? String(el.props.profileSrc) : undefined}
     monogram={String(el.props.monogram ?? el.props.title ?? "A")}
     xPct={el.position.xPct}
     yPct={el.position.yPct}
     sizePct={Number(el.props.sizePct ?? 28)}
   />
-);
+  );
+};
 
 export const AtomicActiveSpeakerSplit: React.FC<ElementProps> = ({ el }) => {
+  const shared = useSharedAudioAnalysis();
   const speakersRaw = el.props.speakers;
   const speakers = Array.isArray(speakersRaw)
     ? speakersRaw.map((s, i) => {
@@ -94,6 +121,8 @@ export const AtomicActiveSpeakerSplit: React.FC<ElementProps> = ({ el }) => {
       endSeconds={el.endSeconds}
       speakers={speakers}
       activeSpeakerId={active}
+      speakerAnalysis={parseSpeakerAnalysis(el.props.speakerAnalysis)}
+      audioAnalysis={parseAudioAnalysis(el.props.audioAnalysis) ?? shared}
     />
   );
 };

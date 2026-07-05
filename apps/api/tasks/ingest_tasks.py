@@ -130,6 +130,17 @@ def _finish_ingest(
     _update_job_sync(job_id, status="done", result=result)
     _queue_transcription(asset_id)
     try:
+        from services.audio_analysis_service import queue_long_form_precompute
+
+        queue_long_form_precompute(
+            project_id,
+            video_key,
+            float(meta.get("duration") or 0),
+            fps=30,
+        )
+    except Exception as exc:
+        log.warning("audio_analysis_ingest_queue_failed", error=str(exc))
+    try:
         from tasks.proxy_tasks import queue_edit_proxy
 
         queue_edit_proxy(asset_id)

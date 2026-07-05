@@ -2433,6 +2433,8 @@ async def render_motion_graphics_for_timeline(
     height: int,
     fps: int = 30,
     video_duration: float = 0,
+    project_id: str | None = None,
+    audio_storage_key: str | None = None,
 ) -> bool:
     """
     Render motion graphics overlay and composite onto video.
@@ -2452,6 +2454,17 @@ async def render_motion_graphics_for_timeline(
     )
     if not plan.get("elements"):
         return False
+
+    if project_id and audio_storage_key and video_duration > 0:
+        from services.audio_analysis_service import attach_audio_analysis_to_plan
+
+        attach_audio_analysis_to_plan(
+            plan,
+            project_id=project_id,
+            storage_key=audio_storage_key,
+            duration_seconds=video_duration,
+            local_media_path=video_path,
+        )
 
     try:
         overlay_path = await render_motion_graphics_overlay(

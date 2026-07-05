@@ -4,12 +4,13 @@
  */
 
 import React from "react";
-import { seededRandom } from "../../motionMath";
 import { ATOMIC_LAYER_DEPTH } from "../layerDepth";
 import { lerpClamp } from "../interpolateClamp";
 import { useAtomicAnimation } from "../useAtomicAnimation";
 import { withAlpha } from "@lib/theme/colorMath";
 import { useTheme } from "@components/theme/ThemeProvider";
+import type { AudioAnalysisTrack } from "@types/audio-analysis";
+import { resolveEqualizerBands } from "@lib/audio/mockFallback";
 
 export interface CircularOrbitEqualizerProps {
   startSeconds?: number;
@@ -18,8 +19,11 @@ export interface CircularOrbitEqualizerProps {
   accentColor?: string;
   spokes?: number;
   seed?: number;
+  /** @deprecated Use audioAnalysis — kept for legacy plan JSON. */
   amplitudes?: number[];
-  /** Optional profile image URL; falls back to monogram circle. */
+  audioAnalysis?: AudioAnalysisTrack | null;
+  /** Dev flag — true when mock sin loop is active (Graceful Degradation). */
+  isMockData?: boolean;
   profileSrc?: string;
   monogram?: string;
   xPct?: number;
@@ -35,6 +39,8 @@ export const CircularOrbitEqualizer: React.FC<CircularOrbitEqualizerProps> = ({
   spokes = 36,
   seed = 7,
   amplitudes,
+  audioAnalysis,
+  isMockData: isMockDataProp,
   profileSrc,
   monogram = "A",
   xPct = 50,
@@ -63,6 +69,26 @@ export const CircularOrbitEqualizer: React.FC<CircularOrbitEqualizerProps> = ({
   const enter = Math.min(anim.enter, 1);
   const scale = lerpClamp(enter, [0, 1], [0.85, 1]);
 
+  const legacyAnalysis =
+    amplitudes && amplitudes.length > 0
+      ? {
+          frames: [
+            {
+              frame: anim.frame,
+              bands: amplitudes,
+            },
+          ],
+        }
+      : null;
+
+  const { bands: barHeights, isMockData } = resolveEqualizerBands(
+    anim.frame,
+    count,
+    seed,
+    audioAnalysis ?? legacyAnalysis,
+  );
+  const usingMock = isMockDataProp ?? isMockData;
+
   return (
     <div
       style={{
@@ -76,6 +102,8 @@ export const CircularOrbitEqualizer: React.FC<CircularOrbitEqualizerProps> = ({
         zIndex: ATOMIC_LAYER_DEPTH.circular_orbit_equalizer,
         filter: `drop-shadow(0 0 14px ${withAlpha(brandColor, 0.7)})`,
       }}
+      data-audio-reactive={usingMock ? "mock" : "real"}
+      data-is-mock-data={usingMock ? "true" : "false"}
     >
       <svg
         viewBox={`0 0 ${vb} ${vb}`}
@@ -98,13 +126,7 @@ export const CircularOrbitEqualizer: React.FC<CircularOrbitEqualizerProps> = ({
         />
         {Array.from({ length: count }).map((_, i) => {
           const angle = (i / count) * Math.PI * 2 - Math.PI / 2;
-          let wave: number;
-          if (amplitudes && amplitudes.length > 0) {
-            wave = amplitudes[i % amplitudes.length] ?? 0.3;
-          } else {
-            const phase = seededRandom(seed, i) * Math.PI * 2;
-            wave = Math.abs(Math.sin(anim.frame * 0.16 + phase + i * 0.4));
-          }
+          const wave = barHeights[i] ?? 0.3;
           const len = (10 + wave * 34) * enter;
           const x1 = cx + Math.cos(angle) * r;
           const y1 = cy + Math.sin(angle) * r;

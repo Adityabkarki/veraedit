@@ -5,6 +5,8 @@ import { renderMotionElement } from "./elements";
 import { FONT_DISPLAY } from "./fonts";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { migrateTheme } from "../lib/theme/migrateTheme";
+import { AudioAnalysisProvider } from "./components/podcast/AudioAnalysisProvider";
+import { useCompositionAudioAnalysis } from "./components/podcast/useCompositionAudioAnalysis";
 
 /**
  * JSON-driven motion graphics dispatcher.
@@ -25,6 +27,7 @@ export const MotionGraphicsComposition: React.FC<MotionGraphicsProps> = ({
     () => migrateTheme(rawTheme ?? (plan as { theme?: unknown }).theme),
     [rawTheme, plan],
   );
+  const audioTrack = useCompositionAudioAnalysis(plan);
 
   const alwaysOn = new Set([
     "background_gradient",
@@ -47,17 +50,19 @@ export const MotionGraphicsComposition: React.FC<MotionGraphicsProps> = ({
 
   return (
     <ThemeProvider theme={theme}>
-      <AbsoluteFill style={{ backgroundColor: theme.colors.background }}>
-        {elements.map((el) => {
-          if (
-            currentTime < el.startSeconds ||
-            currentTime > el.endSeconds
-          ) {
-            if (!alwaysOn.has(el.type)) return null;
-          }
-          return renderMotionElement(el, family);
-        })}
-      </AbsoluteFill>
+      <AudioAnalysisProvider track={audioTrack}>
+        <AbsoluteFill style={{ backgroundColor: theme.colors.background }}>
+          {elements.map((el) => {
+            if (
+              currentTime < el.startSeconds ||
+              currentTime > el.endSeconds
+            ) {
+              if (!alwaysOn.has(el.type)) return null;
+            }
+            return renderMotionElement(el, family);
+          })}
+        </AbsoluteFill>
+      </AudioAnalysisProvider>
     </ThemeProvider>
   );
 };

@@ -209,6 +209,46 @@ Every component must render a sane default when its expected data is missing or 
 
 ---
 
+### The Audio-Reactive Fidelity Law
+
+Any component claiming to be "audio-reactive" (equalizers, waveforms, speaker-activity
+indicators) must derive its values from **real decoded audio amplitude/frequency data**
+for the actual source track. A decorative loop (`Math.sin(seededFrame)`) is permitted
+only as the explicit Graceful Degradation fallback when no audio track exists or
+analysis has failed — and must **never** be silently substituted when real data is
+available.
+
+**Violations to reject:**
+- An equalizer that always uses the mock loop regardless of whether real analysis data was passed in
+- Any audio analysis performed with mutable state carried across frames (breaks determinism across parallel render workers — see Determinism Law)
+- Treating raw, unsmoothed FFT bins as final bar heights (they're visually noisy/jittery without perceptual bucketing)
+
+**Required pattern:** when `audioAnalysis` is present and non-empty, map bar heights and
+speaker activity from `AudioAnalysisFrame` values for the current frame. When absent or
+failed, fall back to the seeded mock loop and expose `isMockData: true` so dev tooling
+can inspect the degradation path.
+
+**Foundation:** use `@remotion/media-utils` (`getAudioData`, `visualizeAudio`) for
+client-side analysis. Do not hand-roll FFT or use browser `AudioContext` live analysis —
+those are non-deterministic across parallel render workers.
+
+**Hybrid routing (Path A / Path B):**
+
+| Path | When | How |
+|------|------|-----|
+| **A — Client** | Clips ≤ **3 minutes** (`CLIENT_ANALYSIS_MAX_SECONDS = 180`) | `getAudioData()` at composition mount (`delayRender`/`continueRender`), then `visualizeAudio()` per frame |
+| **B — Server** | Episodes > 3 minutes | Celery + librosa STFT → RMS + mel bands, resampled to composition fps; stored as quantized sidecar in MinIO keyed by `(sourceHash, fps, bandCount)` |
+
+Both paths output the same `AudioAnalysisTrack` shape (`remotion-service/src/types/audio-analysis.ts`).
+Equalizer components never branch on which path produced the data.
+
+**Render pipeline wiring:**
+- **Ingest** (>3 min): Celery `tasks.audio_analysis.precompute` queues Path B sidecar to MinIO
+- **Export render**: `attach_audio_analysis_to_plan()` sets `plan.audio.src` (short) or `plan.audio.track` (long)
+- **Remotion mount**: `useCompositionAudioAnalysis()` uses `delayRender` + `getAudioData` (Path A) or reads inline track (Path B)
+
+---
+
 ### Interpolation Clamping Law
 
 Every `interpolate()` call must explicitly set `extrapolateLeft: 'clamp', extrapolateRight: 'clamp'` unless overshoot is an intentional, named effect (e.g. `elastic_overshoot`). Unclamped interpolations are a violation — they cause value overshoot, pops, or NaN artifacts at composition boundaries.

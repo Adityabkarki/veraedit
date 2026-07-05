@@ -8,3 +8,5 @@ export type {
   SpeakerCard,
 } from "./ActiveSpeakerSplitCards";
 export { PodcastPillarPreview } from "./PodcastPillarPreview";
+export { AudioEqualizerDebugStill } from "./AudioEqualizerDebugStill";
+export { PodcastAudioComparisonPreview } from "./PodcastAudioComparisonPreview";

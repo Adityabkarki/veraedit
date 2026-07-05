@@ -17,6 +17,11 @@ import {
   detectAspectMode,
   titleSafeRect,
 } from "../safeZones";
+import type { AudioAnalysisTrack } from "@types/audio-analysis";
+import {
+  resolveActiveSpeakerAtFrame,
+  type SpeakerAnalysisMap,
+} from "@lib/audio/frameLookup";
 
 export interface SpeakerCard {
   id: string;
@@ -31,8 +36,13 @@ export interface ActiveSpeakerSplitCardsProps {
   startSeconds?: number;
   endSeconds?: number;
   speakers?: SpeakerCard[];
-  /** When omitted, all cards render neutral (Graceful Degradation Law). */
+  /** Manual override when no per-speaker analysis is available. */
   activeSpeakerId?: string | null;
+  /** Per-speaker isolated channel analysis — drives auto active-speaker detection. */
+  speakerAnalysis?: SpeakerAnalysisMap | null;
+  /** Single-track fallback analysis for amplitude-driven emphasis glow. */
+  audioAnalysis?: AudioAnalysisTrack | null;
+  isMockData?: boolean;
 }
 
 export const ActiveSpeakerSplitCards: React.FC<ActiveSpeakerSplitCardsProps> = ({
@@ -40,6 +50,9 @@ export const ActiveSpeakerSplitCards: React.FC<ActiveSpeakerSplitCardsProps> = (
   endSeconds = 8,
   speakers,
   activeSpeakerId = null,
+  speakerAnalysis,
+  audioAnalysis,
+  isMockData: isMockDataProp,
 }) => {
   const theme = useTheme();
   const defaultSpeakers: SpeakerCard[] = [
@@ -61,7 +74,17 @@ export const ActiveSpeakerSplitCards: React.FC<ActiveSpeakerSplitCardsProps> = (
   const mode = detectAspectMode(anim.width, anim.height);
   const safe = titleSafeRect(mode);
   const glide = curveConfig(theme.motion.defaultCurve);
-  const hasActive = Boolean(activeSpeakerId);
+
+  const speakerIds = cards.map((c) => c.id);
+  const resolvedActiveId = resolveActiveSpeakerAtFrame(
+    anim.frame,
+    speakerIds,
+    speakerAnalysis,
+    activeSpeakerId,
+  );
+  const hasActive = Boolean(resolvedActiveId);
+  const usingMock =
+    isMockDataProp ?? (!speakerAnalysis && !audioAnalysis);
 
   return (
     <div
@@ -79,9 +102,11 @@ export const ActiveSpeakerSplitCards: React.FC<ActiveSpeakerSplitCardsProps> = (
         opacity: anim.opacity,
         zIndex: ATOMIC_LAYER_DEPTH.active_speaker_split,
       }}
+      data-audio-reactive={speakerAnalysis || audioAnalysis ? "real" : "mock"}
+      data-is-mock-data={usingMock ? "true" : "false"}
     >
       {cards.map((speaker, i) => {
-        const isActive = hasActive && speaker.id === activeSpeakerId;
+        const isActive = hasActive && speaker.id === resolvedActiveId;
         const isSilent = hasActive && !isActive;
         const stagger = i * 0.08;
         const cardEnter = spring({
