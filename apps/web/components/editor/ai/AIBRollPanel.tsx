@@ -7,7 +7,7 @@ import { useTimelineStore } from '@/stores/timelineStore'
 import { RightPanelHeader } from '@/components/editor/RightPanelHeader'
 import { PanelTooltip } from '@/components/editor/PanelTooltip'
 import { BrollStockSearch } from './BrollStockSearch'
-import { loadEditorProject } from '@/lib/editorData'
+import { reloadProjectTimeline } from '@/lib/editorData'
 import { saveProjectTimeline } from '@/lib/renderExport'
 import { toast } from 'sonner'
 
@@ -177,7 +177,7 @@ export function AIBRollPanel({ projectId }: { projectId?: string }) {
     }
 
     if (hasNewlyGenerated && projectId) {
-      loadEditorProject(projectId, { reloadTimeline: true, preservePlayhead: true })
+      void reloadProjectTimeline(projectId, { preservePlayhead: true })
     }
   }, [suggestions, projectId])
 
@@ -226,7 +226,7 @@ export function AIBRollPanel({ projectId }: { projectId?: string }) {
         }
         setDirectTaskId(null)
         toast.success('Stock B-roll added to timeline')
-        loadEditorProject(projectId, { reloadTimeline: true, preservePlayhead: true })
+        void reloadProjectTimeline(projectId, { preservePlayhead: true })
       } else if (status === 'failure' || status === 'error') {
         if (directPollRef.current) {
           clearInterval(directPollRef.current)

@@ -1,4 +1,5 @@
 import type { ThemeToken } from "../../types/theme-tokens";
+import { NEUTRAL_GRADE } from "../look/gradePresets";
 
 /**
  * Static fallback when scrape/migration cannot derive a theme.
@@ -25,6 +26,7 @@ export const FALLBACK_THEME: ThemeToken = {
   },
   motion: { defaultCurve: "elegant_glide" },
   glass: { surfaceOpacity: 0.1, borderOpacity: 0.2, blurStrength: "md" },
+  grade: NEUTRAL_GRADE,
   meta: { source: "manual", resolvedAt: "1970-01-01T00:00:00.000Z" },
 };
 

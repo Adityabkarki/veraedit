@@ -1,0 +1,30 @@
+[
+  {
+    "id": "01",
+    "name": "director-engine",
+    "title": "Director Engine — AI Motion Director & Magic VOX",
+    "file": "references/director-engine.md",
+    "description": "Natural language → structured Motion Plan; AI director that decides what to show and when"
+  },
+  {
+    "id": "02",
+    "name": "cuts-motion-engine",
+    "title": "Cuts Motion Engine — Smart Cut Detection & Pacing",
+    "file": "references/cuts-motion-engine.md",
+    "description": "Intelligent cut detection, pacing analysis, transition planning, and rhythm-based editing"
+  },
+  {
+    "id": "03",
+    "name": "look-vfx-engine",
+    "title": "Look VFX Engine — Visual Effects, Color & Style Transfer",
+    "file": "references/look-vfx-engine.md",
+    "description": "Color grading, visual effects, filters, style transfer look application, and brand-grade visuals"
+  },
+  {
+    "id": "04",
+    "name": "audio-multicam-engine",
+    "title": "Audio Multicam Engine — Audio-Reactive Graphics & Multi-Camera Sync",
+    "file": "references/audio-multicam-engine.md",
+    "description": "Audio-reactive motion graphics, multi-camera audio fingerprint sync, speaker tracking, waveform EQ"
+  }
+]

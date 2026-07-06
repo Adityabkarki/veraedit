@@ -240,6 +240,145 @@ app.post("/render-motion-graphics", async (req, res) => {
   }
 });
 
+const { execFileSync } = require("child_process");
+
+function compileDirectorTimeline(body) {
+  const script = path.join(__dirname, "scripts", "compile-director.ts");
+  const stdout = execFileSync("npx", ["tsx", script], {
+    input: JSON.stringify(body),
+    encoding: "utf-8",
+    maxBuffer: 50 * 1024 * 1024,
+    cwd: __dirname,
+  });
+  return JSON.parse(stdout);
+}
+
+function bridgeEditorTimeline(body) {
+  const script = path.join(__dirname, "scripts", "bridge-editor-timeline.ts");
+  const stdout = execFileSync("npx", ["tsx", script], {
+    input: JSON.stringify(body),
+    encoding: "utf-8",
+    maxBuffer: 50 * 1024 * 1024,
+    cwd: __dirname,
+  });
+  return JSON.parse(stdout);
+}
+
+app.post("/director/bridge-editor-timeline", (req, res) => {
+  try {
+    const body = req.body;
+    if (!body || !body.timeline) {
+      return res.status(400).json({
+        success: false,
+        error: "timeline is required",
+      });
+    }
+    const result = bridgeEditorTimeline(body);
+    if (!result.success) {
+      return res.status(500).json(result);
+    }
+    res.json(result);
+  } catch (err) {
+    console.error("director/bridge-editor-timeline failed:", err);
+    res.status(500).json({
+      success: false,
+      error: err.message || "Editor timeline bridge failed",
+    });
+  }
+});
+
+app.post("/director/compile", (req, res) => {
+  try {
+    const body = req.body;
+    if (!body || !body.projectId || !body.contentType || !body.signals || !body.theme) {
+      return res.status(400).json({
+        success: false,
+        error: "projectId, contentType, signals, and theme are required",
+      });
+    }
+    const result = compileDirectorTimeline(body);
+    if (!result.success) {
+      return res.status(500).json(result);
+    }
+    res.json(result);
+  } catch (err) {
+    console.error("director/compile failed:", err);
+    res.status(500).json({
+      success: false,
+      error: err.message || "Director compile failed",
+    });
+  }
+});
+
+app.post("/render-director", async (req, res) => {
+  try {
+    const {
+      timeline,
+      assetUrls = {},
+      primaryVideoSrc,
+      dialogueSrc,
+      cameraFeeds = [],
+      sfxUrls = {},
+      fontFamily = "Montserrat",
+      outputPath,
+      fps = 30,
+      width,
+      height,
+    } = req.body;
+
+    if (!timeline || !outputPath) {
+      return res.status(400).json({ success: false, error: "timeline and outputPath are required" });
+    }
+
+    const bundleLocation = await getBundle();
+    const composition = await selectComposition({
+      serveUrl: bundleLocation,
+      id: "DirectorRender",
+      inputProps: {
+        timeline,
+        assetUrls,
+        primaryVideoSrc,
+        dialogueSrc,
+        cameraFeeds,
+        sfxUrls,
+        fontFamily,
+      },
+    });
+
+    const durationInFrames = Math.max(
+      1,
+      Number(timeline.durationInFrames) || Math.ceil((timeline.durationSeconds || 10) * fps),
+    );
+
+    await renderMedia({
+      composition: {
+        ...composition,
+        durationInFrames,
+        fps: Number(timeline.fps) || fps,
+        width: width || Number(timeline.width) || 1920,
+        height: height || Number(timeline.height) || 1080,
+      },
+      serveUrl: bundleLocation,
+      codec: "h264",
+      outputLocation: outputPath,
+      inputProps: {
+        timeline,
+        assetUrls,
+        primaryVideoSrc,
+        dialogueSrc,
+        cameraFeeds,
+        sfxUrls,
+        fontFamily,
+      },
+    });
+
+    res.json({ success: true, outputPath });
+  } catch (err) {
+    console.error("render-director failed:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.listen(PORT, HOST, () => {
   console.log(`Remotion render service listening on http://${HOST}:${PORT}`);
 });

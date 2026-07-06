@@ -3,6 +3,15 @@ import type { ThemeToken } from "../../types/theme-tokens";
 
 const hexColor = z.string().regex(/^#[0-9A-Fa-f]{6}$/);
 
+const gradeTokenSchema = z.object({
+  contrast: z.number().min(-1).max(1),
+  saturation: z.number().min(-1).max(1),
+  warmth: z.number().min(-1).max(1),
+  vignetteIntensity: z.number().min(0).max(1),
+  grainIntensity: z.number().min(0).max(1),
+  blendMode: z.enum(["normal", "overlay", "screen", "soft-light"]),
+});
+
 export const themeTokenSchema = z.object({
   schemaVersion: z.number().int().positive(),
   identity: z.object({
@@ -37,6 +46,7 @@ export const themeTokenSchema = z.object({
     borderOpacity: z.number().min(0).max(1),
     blurStrength: z.enum(["sm", "md", "lg"]),
   }),
+  grade: gradeTokenSchema,
   meta: z.object({
     source: z.enum(["manual", "scraped"]),
     sourceUrl: z.string().url().optional(),

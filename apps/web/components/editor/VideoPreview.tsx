@@ -19,9 +19,10 @@ const ASPECT_OPTIONS: { label: string; value: AspectRatio }[] = [
 
 interface VideoPreviewProps {
   src?: string
+  projectId?: string
 }
 
-export function VideoPreview({ src }: VideoPreviewProps) {
+export function VideoPreview({ src, projectId }: VideoPreviewProps) {
   const assetVideoUrl = useAssetStore((s) => s.asset?.videoUrl ?? undefined)
   const videoSrc = src ?? assetVideoUrl
   const durationMin = useAssetStore((s) =>
@@ -65,7 +66,7 @@ export function VideoPreview({ src }: VideoPreviewProps) {
       </div>
 
       <div className="flex-1 min-h-0 overflow-hidden">
-        <VideoPlayer src={videoSrc} aspectRatio={aspectRatio} />
+        <VideoPlayer src={videoSrc} aspectRatio={aspectRatio} projectId={projectId} />
       </div>
     </div>
   )

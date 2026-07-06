@@ -159,11 +159,12 @@ Reserve fixed `layerDepth` bands so presets combining multiple atomic components
 | Band | Range | Contents |
 |------|-------|----------|
 | Background | 0–10 | Base video/plate, background gradients |
-| Content | 10–50 | Speaker cards, device mockups, charts, funnels |
-| Graphics Overlay | 50–80 | Captions, equalizers, callouts, annotations |
-| UI Chrome | 80–100 | Branding watermark, subscribe badges, safe-zone guides |
+| Content | 10–45 | Speaker cards, device mockups, charts, funnels |
+| Graphics Overlay | 45–70 | Captions, equalizers, callouts, annotations |
+| VFX/Image Overlay | 70–85 | Glitch, grain, light leaks, halftone, color grade layer |
+| UI Chrome | 85–100 | Branding watermark, subscribe badges, safe-zone guides |
 
-**Violation to reject:** any component hardcoding a `layerDepth` outside its declared band, or two components in the same preset claiming the same value.
+**Violation to reject:** any component hardcoding a `layerDepth` outside its declared band, any VFX/overlay component claiming a `layerDepth` outside 70–85, or the color grade layer being applied below content instead of as a final full-frame pass above it.
 
 ---
 
@@ -252,6 +253,232 @@ Equalizer components never branch on which path produced the data.
 ### Interpolation Clamping Law
 
 Every `interpolate()` call must explicitly set `extrapolateLeft: 'clamp', extrapolateRight: 'clamp'` unless overshoot is an intentional, named effect (e.g. `elastic_overshoot`). Unclamped interpolations are a violation — they cause value overshoot, pops, or NaN artifacts at composition boundaries.
+
+---
+
+## Look & VFX Laws
+
+### The Grade Consistency Law
+
+Exactly one color grade applies per composition (or per explicitly user-defined segment
+override) — never a randomly varying grade from clip to clip within the same content
+type. Grading is a themed property, not a per-clip decoration.
+
+### The Precise Grading Law
+
+Color grading must use **SVG filter primitives** (`<feColorMatrix>`,
+`<feComponentTransfer>`) rather than CSS `filter: contrast()/saturate()` shorthand.
+SVG filter primitives give exact, reproducible matrix math that matches pixel-for-pixel
+between preview and headless Chromium export.
+
+### The VFX Overlay Restraint Law
+
+VFX overlays (glitch, scanlines, chromatic aberration) and image overlays (grain, light
+leaks, halftone) are **Triggers**, subject to the same Density Throttle Law governing
+motion graphics and B-roll. They do not get a separate, unthrottled budget.
+
+---
+
+## Director Assembly Laws
+
+These laws govern how the Director Engine assembles automatic edits. They extend
+the Determinism Law — the Timeline is the one resolved, static artifact the
+renderer reads.
+
+### The Single Source of Truth Timeline Law
+
+There is exactly one canonical data structure per project: the **Timeline**.
+Every track — video, audio, captions, B-roll, motion graphics — is a list of
+time-bounded entries inside this one structure. No subsystem may maintain its own
+separate "list of things to show" outside the Timeline. The renderer only ever
+reads the Timeline; it never independently queries the transcript, B-roll service,
+or director rules at render time.
+
+**Violation to reject:** any component or render pass that fetches transcript data,
+B-roll suggestions, or trigger logic live during render instead of reading
+pre-resolved Timeline entries.
+
+### The Trigger-Driven Assembly Law
+
+Every automatic Timeline entry must trace back to an explicit, named **Trigger**
+(e.g. `stat_mention`, `speaker_change`, `topic_shift`, `feature_callout_phrase`)
+detected from the source content, with a confidence score and the exact transcript
+timestamp range that caused it. Nothing gets placed on the Timeline "because the
+AI felt like it" — every auto-inserted element must be traceable and therefore
+removable/explainable to the user.
+
+**Violation to reject:** any Director rule that inserts a component without a
+corresponding logged `TriggerLogEntry` the user could inspect ("why did this
+chart appear here?").
+
+### The Density Throttle Law
+
+Every content-type Director has a Graphics Density setting
+(`minimalist` → `balanced` → `immersive`). Triggers are ranked by
+confidence/impact and only the top N (per density level, per time window) are
+actually realized as Timeline entries — the rest are logged as
+`considered but suppressed` for transparency and future manual insertion. This
+prevents auto-assembly from becoming a cluttered mess of every possible graphic
+firing on every possible topic sentence.
+
+**Violation to reject:** silently dropping lower-confidence triggers with no
+`TriggerLogEntry` record, or realizing more graphics per window than the active
+density level allows.
+
+---
+
+## Integration Laws
+
+These laws govern how the four engines (Director, Motion Graphics, Cuts & Motion,
+Look & VFX, Audio & Multicam) are wired into the live upload → compile → render
+pipeline. They apply during the migration from the legacy editor path to the
+Director Engine pipeline.
+
+### The Preview/Export Parity Law
+
+There is exactly **one** Composition component (`DirectorRender`) and exactly
+**one** props-resolution path (`editor timeline` → `bridgeEditorTimelineToDirector`
+→ `resolveDirectorRenderProps` → `timelineToMotionPlan()` → props) used for both
+the live preview and the final export.
+
+Preview and export must never diverge into separate composition definitions or
+separate prop-construction logic. The unified export path (`_render_unified_director_export`)
+and the preview API (`GET /director-render-props`) both call the same bridge and
+render `DirectorRender` with identical `inputProps`.
+
+**Violations to reject:**
+- Export paths that render raw FFmpeg video + captions while preview shows Remotion layers
+- Preview overlays built only in `VisualOverlayLayer` without a bridged `DirectorTimeline`
+- Duplicate `timelineToMotionPlan()` call sites that construct props differently for preview vs export
+- Adding export-only or preview-only composition stacks for motion graphics, VFX, grade, or audio
+
+**Required pattern:** when the editor timeline changes, re-fetch `director-render-props`
+for preview; when exporting, bridge the same saved timeline snapshot before calling
+`POST /render-director`.
+
+### The Feature-Flag Migration Law
+
+The Director Engine pipeline ships behind a flag (e.g. `useDirectorEngine`),
+running **alongside** the legacy path (`motion_graphics_service.py`, editor
+`timelineStore`, `@viraedit/timeline`) — not replacing it yet. Both paths must
+remain independently functional until the new pipeline has been validated
+end-to-end on real content per content type.
+
+**Violations to reject:**
+- Removing or breaking the legacy editor path as part of integration work
+- Merging PRs that delete legacy code before Phase 5 validation passes on all
+  four content types
+- Defaulting `useDirectorEngine` on for all users before real-video validation
+  completes
+
+**Required pattern:** gate all Director Engine UI and export wiring behind
+`useDirectorEngine` per project. Existing users on the legacy editor see no
+change until the flag is explicitly enabled for their project.
+
+### The Honest Confidence Law
+
+Every signal-extraction module must tag its output with a
+`confidenceSource: 'heuristic' | 'ml'` field. Downstream Trigger Resolution
+weights heuristic-sourced triggers **lower** than ml-sourced ones in the Density
+Throttle ranking (Director Engine Phase 5), so a coin-flip diarization stub
+cannot dominate trigger placement the same way a real model's output would.
+
+**Violations to reject:**
+- Signal modules that emit triggers without a `confidenceSource` tag
+- Folding `confidenceSource` into a single opaque confidence number so the
+  provenance is no longer inspectable
+- Treating heuristic outputs (pause-based speaker alternation, keyword topic
+  segmentation) as ground truth in Density Throttle ranking
+
+**Required pattern:** `confidenceSource` must be visible on every
+`TriggerLogEntry` in the log — not silently baked into ranking math alone.
+Heuristic modules (shot classification, topic segmentation) remain acceptable
+when correctly tagged; ml modules (pyannote diarization) must be tagged `'ml'`.
+
+### The No-Empty-Asset Law
+
+No `BRollEntry`, or any Timeline entry with an `assetUrl` / `sourceUrl` field,
+may be marked `status: 'realized'` while that field is empty or null.
+
+**Violations to reject:**
+- Realizing a B-roll trigger with an empty `assetUrl` and shipping it to render
+- Silently skipping asset resolution and leaving broken placeholders in export
+- Marking a trigger `realized` when Pexels (or equivalent) returned no match
+
+**Required pattern:** resolution either successfully fetches a real asset and
+populates the URL field, or the trigger is marked `suppressed` with an explicit
+reason (e.g. `'no_asset_found'`). Never silently ship broken assets.
+
+---
+
+## Cuts & Motion Laws
+
+These laws govern transitions, camera motion, and pacing. They extend the
+Determinism Law and apply to every content pillar — including Social glitch/whip
+effects (Photosensitive Flash Safety Law still applies).
+
+### The Transition Determinism Law
+
+A transition is a pure function of
+`(frame, transitionStartFrame, durationInFrames, transitionType, params)`.
+It must never sample "the previously rendered pixel" or depend on GPU-side stateful
+effects that vary between preview and export. Ground implementation in
+**`@remotion/transitions`** (`TransitionSeries`, `linearTiming`/`springTiming`,
+presentations like `fade`, `wipe`, `slide`, `flip`, `clockWipe`) rather than
+hand-rolling transition math.
+
+**Violation to reject:** transitions that use unseeded randomness, wall-clock
+time, or framebuffer feedback loops.
+
+### The Motion Continuity Law
+
+Camera motion (Ken Burns, push-in, drift) must have a **seeded, deterministic
+direction and intensity per clip** — derived from the clip's `id`, not randomized
+per render. A clip that pushes in from the left must always push in from the left,
+on every render, on every worker.
+
+**Violation to reject:** `Math.random()` for pan direction or scale delta;
+camera motion without a stable `seed` prop derived from the clip id.
+
+### The Pacing Profile Law
+
+Speed and cut frequency are governed by exactly one `PacingProfile` per project
+(`relaxed` / `balanced` / `aggressive`), which maps to concrete numeric
+thresholds in `PACING_PRESETS`. No component may hardcode its own independent
+"how fast should this feel" value outside this profile.
+
+**Violation to reject:** hardcoded silence-trim thresholds, transition durations,
+or camera intensity caps scattered in individual components.
+
+---
+
+## Audio & Multicam Laws
+
+### The SFX Attribution Law
+
+Every SFX cue must be tied to a specific `TriggerLogEntry` or `TransitionEntry` — a
+whoosh plays *because* a whip-pan transition happened at that frame, a pop plays
+*because* a karaoke word landed. No SFX may be placed on the Timeline as an
+independent, untraceable decoration. This extends the Trigger-Driven Assembly Law.
+
+### The Deterministic Ducking Law
+
+Audio ducking must be expressed as a volume envelope that is a pure function of
+frame — computed once during Timeline resolution as
+`{ startFrame, endFrame, targetVolume, attackFrames, releaseFrames }` windows,
+not as a live audio-analysis pass during render or export.
+
+### The Multicam Sync Law
+
+When a project has multiple camera feeds, they must be aligned to a single shared
+timeline via cross-correlation of their audio waveforms (or clapperboard/timecode if
+present), computed once at ingest — never assumed pre-synced by upload order.
+
+### The Shot Continuity Law
+
+Automatic camera-angle switching must respect a minimum shot duration and bias toward
+cutting on speaker changes or topic shifts (existing Director signals) rather than
+arbitrary timers.
 
 ---
 

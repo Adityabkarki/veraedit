@@ -38,10 +38,15 @@ import {
 import { activeVignetteStrength } from '@/lib/effectKeyframes'
 import { playStyleTransferSfx } from '@/lib/styleTransferSfx'
 import { BrollPreviewUpload } from '@/components/editor/player/BrollPreviewUpload'
+import {
+  DirectorRemotionPreview,
+  useUnifiedRenderPreviewActive,
+} from '@/components/editor/player/DirectorRemotionPreview'
 
 interface VideoPlayerProps {
   src?: string
   aspectRatio?: string
+  projectId?: string
 }
 
 const ASPECT_MAP: Record<string, string> = {
@@ -59,12 +64,22 @@ function formatTime(s: number): string {
   return `${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
 }
 
-export function VideoPlayer({ src, aspectRatio }: VideoPlayerProps) {
+export function VideoPlayer({ src, aspectRatio, projectId }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const syncingFromVideo = useRef(false)
   const playedSfxRef = useRef<Set<string>>(new Set())
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const wantsUnifiedPreview = useUnifiedRenderPreviewActive() && Boolean(projectId)
+  const [remotionOverlayReady, setRemotionOverlayReady] = useState(false)
+
+  const handleRemotionReady = useCallback(() => {
+    setRemotionOverlayReady(true)
+  }, [])
+
+  const handleRemotionFailed = useCallback(() => {
+    setRemotionOverlayReady(false)
+  }, [])
 
   const {
     isPlaying, currentTime, duration, volume, muted, playbackRate, previewEnd,
@@ -77,6 +92,13 @@ export function VideoPlayer({ src, aspectRatio }: VideoPlayerProps) {
   const clips = useTimelineStore((s) => s.clips)
 
   const { playheadTime, setPlayheadTime } = useTimelineStore()
+
+  useEffect(() => {
+    setRemotionOverlayReady(false)
+  }, [projectId, src, clips.length])
+
+  const overlayRemotion = wantsUnifiedPreview && remotionOverlayReady
+  const hideHtmlVideo = overlayRemotion
 
   const timelineDuration = useMemo(
     () => timelineVideoDuration(clips) || duration,
@@ -146,9 +168,9 @@ export function VideoPlayer({ src, aspectRatio }: VideoPlayerProps) {
     const vid = videoRef.current
     if (!vid) return
     vid.volume       = volume
-    vid.muted        = muted
+    vid.muted        = muted || hideHtmlVideo
     vid.playbackRate = playbackRate * clipSpeed
-  }, [volume, muted, playbackRate, clipSpeed])
+  }, [volume, muted, playbackRate, clipSpeed, hideHtmlVideo])
 
   // ── Style-transfer SFX slots (preview whoosh/click on timeline) ─────────────
   useEffect(() => {
@@ -299,11 +321,14 @@ export function VideoPlayer({ src, aspectRatio }: VideoPlayerProps) {
                 src={src}
                 preload="metadata"
                 playsInline
-                className="w-full h-full object-contain transition-opacity duration-75"
+                className={[
+                  'w-full h-full object-contain transition-opacity duration-75',
+                  hideHtmlVideo ? 'opacity-0 pointer-events-none' : '',
+                ].join(' ')}
                 style={{
-                  filter: videoFilter !== 'none' ? videoFilter : undefined,
-                  opacity: videoOpacity,
-                  transform: videoScale !== 1 ? `scale(${videoScale})` : undefined,
+                  filter: !hideHtmlVideo && videoFilter !== 'none' ? videoFilter : undefined,
+                  opacity: hideHtmlVideo ? 0 : videoOpacity,
+                  transform: !hideHtmlVideo && videoScale !== 1 ? `scale(${videoScale})` : undefined,
                   transformOrigin: 'center center',
                 }}
                 onTimeUpdate={onTimeUpdate}
@@ -328,9 +353,9 @@ export function VideoPlayer({ src, aspectRatio }: VideoPlayerProps) {
           )}
 
           {/* Caption overlay — uses Noto Sans Devanagari (font-nepali) */}
-          <CaptionOverlay />
-          <VisualOverlayLayer />
-          {vignetteStrength > 0 && (
+          {!overlayRemotion && <CaptionOverlay />}
+          {!overlayRemotion && <VisualOverlayLayer />}
+          {!overlayRemotion && vignetteStrength > 0 && (
             <div
               data-testid="video-vignette-overlay"
               className="absolute inset-0 pointer-events-none z-[15]"
@@ -338,6 +363,13 @@ export function VideoPlayer({ src, aspectRatio }: VideoPlayerProps) {
                 background: `radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,${Math.min(0.85, vignetteStrength * 2)}) 100%)`,
               }}
               aria-hidden="true"
+            />
+          )}
+          {wantsUnifiedPreview && projectId && (
+            <DirectorRemotionPreview
+              projectId={projectId}
+              onReady={handleRemotionReady}
+              onFailed={handleRemotionFailed}
             />
           )}
           <BrollPreviewUpload />

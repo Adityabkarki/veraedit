@@ -1,6 +1,7 @@
 import { FALLBACK_THEME, type ThemeToken } from "./fallbackTheme";
 import { DEFAULT_THEME } from "./defaultTheme";
 import { deriveTokens } from "./deriveTokens";
+import { NEUTRAL_GRADE } from "../look/gradePresets";
 import { isValidThemeToken } from "./themeSchema";
 
 type LegacyThemeV0 = {
@@ -28,6 +29,13 @@ export function migrateTheme(
     return raw;
   }
 
+  if (v >= 1 && typeof raw === "object" && raw !== null) {
+    const partial = raw as ThemeToken;
+    if (!partial.grade) {
+      return { ...partial, grade: NEUTRAL_GRADE };
+    }
+  }
+
   if (v === 0 || v < 1) {
     const legacy = (raw ?? {}) as LegacyThemeV0;
     return deriveTokens({
@@ -49,6 +57,7 @@ export function migrateTheme(
         weightScale: DEFAULT_THEME.typography.weightScale,
       },
       motion: DEFAULT_THEME.motion,
+      grade: NEUTRAL_GRADE,
       meta: { source: "manual", resolvedAt: new Date().toISOString() },
     });
   }

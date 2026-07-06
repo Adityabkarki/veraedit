@@ -289,17 +289,19 @@ def _insert_timeline_clip(
     timeline_end: float,
     download_url: str,
     source: str = "ai_generated",
-) -> None:
+) -> bool:
     """Insert a B-roll clip into the project's timeline overlay track.
 
     Uses the `broll` track family so the frontend displays clips on
     dedicated B-Roll lanes. Multiple overlapping B-roll clips get
     auto-stacked onto broll-2, broll-3, etc.
+
+    Returns True when a new timeline version was saved.
     """
     row = _fetch_active_timeline_row(project_id)
     if row is None:
         log.warning("timeline_not_found", project_id=project_id)
-        return
+        return False
     current_id, current_version, data = row
 
     # 2. Find or create broll track lane
@@ -381,6 +383,7 @@ def _insert_timeline_clip(
         )
 
     log.info("timeline_clip_inserted", project_id=project_id, clip_id=clip_id)
+    return True
 
 
 # ── Celery task ────────────────────────────────────────────────────────────────
@@ -495,7 +498,7 @@ def generate_and_insert_broll(
         # ── 5. Insert into timeline ────────────────────────────────────────
         _emit_progress(project_id, asset_id, 90, "Placing B-roll on timeline...")
 
-        _insert_timeline_clip(
+        inserted = _insert_timeline_clip(
             project_id=project_id,
             asset_id=new_asset_id,
             prompt=prompt,
@@ -505,6 +508,13 @@ def generate_and_insert_broll(
             download_url=download_url,
             source="stock" if is_stock else "ai_generated",
         )
+        if not inserted:
+            _update_suggestion_action(suggestion_id, project_id, asset_id, {
+                "generation_status": "error",
+                "error_message": "Could not place B-roll on timeline — save your project timeline and try again.",
+            })
+            _emit_progress(project_id, asset_id, 100, "B-roll saved but timeline insert failed.")
+            return {"status": "error", "message": "Timeline insert failed"}
         _update_suggestion_action(suggestion_id, project_id, asset_id, {
             "generation_status": "generated",
             "generated_asset_id": new_asset_id,
@@ -599,7 +609,7 @@ def insert_stock_broll(
             image_prompt=prompt,
             broll_source="stock_pexels",
         )
-        _insert_timeline_clip(
+        inserted = _insert_timeline_clip(
             project_id=project_id,
             asset_id=new_asset_id,
             prompt=prompt,
@@ -609,6 +619,15 @@ def insert_stock_broll(
             download_url=download_url,
             source="stock",
         )
+        if not inserted:
+            if suggestion_id:
+                _update_suggestion_action(suggestion_id, project_id, asset_id, {
+                    "generation_status": "error",
+                    "error_message": "Could not place B-roll on timeline — save your project timeline and try again.",
+                })
+            _emit_progress(project_id, asset_id, 100, "Stock B-roll saved but timeline insert failed.")
+            tmp_dir_obj.cleanup()
+            return {"status": "error", "message": "Timeline insert failed"}
 
         if suggestion_id:
             _update_suggestion_action(suggestion_id, project_id, asset_id, {

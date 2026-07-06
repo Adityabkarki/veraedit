@@ -34,6 +34,19 @@ Check scripts/build_state.py to find which module is current.
 7. Run: python scripts/build_state.py --phases next  (advances index)
 8. End with: "Done. Next phase: [phase title]. Type continue phase."
 
+## When User Says "continue engine" (or "next engine")
+0. Read 00-NORTH-STAR.md first if you haven't this session — it defines the product vision
+1. Read engines-order.json — the ordered list of 4 engines
+2. Run: python scripts/build_state.py --engines show  (find current engine index)
+3. Look up the engine at that index in engines-order.json
+4. Read the engine file from references/ (e.g., references/director-engine.md)
+5. Build everything for that engine. No skipping.
+6. Write tests and run them. Fix failures before moving on.
+7. Run: python scripts/build_state.py --engines next  (advances index)
+8. End with: "Done. Next engine: [engine title]. Type continue engine."
+
+Engine order: Director → Cuts Motion → Look VFX → Audio Multicam
+
 ## Reference Files (still available)
 phase-map.md, architecture.md, tech-decisions.md, and other
 references in ./references/ contain detailed task breakdowns
@@ -119,16 +132,20 @@ Dependencies for style transfer:
 8. All runnable scripts provided as .bat files
 
 ## Reference Files (all in .claude/skills/viraedit/references/)
-- architecture.md           system design and data flow
-- phase-map.md              all 35+ epics, every task, acceptance criteria
-- nepali-ai.md              Nepali language AI config — transcription only
-- windows-setup.md          Windows-specific patterns and gotchas
-- ui-principles.md          intuitive UI rules — English only
-- competitor-dna.md         what to steal from 6 competitor tools
-- cost-and-multicam.md      pricing breakdown and 3-camera architecture
-- style-transfer.md         URL/video style extraction and application
-- editorial-intelligence.md AI editing rules and heuristics
-- testing-guide.md          test patterns for Python and TypeScript
-- error-patterns.md         error handling and structured logging
-- tech-decisions.md         technology choices and cost breakdown
+- architecture.md               system design and data flow
+- phase-map.md                  all 35+ epics, every task, acceptance criteria
+- nepali-ai.md                  Nepali language AI config — transcription only
+- windows-setup.md              Windows-specific patterns and gotchas
+- ui-principles.md              intuitive UI rules — English only
+- competitor-dna.md             what to steal from 6 competitor tools
+- cost-and-multicam.md          pricing breakdown and 3-camera architecture
+- style-transfer.md             URL/video style extraction and application
+- editorial-intelligence.md     AI editing rules and heuristics
+- testing-guide.md              test patterns for Python and TypeScript
+- error-patterns.md             error handling and structured logging
+- tech-decisions.md             technology choices and cost breakdown
+- director-engine.md            [ENGINE 1] AI Motion Director & Magic VOX
+- cuts-motion-engine.md         [ENGINE 2] Smart Cut Detection & Pacing
+- look-vfx-engine.md            [ENGINE 3] Visual Effects, Color & Style Transfer
+- audio-multicam-engine.md      [ENGINE 4] Audio-Reactive Graphics & Multi-Camera Sync
 '@

@@ -4,7 +4,9 @@ import { CaptionComposition } from "./CaptionComposition";
 import { TitleCardComposition } from "./TitleCardComposition";
 import { LowerThirdComposition } from "./LowerThirdComposition";
 import { MotionGraphicsComposition } from "./motion/MotionGraphicsComposition";
+import { DirectorRenderComposition } from "./motion/DirectorRenderComposition";
 import type { MotionPlan } from "./motion/types";
+import type { DirectorTimeline } from "./types/timeline";
 import { FONT_DISPLAY, FONT_DEVANAGARI } from "./motion/fonts";
 import { PodcastPillarPreview, AudioEqualizerDebugStill, PodcastAudioComparisonPreview } from "./motion/components/podcast";
 import { ConsultancyPillarPreview } from "./motion/components/consultancy";
@@ -78,6 +80,39 @@ export const RemotionRoot: React.FC = () => (
       defaultProps={{
         plan: { version: 1, fps: 30, width: 1080, height: 1920, elements: [] } as MotionPlan,
         fontFamily: montserratFamily,
+      }}
+    />
+    <Composition
+      id="DirectorRender"
+      component={DirectorRenderComposition}
+      durationInFrames={300}
+      fps={30}
+      width={1920}
+      height={1080}
+      defaultProps={{
+        timeline: {
+          schemaVersion: 1,
+          projectId: "preview",
+          contentType: "podcast",
+          fps: 30,
+          durationInFrames: 300,
+          width: 1920,
+          height: 1080,
+          theme: TEST_LIGHT_THEME,
+          tracks: {
+            video: [],
+            audio: [],
+            captions: [],
+            broll: [],
+            motionGraphics: [],
+            transitions: [],
+            vfx: [],
+            sfx: [],
+            multicam: [],
+          },
+          triggers: [],
+        } as DirectorTimeline,
+        assetUrls: {},
       }}
     />
     {/* Atomic pillar previews — duration in seconds (6s @ 30fps = 180 frames) */}

@@ -35,6 +35,7 @@ import { AIProducerPanel }        from '@/components/editor/AIProducerPanel'
 import { KeyboardShortcutsModal } from '@/components/editor/KeyboardShortcutsModal'
 import { AnalysisProgressBanner } from '@/components/editor/AnalysisProgressBanner'
 import { AutoEditReviewBanner } from '@/components/editor/AutoEditReviewBanner'
+import { DirectorCompiledBanner } from '@/components/editor/director/DirectorCompiledBanner'
 import { VideoSpendPanel } from '@/components/editor/VideoSpendPanel'
 import { BrollEditPanel } from '@/components/editor/broll/BrollEditPanel'
 import { ImageEditPanel } from '@/components/editor/image/ImageEditPanel'
@@ -43,6 +44,7 @@ import { OverlayElementEditPanel } from '@/components/editor/overlay/OverlayElem
 import { MotionGraphicsEditPanel } from '@/components/editor/motion/MotionGraphicsEditPanel'
 import { EffectKeyframeEditPanel } from '@/components/editor/keyframes/EffectKeyframeEditPanel'
 import { AIBRollPanel } from '@/components/editor/ai/AIBRollPanel'
+import { DirectorAutoEditPanel } from '@/components/editor/director/DirectorAutoEditPanel'
 import { useAssetStore } from '@/stores/assetStore'
 import { shouldPollAssetStatus } from '@/hooks/useEditorPipelinePoll'
 
@@ -100,6 +102,7 @@ export function EditorLayout({
         />
       )}
       <AutoEditReviewBanner />
+      <DirectorCompiledBanner />
 
       {/* ── Shorts mode — full-width grid with in-card video previews ─────── */}
       {editorMode === 'shorts' && (
@@ -166,7 +169,7 @@ export function EditorLayout({
             data-testid="center-panel"
             className="flex-1 overflow-hidden min-w-0 min-h-0"
           >
-            <VideoPreview />
+            <VideoPreview projectId={projectId} />
           </div>
 
           {/* Right panel */}
@@ -204,6 +207,8 @@ export function EditorLayout({
                   ? <EffectKeyframeEditPanel />
                   : rightPanelMode === 'ai-broll'
                   ? <AIBRollPanel projectId={projectId} />
+                  : rightPanelMode === 'director'
+                  ? <DirectorAutoEditPanel projectId={projectId} />
                   : <AIPanel projectId={projectId} />}
               </div>
             </>

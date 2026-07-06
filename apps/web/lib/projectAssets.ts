@@ -44,8 +44,8 @@ export function pickPrimaryProjectAsset(
 
   const primaryCandidates = assets.filter((a) => !isSecondaryBrollAsset(a))
   if (primaryCandidates.length > 0) {
-    // Newest-first list → last candidate is the original upload.
-    return primaryCandidates[primaryCandidates.length - 1]
+    // Newest-first list → first primary candidate is the latest main upload.
+    return primaryCandidates[0]
   }
 
   return assets[assets.length - 1]

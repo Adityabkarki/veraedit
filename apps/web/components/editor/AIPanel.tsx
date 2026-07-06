@@ -17,6 +17,7 @@ import type { SuggestionFilter } from '@/stores/suggestionsStore'
 import { useUIStore }        from '@/stores/uiStore'
 import { useEffectsStore }   from '@/stores/effectsStore'
 import { useAssetStore }     from '@/stores/assetStore'
+import { useDirectorStore }  from '@/stores/directorStore'
 import { PanelTooltip }    from '@/components/editor/PanelTooltip'
 import { AIPromptBar }     from '@/components/editor/ai/AIPromptBar'
 import { SuggestionCard }  from '@/components/editor/ai/SuggestionCard'
@@ -43,6 +44,7 @@ export function AIPanel({ projectId }: { projectId?: string }) {
   } = useSuggestionsStore()
 
   const assetId = useAssetStore((s) => s.asset?.id ?? null)
+  const useDirectorEngine = useDirectorStore((s) => s.useDirectorEngine)
 
   const { setRightPanelMode } = useUIStore()
 
@@ -127,6 +129,21 @@ export function AIPanel({ projectId }: { projectId?: string }) {
             className="text-[11px] text-text-disabled hover:text-accent transition-colors px-1.5 py-0.5 rounded hover:bg-bg-overlay"
           >
             🎬
+          </button>
+          <button
+            data-testid="open-director-auto-edit"
+            onClick={() => setRightPanelMode('director')}
+            title={
+              useDirectorEngine
+                ? 'Open Auto Edit (Director Engine)'
+                : 'Open Auto Edit (enable Director Engine)'
+            }
+            className={[
+              'text-[11px] transition-colors px-1.5 py-0.5 rounded hover:bg-bg-overlay',
+              useDirectorEngine ? 'text-accent' : 'text-text-disabled hover:text-accent',
+            ].join(' ')}
+          >
+            ✂️
           </button>
         </div>
 

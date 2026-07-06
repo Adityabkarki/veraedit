@@ -4,7 +4,11 @@
  */
 
 import { api } from '@/lib/api'
-import type { ApiTimelineResponse } from '@/lib/timelineApi'
+import {
+  isTimelineStaleForAsset,
+  upgradeTimelinePrimaryAsset,
+  type ApiTimelineResponse,
+} from '@/lib/timelineApi'
 import { syncOverlaysToVisualLibrary } from '@/lib/applySuggestionClient'
 import { syncCaptionsFromTimeline } from '@/lib/captionTimelineSync'
 import { saveProjectTimeline } from '@/lib/renderExport'
@@ -23,11 +27,14 @@ import { applyPodcastAutopilotIfNeeded } from '@/lib/podcastAutopilot'
 import { useAutoEditStore } from '@/stores/autoEditStore'
 import { usePlayerStore } from '@/stores/playerStore'
 import { pickPrimaryProjectAsset } from '@/lib/projectAssets'
+import { projectUsesDirectorEngine } from '@/lib/directorApi'
+import { useDirectorStore } from '@/stores/directorStore'
 
 interface BackendProject {
   id: string
   name: string
   status: string
+  settings?: Record<string, unknown> | null
 }
 
 interface BackendAsset {
@@ -65,7 +72,12 @@ export interface LoadEditorOptions {
   reloadTimeline?: boolean
   /** Keep playhead position when timeline is reloaded (e.g. after style apply). */
   preservePlayhead?: boolean
+  /** Force a specific asset as primary (e.g. right after ingest completes). */
+  preferredAssetId?: string | null
 }
+
+/** Monotonic token — only the latest loadEditorProject may mutate timeline state. */
+let editorLoadGeneration = 0
 
 /** Clear every editor data store to an empty state (no mock leakage). */
 function clearAllStores() {
@@ -77,14 +89,18 @@ function clearAllStores() {
   useAssetStore.getState().clearAsset()
   useTimelineStore.getState().resetTimeline()
   useAutoEditStore.getState().clearApplied()
+  useDirectorStore.getState().reset()
 }
 
 async function loadProjectTimeline(
   projectId: string,
   asset: BackendAsset,
-  options?: Pick<LoadEditorOptions, 'preservePlayhead'>,
+  options?: Pick<LoadEditorOptions, 'preservePlayhead'> & { loadId?: number },
 ): Promise<void> {
+  const loadId = options?.loadId ?? editorLoadGeneration
   const tl = await api.get<ApiTimelineResponse>(`/projects/${projectId}/timeline`)
+
+  if (loadId !== editorLoadGeneration) return
 
   // 404 = project missing or no access — fall back to default timeline from asset
   if (tl.error && tl.status !== 404 && !tl.data) {
@@ -94,7 +110,33 @@ async function loadProjectTimeline(
   const savedTimeline = tl.data?.data
   const hasSavedTimeline = Boolean(savedTimeline?.tracks?.length)
 
+  if (
+    hasSavedTimeline &&
+    savedTimeline &&
+    isTimelineStaleForAsset(savedTimeline, asset.id)
+  ) {
+    const upgraded = upgradeTimelinePrimaryAsset(savedTimeline, {
+      id: asset.id,
+      filename: asset.original_filename,
+      durationSeconds: asset.duration_seconds ?? 0,
+    })
+    if (loadId !== editorLoadGeneration) return
+    useTimelineStore.getState().loadFromApi(upgraded, {
+      preservePlayhead: options?.preservePlayhead,
+    })
+    syncOverlaysToVisualLibrary(useTimelineStore.getState().clips)
+    const saved = await saveProjectTimeline(projectId, 'Upgraded timeline for new main video')
+    if (!saved.ok && saved.error) {
+      console.warn('[viraedit] Timeline upgrade save failed:', saved.error)
+    }
+    if (loadId !== editorLoadGeneration) return
+    const playhead = useTimelineStore.getState().playheadTime
+    usePlayerStore.getState().seek(playhead)
+    return
+  }
+
   if (hasSavedTimeline && savedTimeline) {
+    if (loadId !== editorLoadGeneration) return
     useTimelineStore.getState().loadFromApi(savedTimeline, {
       preservePlayhead: options?.preservePlayhead,
     })
@@ -108,6 +150,7 @@ async function loadProjectTimeline(
       restored.clips.length !== state.clips.length ||
       restored.tracks.length !== state.tracks.length
     ) {
+      if (loadId !== editorLoadGeneration) return
       useTimelineStore.setState({
         tracks: restored.tracks,
         clips: restored.clips,
@@ -115,6 +158,7 @@ async function loadProjectTimeline(
       })
     }
     syncOverlaysToVisualLibrary(useTimelineStore.getState().clips)
+    if (loadId !== editorLoadGeneration) return
     const playhead = useTimelineStore.getState().playheadTime
     usePlayerStore.getState().seek(playhead)
     return
@@ -122,6 +166,7 @@ async function loadProjectTimeline(
 
   // No saved timeline yet — build a default clip from the uploaded asset
   if (asset.duration_seconds && asset.duration_seconds > 0) {
+    if (loadId !== editorLoadGeneration) return
     useTimelineStore.getState().loadFromAsset({
       label: asset.original_filename,
       durationSeconds: asset.duration_seconds,
@@ -139,7 +184,8 @@ export async function loadEditorProject(
   projectId: string,
   options: LoadEditorOptions = {},
 ): Promise<EditorLoadResult> {
-  const { reloadTimeline = true, preservePlayhead = false } = options
+  const loadId = ++editorLoadGeneration
+  const { reloadTimeline = true, preservePlayhead = false, preferredAssetId: forcedAssetId } = options
   const proj = await api.get<BackendProject>(`/projects/${projectId}`)
   if (proj.error || !proj.data) {
     return {
@@ -151,11 +197,15 @@ export async function loadEditorProject(
     }
   }
   const projectTitle = proj.data.name || 'Untitled Project'
+  const directorEnabled = projectUsesDirectorEngine(proj.data.settings)
+  useDirectorStore.getState().setProjectContext(projectId, directorEnabled)
+  if (directorEnabled) {
+    await useDirectorStore.getState().loadTimeline(projectId)
+  }
 
   const assets = await api.get<BackendAsset[]>(`/projects/${projectId}/assets`)
-  const preferredAssetId = reloadTimeline
-    ? useAssetStore.getState().asset?.id
-    : undefined
+  const preferredAssetId = forcedAssetId
+    ?? (reloadTimeline ? useAssetStore.getState().asset?.id : undefined)
   const asset =
     assets.data && assets.data.length > 0
       ? pickPrimaryProjectAsset(assets.data, preferredAssetId)
@@ -244,7 +294,7 @@ export async function loadEditorProject(
       usingProxy,
       errorMessage: null,
     })
-    await loadProjectTimeline(projectId, asset, { preservePlayhead })
+    await loadProjectTimeline(projectId, asset, { preservePlayhead, loadId })
   } else {
     useAssetStore.getState().patchAsset({
       status: asset.status,
@@ -340,6 +390,32 @@ export async function loadEditorProject(
     contentType,
     error: null,
   }
+}
+
+/**
+ * Reload only the timeline from the API (e.g. after backend B-roll insert).
+ * Lighter than loadEditorProject and ignores stale concurrent full loads.
+ */
+export async function reloadProjectTimeline(
+  projectId: string,
+  options?: Pick<LoadEditorOptions, 'preservePlayhead'>,
+): Promise<boolean> {
+  const loadId = ++editorLoadGeneration
+  const storeAsset = useAssetStore.getState().asset
+  if (!storeAsset?.id) return false
+
+  const assets = await api.get<BackendAsset[]>(`/projects/${projectId}/assets`)
+  if (loadId !== editorLoadGeneration) return false
+
+  const backendAsset = assets.data?.find((a) => a.id === storeAsset.id)
+    ?? pickPrimaryProjectAsset(assets.data ?? [], storeAsset.id)
+  if (!backendAsset) return false
+
+  await loadProjectTimeline(projectId, backendAsset, {
+    preservePlayhead: options?.preservePlayhead,
+    loadId,
+  })
+  return loadId === editorLoadGeneration
 }
 
 /** Re-export for editor header save button. */

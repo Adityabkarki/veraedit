@@ -48,6 +48,10 @@ export interface MotionPlan {
   theme?: import("../../types/theme-tokens").ThemeToken;
   /** Audio-reactive analysis routing — Path A or Path B. */
   audio?: MotionPlanAudio;
+  /** When true, apply theme.grade via ColorGrade (Director export path). */
+  applyColorGrade?: boolean;
+  /** Director Engine source marker — used by export bridge. */
+  directorSource?: "legacy_overlay" | "director_timeline";
 }
 
 export interface MotionGraphicsProps {
@@ -55,4 +59,6 @@ export interface MotionGraphicsProps {
   fontFamily: string;
   /** Resolved ThemeToken from layout JSON — migrated before render. */
   theme?: import("../../types/theme-tokens").ThemeToken;
+  /** Skip solid background — stack transparent motion graphics over video. */
+  transparentBackground?: boolean;
 }

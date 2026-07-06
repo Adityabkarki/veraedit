@@ -268,6 +268,8 @@ export interface TimelineState {
   snapIndicatorTime: number | null
   /** Set after every edit to trigger the "Ctrl+Z to undo" toast */
   lastEditAction:    string | null
+  /** Bumped on API reloads so preview can refresh without overwriting backend edits. */
+  timelineVersion:   number
   undoStack:         HistoryEntry[]
   redoStack:         HistoryEntry[]
   /** Snapshot saved at drag-start; committed on drag-end */
@@ -378,6 +380,7 @@ export const useTimelineStore = create<TimelineState>()(
       snapEnabled:       true,
       snapIndicatorTime: null,
       lastEditAction:    null,
+      timelineVersion:   0,
       undoStack:         [],
       redoStack:         [],
       _pendingSnapshot:  null,
@@ -433,6 +436,7 @@ export const useTimelineStore = create<TimelineState>()(
           redoStack: [],
           _pendingSnapshot: null,
           lastEditAction: null,
+          timelineVersion: get().timelineVersion + 1,
         })
       },
 

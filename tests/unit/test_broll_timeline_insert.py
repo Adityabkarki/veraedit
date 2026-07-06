@@ -53,7 +53,7 @@ def test_insert_timeline_clip_fetches_timeline_via_raw_sql(mock_engine, timeline
     project_id = str(uuid.uuid4())
     asset_id = str(uuid.uuid4())
 
-    _insert_timeline_clip(
+    result = _insert_timeline_clip(
         project_id=project_id,
         asset_id=asset_id,
         prompt="ghar",
@@ -63,6 +63,8 @@ def test_insert_timeline_clip_fetches_timeline_via_raw_sql(mock_engine, timeline
         download_url="http://localhost:9000/viraedit-media/test.mp4",
         source="stock",
     )
+
+    assert result is True
 
     read_sql = str(read_conn.execute.call_args.args[0])
     assert "SELECT id, version, data FROM timelines" in read_sql

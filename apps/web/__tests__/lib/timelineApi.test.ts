@@ -7,6 +7,9 @@ import {
   apiTimelineToStore,
   storeToApiTimeline,
   apiTimelineHasVideo,
+  isTimelineStaleForAsset,
+  timelinePrimaryAssetId,
+  upgradeTimelinePrimaryAsset,
   normalizePrimaryTrackId,
   type ApiTimelineData,
 } from '@/lib/timelineApi'
@@ -224,6 +227,138 @@ describe('timelineApi — apiTimelineHasVideo', () => {
 
   it('returns false for empty tracks', () => {
     expect(apiTimelineHasVideo({ schema_version: 1, tracks: [], global_settings: { duration: 0 } })).toBe(false)
+  })
+})
+
+describe('timelineApi — timelinePrimaryAssetId', () => {
+  it('reads asset_id from first video clip', () => {
+    expect(timelinePrimaryAssetId(SAMPLE)).toBe('asset-abc')
+  })
+
+  it('returns null when no video clips', () => {
+    expect(
+      timelinePrimaryAssetId({
+        schema_version: 1,
+        tracks: [{ id: 'track-audio-1', type: 'audio', clips: [] }],
+        global_settings: { duration: 0 },
+      }),
+    ).toBeNull()
+  })
+})
+
+describe('timelineApi — isTimelineStaleForAsset', () => {
+  it('detects mismatch with current asset', () => {
+    expect(isTimelineStaleForAsset(SAMPLE, 'asset-new')).toBe(true)
+  })
+
+  it('returns false when asset matches', () => {
+    expect(isTimelineStaleForAsset(SAMPLE, 'asset-abc')).toBe(false)
+  })
+})
+
+describe('timelineApi — upgradeTimelinePrimaryAsset', () => {
+  it('replaces main video but keeps B-roll overlay clips', () => {
+    const withBroll: ApiTimelineData = {
+      schema_version: 1,
+      global_settings: { duration: 12 },
+      tracks: [
+        {
+          id: 'track-video-1',
+          type: 'video',
+          clips: [{
+            id: 'clip-old',
+            asset_id: 'asset-old',
+            source_start: 0,
+            source_end: 12,
+            timeline_start: 0,
+            timeline_end: 12,
+            label: 'Old video',
+          }],
+        },
+        {
+          id: 'track-broll-1',
+          type: 'overlay',
+          clips: [{
+            id: 'broll-1',
+            asset_id: 'broll-asset',
+            source_start: 0,
+            source_end: 4,
+            timeline_start: 2,
+            timeline_end: 6,
+            label: 'AI B-roll',
+            effects: [{
+              type: 'visual_overlay',
+              params: {
+                visual_type: 'broll_overlay',
+                media_url: 'http://example.com/broll.mp4',
+                broll_type: 'ai_generated',
+              },
+            }],
+          }],
+        },
+      ],
+    }
+
+    const upgraded = upgradeTimelinePrimaryAsset(withBroll, {
+      id: 'asset-new',
+      filename: 'New upload.mp4',
+      durationSeconds: 20,
+    })
+    expect(timelinePrimaryAssetId(upgraded)).toBe('asset-new')
+
+    const { clips } = apiTimelineToStore(upgraded)
+    expect(clips.some((c) => c.trackId === 'broll' && c.effects?.visualType === 'broll_overlay')).toBe(true)
+    expect(clips.some((c) => c.trackId === 'video' && c.label === 'New upload.mp4')).toBe(true)
+  })
+})
+
+describe('timelineApi — backend B-roll round-trip', () => {
+  it('maps track-broll-1 overlay clips onto the broll lane', () => {
+    const api: ApiTimelineData = {
+      schema_version: 1,
+      global_settings: { duration: 30 },
+      tracks: [
+        {
+          id: 'track-video-1',
+          type: 'video',
+          clips: [{
+            id: 'clip-main',
+            asset_id: 'asset-main',
+            source_start: 0,
+            source_end: 30,
+            timeline_start: 0,
+            timeline_end: 30,
+            label: 'Main',
+          }],
+        },
+        {
+          id: 'track-broll-1',
+          type: 'overlay',
+          clips: [{
+            id: 'broll-x',
+            asset_id: 'broll-asset',
+            source_start: 0,
+            source_end: 4,
+            timeline_start: 5,
+            timeline_end: 9,
+            label: 'Stock B-roll',
+            effects: [{
+              type: 'visual_overlay',
+              params: {
+                visual_type: 'broll_overlay',
+                media_url: 'http://example.com/stock.mp4',
+                broll_type: 'stock',
+              },
+            }],
+          }],
+        },
+      ],
+    }
+
+    const { clips } = apiTimelineToStore(api)
+    const broll = clips.find((c) => c.id === 'broll-x')
+    expect(broll?.trackId).toBe('broll')
+    expect(broll?.effects?.mediaUrl).toContain('stock.mp4')
   })
 })
 

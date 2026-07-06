@@ -1,15 +1,17 @@
 import type { ThemeToken } from "../../types/theme-tokens";
+import { NEUTRAL_GRADE } from "../look/gradePresets";
 import {
   accentSafeForBackground,
   contrastSafeText,
   isLight,
 } from "./colorMath";
 
-export type PartialThemeInput = Omit<ThemeToken, "colors" | "glass" | "meta"> & {
+export type PartialThemeInput = Omit<ThemeToken, "colors" | "glass" | "meta" | "grade"> & {
   colors: Pick<
     ThemeToken["colors"],
     "primary" | "secondary" | "accent" | "background" | "surface"
   >;
+  grade?: Partial<import("../look/gradePresets").GradeToken>;
   meta?: Partial<ThemeToken["meta"]>;
 };
 
@@ -60,6 +62,7 @@ export function deriveTokens(input: PartialThemeInput): ThemeToken {
     typography: input.typography,
     motion: input.motion,
     glass,
+    grade: { ...NEUTRAL_GRADE, ...input.grade },
     meta: {
       source: input.meta?.source ?? "manual",
       sourceUrl: input.meta?.sourceUrl,

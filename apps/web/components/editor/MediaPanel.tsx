@@ -134,8 +134,9 @@ export function MediaPanel({ projectId }: MediaPanelProps) {
 
   const { status: jobStatus, error: jobError } = useJobPoller(
     activeJobId,
-    () => {
-      void loadEditorProject(projectId)
+    (result) => {
+      const assetId = typeof result.asset_id === 'string' ? result.asset_id : undefined
+      void loadEditorProject(projectId, { preferredAssetId: assetId })
       setActiveJobId(null)
     }
   )

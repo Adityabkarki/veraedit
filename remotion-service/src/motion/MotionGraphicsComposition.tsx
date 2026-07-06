@@ -7,6 +7,8 @@ import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { migrateTheme } from "../lib/theme/migrateTheme";
 import { AudioAnalysisProvider } from "./components/podcast/AudioAnalysisProvider";
 import { useCompositionAudioAnalysis } from "./components/podcast/useCompositionAudioAnalysis";
+import { ColorGrade } from "./components/vfx/ColorGrade";
+import { NEUTRAL_GRADE } from "@lib/look/gradePresets";
 
 /**
  * JSON-driven motion graphics dispatcher.
@@ -17,6 +19,7 @@ export const MotionGraphicsComposition: React.FC<MotionGraphicsProps> = ({
   plan,
   fontFamily,
   theme: rawTheme,
+  transparentBackground = false,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -28,6 +31,7 @@ export const MotionGraphicsComposition: React.FC<MotionGraphicsProps> = ({
     [rawTheme, plan],
   );
   const audioTrack = useCompositionAudioAnalysis(plan);
+  const applyGrade = plan.applyColorGrade === true;
 
   const alwaysOn = new Set([
     "background_gradient",
@@ -48,20 +52,34 @@ export const MotionGraphicsComposition: React.FC<MotionGraphicsProps> = ({
     "vertical_clip_template",
   ]);
 
+  const content = (
+    <AbsoluteFill
+      style={{
+        backgroundColor: transparentBackground ? "transparent" : theme.colors.background,
+      }}
+    >
+      {elements.map((el) => {
+        if (
+          currentTime < el.startSeconds ||
+          currentTime > el.endSeconds
+        ) {
+          if (!alwaysOn.has(el.type)) return null;
+        }
+        return renderMotionElement(el, family);
+      })}
+    </AbsoluteFill>
+  );
+
   return (
     <ThemeProvider theme={theme}>
       <AudioAnalysisProvider track={audioTrack}>
-        <AbsoluteFill style={{ backgroundColor: theme.colors.background }}>
-          {elements.map((el) => {
-            if (
-              currentTime < el.startSeconds ||
-              currentTime > el.endSeconds
-            ) {
-              if (!alwaysOn.has(el.type)) return null;
-            }
-            return renderMotionElement(el, family);
-          })}
-        </AbsoluteFill>
+        {applyGrade ? (
+          <ColorGrade grade={theme.grade ?? NEUTRAL_GRADE} seed={plan.directorSource ?? "mg"}>
+            {content}
+          </ColorGrade>
+        ) : (
+          content
+        )}
       </AudioAnalysisProvider>
     </ThemeProvider>
   );

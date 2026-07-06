@@ -638,3 +638,61 @@ export function apiTimelineHasVideo(data: ApiTimelineData | null | undefined): b
     (t) => t.type === 'video' && Array.isArray(t.clips) && t.clips.length > 0,
   )
 }
+
+/** Primary source footage asset id from saved timeline JSON (first video-track clip). */
+export function timelinePrimaryAssetId(data: ApiTimelineData): string | null {
+  for (const track of data.tracks ?? []) {
+    if (track.type !== 'video') continue
+    for (const clip of track.clips ?? []) {
+      if (clip.asset_id) return clip.asset_id
+    }
+  }
+  return null
+}
+
+/** True when saved timeline belongs to a different main video than the current asset. */
+export function isTimelineStaleForAsset(data: ApiTimelineData, assetId: string): boolean {
+  const saved = timelinePrimaryAssetId(data)
+  return saved != null && saved !== assetId
+}
+
+/** Replace main video/audio on a saved timeline while keeping B-roll, captions, overlays, etc. */
+export function upgradeTimelinePrimaryAsset(
+  data: ApiTimelineData,
+  asset: { id: string; filename: string; durationSeconds: number },
+): ApiTimelineData {
+  const { tracks, clips } = apiTimelineToStore(data)
+  const withoutPrimary = clips.filter(
+    (c) => !(c.trackId === 'video' && c.type === 'video')
+      && !(c.trackId === 'audio' && c.type === 'audio'),
+  )
+  const dur = Math.max(0.1, asset.durationSeconds || 0)
+  const clipId = `clip-${asset.id.slice(0, 8)}`
+  const nextClips = [
+    ...withoutPrimary,
+    {
+      id: clipId,
+      trackId: 'video',
+      startTime: 0,
+      duration: dur,
+      label: asset.filename || 'Main video',
+      type: 'video' as const,
+      sourceStart: 0,
+      sourceEnd: dur,
+    },
+    {
+      id: `${clipId}-audio`,
+      trackId: 'audio',
+      startTime: 0,
+      duration: dur,
+      label: 'Audio',
+      type: 'audio' as const,
+      sourceStart: 0,
+      sourceEnd: dur,
+    },
+  ]
+  const nextTracks = tracks.some((t) => t.id === 'video')
+    ? tracks
+    : [{ id: 'video', label: 'Video', color: '#3B82F6', muted: false, locked: false, visible: true }, ...tracks]
+  return storeToApiTimeline(nextTracks, nextClips, asset.id, dur, data.metadata)
+}

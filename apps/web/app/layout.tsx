@@ -52,7 +52,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`dark ${inter.variable} ${jakartaSans.variable} ${notoDevanagari.variable}`}
       suppressHydrationWarning
     >
-      <body className="font-body bg-bg-base text-text-primary min-h-screen">
+      <body className="font-body bg-bg-base text-text-primary min-h-screen" suppressHydrationWarning>
         <ChunkLoadRecovery />
         <QueryProvider>
           {children}

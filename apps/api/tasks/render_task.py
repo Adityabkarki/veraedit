@@ -125,11 +125,14 @@ def render_video(
                 render_settings,
             )
         else:
-            director_result = _try_render_director_engine(
-                render_id, project_id, render_settings,
+            unified_result = _render_unified_director_export(
+                render_id,
+                project_id,
+                render_settings,
+                timeline_data,
             )
-            if director_result is not None:
-                storage_key, out_duration = director_result
+            if unified_result is not None:
+                storage_key, out_duration = unified_result
             else:
                 storage_key, out_duration = _real_render(
                     render_id, project_id, platform, render_settings, timeline_data
@@ -1003,6 +1006,183 @@ def _concat_with_transitions(
 
 
 # ── Main render ─────────────────────────────────────────────────────────────
+
+def _render_unified_director_export(
+    render_id: str,
+    project_id: str,
+    render_settings: dict,
+    timeline_data: dict,
+) -> tuple[str, float] | None:
+    """
+    Preview/Export Parity path — bridge the saved editor timeline to DirectorTimeline,
+    render via remotion-service DirectorRender composition + timelineToMotionPlan(),
+    then burn captions from the same editor timeline snapshot.
+
+    Falls back to None so the legacy FFmpeg path can run if Remotion is unavailable.
+    """
+    import asyncio
+    import tempfile
+    from pathlib import Path
+    from sqlalchemy import text
+
+    width = int(render_settings.get("width", 1920))
+    height = int(render_settings.get("height", 1080))
+
+    engine = _get_sync_conn()
+    project_settings: dict = {}
+    content_type = "podcast"
+    try:
+        with engine.begin() as conn:
+            project_row = conn.execute(
+                text("SELECT settings, content_type FROM projects WHERE id = :id"),
+                {"id": project_id},
+            ).fetchone()
+            if project_row:
+                project_settings = project_row.settings or {}
+                if project_row.content_type:
+                    content_type = str(project_row.content_type.value if hasattr(project_row.content_type, "value") else project_row.content_type).lower()
+                    if content_type not in ("podcast", "consultancy", "social", "showcase"):
+                        content_type = "podcast"
+
+            asset_rows = conn.execute(
+                text(
+                    """
+                    SELECT id, storage_key, original_filename
+                    FROM assets WHERE project_id = :pid ORDER BY created_at ASC
+                    """
+                ),
+                {"pid": project_id},
+            ).fetchall()
+    finally:
+        engine.dispose()
+
+    from processors.storage_helpers import S3Storage
+    from services.director.legacy_timeline_bridge import bridge_editor_timeline_to_director
+
+    storage = S3Storage()
+    asset_urls: dict[str, str] = {}
+    primary_video_src: str | None = None
+    for row in asset_rows:
+        url = storage.get_presigned_url(row.storage_key, filename=row.original_filename)
+        asset_urls[str(row.id)] = url
+        if primary_video_src is None:
+            primary_video_src = url
+
+    camera_feeds = project_settings.get("cameraFeeds") or []
+    theme = (timeline_data.get("metadata") or {}).get("theme")
+
+    try:
+        bridged = asyncio.run(
+            bridge_editor_timeline_to_director(
+                timeline_data,
+                project_id=project_id,
+                width=width,
+                height=height,
+                content_type=content_type,
+                theme=theme if isinstance(theme, dict) else None,
+            )
+        )
+    except Exception as exc:
+        log.warning("unified_director_bridge_failed: %s", exc)
+        return None
+
+    if not bridged.get("tracks", {}).get("video"):
+        log.info("unified_director_skipped_no_video", project_id=project_id)
+        return None
+
+    # Prefer compiled director_timelines motion/VFX when flag is on and timeline exists.
+    if project_settings.get("useDirectorEngine") or project_settings.get("use_director_engine"):
+        merged = _merge_director_timeline_layers(bridged, project_id)
+        if merged is not None:
+            bridged = merged
+
+    with tempfile.TemporaryDirectory(prefix="viraedit_unified_render_") as tmp_dir:
+        tmp = Path(tmp_dir)
+        out = tmp / "director_export.mp4"
+        _update_render_status(render_id, "processing", progress=40.0)
+
+        from processors.remotion_client import render_director_export, remotion_service_healthy
+
+        if not asyncio.run(remotion_service_healthy()):
+            log.warning("unified_director_skipped_remotion_down", project_id=project_id)
+            return None
+
+        try:
+            asyncio.run(
+                render_director_export(
+                    bridged,
+                    output_path=out.as_posix(),
+                    asset_urls=asset_urls,
+                    primary_video_src=primary_video_src,
+                    dialogue_src=primary_video_src,
+                    camera_feeds=camera_feeds,
+                )
+            )
+        except Exception as exc:
+            log.warning("unified_director_render_failed: %s", exc, exc_info=True)
+            return None
+
+        _update_render_status(render_id, "processing", progress=88.0)
+        final_out, duration = _maybe_burn_timeline_captions(
+            out, timeline_data, tmp, render_id,
+        )
+        duration = _ffprobe_duration(final_out) if duration <= 0 else duration
+
+        _update_render_status(render_id, "processing", progress=90.0)
+        storage_key = f"renders/{project_id}/{render_settings.get('platform', 'youtube')}/{render_id[:8]}/output.mp4"
+        _s3_client().upload_file(
+            Filename=str(final_out),
+            Bucket="viraedit-renders",
+            Key=storage_key,
+            ExtraArgs={"ContentType": "video/mp4"},
+        )
+        log.info(
+            "unified_director_render_complete",
+            project_id=project_id,
+            storage_key=storage_key,
+            motion_graphics=len(bridged.get("tracks", {}).get("motionGraphics", [])),
+            vfx=len(bridged.get("tracks", {}).get("vfx", [])),
+        )
+        return storage_key, duration
+
+
+def _merge_director_timeline_layers(bridged: dict, project_id: str) -> dict | None:
+    """Overlay compiled director motion/VFX/multicam onto bridged editor timeline."""
+    from sqlalchemy import text
+
+    engine = _get_sync_conn()
+    try:
+        with engine.begin() as conn:
+            tl_row = conn.execute(
+                text(
+                    """
+                    SELECT data FROM director_timelines
+                    WHERE project_id = :pid AND is_active = true
+                    ORDER BY version DESC LIMIT 1
+                    """
+                ),
+                {"pid": project_id},
+            ).fetchone()
+    finally:
+        engine.dispose()
+
+    if not tl_row or not tl_row.data:
+        return None
+
+    compiled = tl_row.data
+    compiled_tracks = compiled.get("tracks") or {}
+    bridged_tracks = bridged.setdefault("tracks", {})
+
+    for key in ("motionGraphics", "vfx", "multicam", "sfx", "transitions"):
+        compiled_layer = compiled_tracks.get(key) or []
+        if compiled_layer and not bridged_tracks.get(key):
+            bridged_tracks[key] = compiled_layer
+
+    if compiled.get("theme") and not bridged.get("theme"):
+        bridged["theme"] = compiled["theme"]
+
+    return bridged
+
 
 def _try_render_director_engine(
     render_id: str,

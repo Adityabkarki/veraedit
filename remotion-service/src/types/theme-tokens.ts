@@ -39,6 +39,9 @@ export interface ThemeToken {
     blurStrength: "sm" | "md" | "lg";
   };
 
+  /** Color grade — always applied per composition (Grade Consistency Law). */
+  grade: import("../lib/look/gradePresets").GradeToken;
+
   meta: {
     source: "manual" | "scraped";
     sourceUrl?: string;

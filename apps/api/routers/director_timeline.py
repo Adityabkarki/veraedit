@@ -144,6 +144,43 @@ async def patch_project_director_timeline(
     }
 
 
+@router.get("/{project_id}/director-render-props")
+async def get_director_render_props(
+    project_id: uuid.UUID,
+    db: DbDep,
+    current_user: CurrentUser,
+    width: int = 1920,
+    height: int = 1080,
+) -> dict[str, Any]:
+    """
+    Resolved DirectorRender composition props for live preview.
+    Same resolution path as unified export (Preview/Export Parity Law).
+    """
+    from services.director.preview_props import (
+        get_active_editor_timeline,
+        resolve_director_render_props,
+    )
+
+    project = await _get_owned_project(project_id, current_user.id, db)
+    timeline_data = await get_active_editor_timeline(project_id, db)
+    if not timeline_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No editor timeline found. Save the project before previewing.",
+        )
+
+    try:
+        return await resolve_director_render_props(
+            project, timeline_data, db, width=width, height=height,
+        )
+    except Exception as exc:
+        log.warning("director_render_props_failed", error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not resolve render props. Is the Remotion service running?",
+        ) from exc
+
+
 async def _get_owned_project(
     project_id: uuid.UUID,
     user_id: uuid.UUID,
