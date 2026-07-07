@@ -19,12 +19,15 @@ function secondsToFrames(seconds: number, fps: number): number {
   return Math.max(0, Math.round(seconds * fps));
 }
 
+// kinetic_caption is deliberately absent: captions bypass the Density Throttle
+// (they are content), so a pop per caption phrase would fire every ~2 seconds.
+// Emphasis moments carry the pop instead — a traceable, meaningful cue.
 const CONTENT_SFX_ENABLED: Record<DirectorContentType, Set<string>> = {
   podcast: new Set(["high_emphasis_moment"]),
   consultancy: new Set(["stat_mention"]),
   social: new Set([
     "hook_phrase",
-    "kinetic_caption",
+    "high_emphasis_moment",
     "beat",
     "topic_shift",
   ]),
@@ -42,7 +45,7 @@ export function proposeSfxFromTriggers(
 
   for (const tr of triggers) {
     if (tr.status !== "realized" || !allowed.has(tr.type)) continue;
-    const soundId = soundIdForTrigger(tr.type);
+    const soundId = soundIdForTrigger(tr.type, tr.id);
     if (!soundId) continue;
     out.push({
       id: `sfx-${tr.id}`,
@@ -58,7 +61,7 @@ export function proposeSfxFromTriggers(
 
   if (contentType === "social" || contentType === "showcase") {
     for (const trans of transitions) {
-      const soundId = soundIdForTransition(trans.type);
+      const soundId = soundIdForTransition(trans.type, trans.id);
       if (!soundId || !trans.triggerId) continue;
       out.push({
         id: `sfx-trans-${trans.id}`,

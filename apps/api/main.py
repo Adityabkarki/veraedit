@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import uuid
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 import structlog
@@ -182,6 +183,16 @@ app = FastAPI(
         500: {"description": "Internal server error"},
     },
 )
+
+
+# ── Static files ───────────────────────────────────────────────────────────────
+
+# Bundled SFX catalog — sfx_catalog.json preview_url entries point at /sfx/*.mp3.
+_SFX_STATIC_DIR = Path(__file__).parent / "static" / "sfx"
+if _SFX_STATIC_DIR.is_dir():
+    from fastapi.staticfiles import StaticFiles
+
+    app.mount("/sfx", StaticFiles(directory=_SFX_STATIC_DIR), name="sfx")
 
 
 # ── Middleware (order matters — outermost runs first) ──────────────────────────

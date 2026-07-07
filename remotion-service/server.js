@@ -23,9 +23,10 @@ async function getBundle() {
   }
 
   console.log("No pre-built bundle found, running webpack...");
+  const { webpackOverride } = require("./webpack-override.js");
   bundleCache = await bundle({
     entryPoint: path.join(__dirname, "src", "index.ts"),
-    webpackOverride: (config) => config,
+    webpackOverride,
   });
   return bundleCache;
 }
@@ -33,6 +34,15 @@ async function getBundle() {
 app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "viraedit-remotion" });
 });
+
+// Serve the bundled SFX catalog files so <Audio> layers in headless renders can
+// fetch them over HTTP (file:// is blocked by Chromium's cross-origin rules).
+const SFX_DIR = path.join(__dirname, "..", "apps", "api", "static", "sfx");
+if (fs.existsSync(SFX_DIR)) {
+  app.use("/sfx", express.static(SFX_DIR));
+} else {
+  console.warn("SFX directory not found at", SFX_DIR, "- SFX URLs will 404");
+}
 
 app.post("/render-captions", async (req, res) => {
   try {
@@ -469,7 +479,8 @@ app.post("/render-director", async (req, res) => {
         ? { frameRange: [Number(frameRange[0]), Number(frameRange[1])] }
         : {}),
       inputProps: {
-        timeline,
+        // renderTimeline, not timeline: platform variants must reach the render.
+        timeline: renderTimeline,
         assetUrls,
         primaryVideoSrc,
         dialogueSrc,

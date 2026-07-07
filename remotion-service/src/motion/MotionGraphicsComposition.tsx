@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { AbsoluteFill, Sequence, useVideoConfig } from "remotion";
 import type { MotionGraphicsProps } from "./types";
 import { renderMotionElement } from "./elements";
+import { toSequenceLocalElement } from "./motionMath";
 import { FONT_DISPLAY } from "./fonts";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { migrateTheme } from "../lib/theme/migrateTheme";
@@ -74,7 +75,8 @@ export const MotionGraphicsComposition: React.FC<MotionGraphicsProps> = ({
             durationInFrames={durationInFrames}
             layout="none"
           >
-            {renderMotionElement(el, family)}
+            {/* Sequence frames are local — re-base element bounds to 0. */}
+            {renderMotionElement(toSequenceLocalElement(el), family)}
           </Sequence>
         );
       })}

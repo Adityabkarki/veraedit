@@ -635,3 +635,17 @@ python scripts/phase16_validate.py
 ```
 
 Synthetic Podcast + Consultancy compile → B-roll fallback → readiness gate. Real uploads still required for final production proof.
+## Phase 17 — Export-chain fixes (2026-07-07)
+
+- Unified Director export (`tasks/render_task.py`) now builds `sfx_urls` via
+  `_build_director_sfx_urls()` (remotion-service serves `/sfx/*` statically)
+  and forwards them for both single and chunked renders — previously exports
+  rendered with `sfxUrls={}` and the SFX track was silent in the real file.
+- `server.js /render-director` passes `renderTimeline` (post platform-variant)
+  to `renderMedia` inputProps — variants previously only reached
+  `selectComposition`.
+- FastAPI mounts `/sfx` StaticFiles so catalog `preview_url`s resolve.
+- Known blocker for real-file proof: alembic migrations `o5/p6/q7`
+  (director_timelines, storage-efficiency tables, render_segments) must be
+  applied (`scripts\migrate.bat`) before the compiled-timeline export path
+  can run against the live DB.

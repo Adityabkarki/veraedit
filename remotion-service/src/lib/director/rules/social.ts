@@ -1,5 +1,6 @@
 import type { TriggerCandidate } from "@types/timeline";
 import type { DirectorSignals } from "../signalTypes";
+import { groupWordsIntoPhrases } from "../captionCues";
 
 function clamp01(n: number): number {
   return Math.max(0, Math.min(1, n));
@@ -29,15 +30,25 @@ function mk(
 export function proposeSocialTriggers(signals: DirectorSignals): TriggerCandidate[] {
   const out: TriggerCandidate[] = [];
 
-  for (const w of signals.words) {
+  // Captions are content, not decoration — one karaoke phrase per caption cue.
+  // kinetic_caption candidates bypass the Density Throttle in resolveTimeline.
+  for (const phrase of groupWordsIntoPhrases(signals.words)) {
     out.push(
       mk(
         "kinetic_caption",
-        w.start,
-        w.end,
+        phrase.start,
+        phrase.end,
         0.9,
         "kinetic_karaoke",
-        { text: w.text, wordIndex: w.index },
+        {
+          text: phrase.text,
+          // Word times are relative to the phrase start: the karaoke element is
+          // re-based to Sequence-local time at render (toSequenceLocalElement).
+          words: phrase.words.map((w) => ({
+            text: w.text,
+            startSeconds: Math.max(0, w.start - phrase.start),
+          })),
+        },
       ),
     );
   }

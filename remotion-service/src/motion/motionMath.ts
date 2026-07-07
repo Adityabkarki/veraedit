@@ -66,6 +66,26 @@ export function elementLocalTime(
   return { local, duration, active };
 }
 
+/**
+ * Re-base an element to Sequence-local time.
+ *
+ * Element renderers compare useCurrentFrame()/fps against startSeconds — but
+ * inside a `<Sequence from={startFrame}>` the current frame is LOCAL (starts
+ * at 0), while element bounds are absolute timeline seconds. Without this
+ * shift, any element whose startSeconds exceeds its own duration never
+ * activates in a real Director export (pillar previews mount at the
+ * composition top level, which is why the bug never showed there).
+ */
+export function toSequenceLocalElement<
+  T extends { startSeconds: number; endSeconds: number },
+>(el: T): T {
+  return {
+    ...el,
+    startSeconds: 0,
+    endSeconds: Math.max(0.001, el.endSeconds - el.startSeconds),
+  };
+}
+
 /** Stagger delay for the i-th item in a sequence. */
 export function staggerDelay(index: number, count: number, totalDuration: number): number {
   if (count <= 1) return 0;

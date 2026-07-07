@@ -185,13 +185,27 @@ export const AtomicCorporateTimeline: React.FC<ElementProps> = ({ el }) => {
   );
 };
 
-export const AtomicKaraokeCaption: React.FC<ElementProps> = ({ el }) => (
-  <KineticKaraokeText
-    startSeconds={el.startSeconds}
-    endSeconds={el.endSeconds}
-    text={String(el.props.text ?? "")}
-  />
-);
+export const AtomicKaraokeCaption: React.FC<ElementProps> = ({ el }) => {
+  const rawWords = Array.isArray(el.props.words) ? el.props.words : undefined;
+  const words = rawWords
+    ?.map((w) => {
+      const row = w as { text?: unknown; startSeconds?: unknown };
+      return {
+        text: String(row.text ?? ""),
+        startSeconds: Number(row.startSeconds ?? 0),
+      };
+    })
+    .filter((w) => w.text.length > 0);
+
+  return (
+    <KineticKaraokeText
+      startSeconds={el.startSeconds}
+      endSeconds={el.endSeconds}
+      text={String(el.props.text ?? "")}
+      words={words && words.length ? words : undefined}
+    />
+  );
+};
 
 export const AtomicScribble: React.FC<ElementProps> = ({ el }) => (
   <ScribbleAnnotation

@@ -472,3 +472,32 @@ Atomic fallbacks in `remotion-service/src/motion/components/completeness/`:
 
 Registered in `ATOMIC_RENDERERS` via `adapters.tsx`. Fallback tiers defined in
 `fallbackChain.ts`; `auditCoverage.ts` reports trigger → component gaps.
+
+## Phase 17 — Render-path correctness fixes (2026-07-07)
+
+Honest-audit fixes; all verified against rendered frames/files, not just tests:
+
+- **Sequence-local time re-basing** (`motionMath.ts: toSequenceLocalElement`,
+  applied in `MotionGraphicsComposition`): element renderers compare local
+  Sequence frames against absolute `startSeconds` — any element starting later
+  than its own duration silently rendered nothing in real Director exports
+  (pillar previews mount at top level, masking the bug). All motion graphics
+  now re-base to `startSeconds: 0` inside their Sequence. Karaoke `props.words`
+  timings are phrase-relative to match (`rules/social.ts`).
+- **Caption exemption from Density Throttle** (`resolveTimeline.ts`): captions
+  are content, not decoration. `kinetic_caption` candidates bypass throttle and
+  layer-conflict pruning; social captions are phrase-level karaoke entries
+  (`captionCues.ts: groupWordsIntoPhrases`), non-social pillars get sentence
+  cues on `tracks.captions` rendered by `DirectorCaptionLayer.tsx`
+  (Devanagari Padding + Title-Safe + Theme Token laws).
+- **Transitions now render** (`DirectorTransitionWrapper.tsx` mounted in
+  `DirectorRenderComposition`): deterministic whip-pan/zoom-blur/glitch/dip
+  treatments driven by `transitionStateAtFrame` on the same frames SFX
+  attribution uses. Previously `tracks.transitions` had no renderer at all.
+- **SFX variant pools** (`lib/audio/sfxLibrary.ts`): seeded (FNV-1a of entry
+  id) deterministic rotation across the 14-file Mixkit catalog; caption
+  phrases no longer trigger pops (emphasis moments do).
+- **Webpack aliases** (`webpack-override.js`, shared by `remotion.config.ts`
+  and `server.js`): previously only 2 of 8 `@types/*` aliases existed and the
+  server used an identity override — `/render-director` could not bundle at
+  all without a prebuilt `build/`.

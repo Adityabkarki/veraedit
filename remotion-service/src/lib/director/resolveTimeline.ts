@@ -13,6 +13,7 @@ import { applyAudioMulticamToTimeline } from "@lib/audio/applyAudioMulticam";
 import { DENSITY_LIMITS, DENSITY_WINDOW_SECONDS } from "./constants";
 import { layerConflict, layerDepthForComponent } from "./layerRegistry";
 import { resolveComponentWithFallback } from "./fallbackChain";
+import { groupWordsIntoPhrases, phrasesToCaptionCues } from "./captionCues";
 import { proposeConsultancyTriggers } from "./rules/consultancy";
 import { proposePodcastTriggers } from "./rules/podcast";
 import { proposeShowcaseTriggers } from "./rules/showcase";
@@ -136,11 +137,23 @@ export function resolveTimeline(options: ResolveTimelineOptions): DirectorTimeli
 
   const durationInFrames = secondsToFrames(durationSeconds, fps);
   const proposed = proposeTriggers(contentType, signals);
+
+  // Captions are transcript content, not decorative graphics: kinetic_caption
+  // candidates bypass the Density Throttle and layer-conflict pruning entirely,
+  // so caption coverage is never sacrificed to the graphics budget — and caption
+  // phrases never crowd other trigger types out of their density windows.
+  const captionCandidates = proposed.filter((c) => c.type === "kinetic_caption");
+  const throttleable = proposed.filter((c) => c.type !== "kinetic_caption");
+
   const { realized: throttled, suppressed: densitySuppressed } = throttleTriggers(
-    proposed,
+    throttleable,
     density,
   );
-  const { kept, dropped: layerDropped } = resolveLayerConflicts(throttled, fps);
+  const { kept: keptGraphics, dropped: layerDropped } = resolveLayerConflicts(
+    throttled,
+    fps,
+  );
+  const kept = [...captionCandidates, ...keptGraphics];
 
   const triggers: TriggerLogEntry[] = [];
   const motionGraphics: DirectorTimeline["tracks"]["motionGraphics"] = [];
@@ -233,7 +246,12 @@ export function resolveTimeline(options: ResolveTimelineOptions): DirectorTimeli
     tracks: {
       video: [],
       audio: [],
-      captions: [],
+      // Social captions render as kinetic_karaoke motion graphics; every other
+      // pillar gets sentence-level cues so long-form is never caption-less.
+      captions:
+        contentType === "social"
+          ? []
+          : phrasesToCaptionCues(groupWordsIntoPhrases(signals.words ?? []), fps),
       broll,
       motionGraphics,
       transitions: [],

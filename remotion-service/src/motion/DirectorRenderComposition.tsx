@@ -17,6 +17,8 @@ import { VfxOverlayLayer } from "./components/vfx/overlays/VfxOverlayLayer";
 import { DirectorVideoLayer } from "./components/director/DirectorVideoLayer";
 import { DirectorBRollLayer } from "./components/director/DirectorBRollLayer";
 import { DirectorAudioMixer } from "./components/director/DirectorAudioMixer";
+import { DirectorCaptionLayer } from "./components/director/DirectorCaptionLayer";
+import { DirectorTransitionWrapper } from "./components/director/DirectorTransitionWrapper";
 import { MotionGraphicsComposition } from "./MotionGraphicsComposition";
 
 export interface DirectorRenderProps {
@@ -53,7 +55,7 @@ export const DirectorRenderComposition: React.FC<DirectorRenderProps> = ({
       <AudioAnalysisProvider track={audioTrack}>
         <AbsoluteFill style={{ backgroundColor: theme.colors.background }}>
           <ColorGrade grade={theme.grade} seed={timeline.projectId}>
-            <AbsoluteFill>
+            <DirectorTransitionWrapper transitions={timeline.tracks.transitions}>
               <DirectorVideoLayer
                 timeline={timeline}
                 assetUrls={assetUrls}
@@ -70,8 +72,9 @@ export const DirectorRenderComposition: React.FC<DirectorRenderProps> = ({
                 theme={theme}
                 transparentBackground
               />
+              <DirectorCaptionLayer captions={timeline.tracks.captions} />
               <VfxOverlayLayer entries={timeline.tracks.vfx} />
-            </AbsoluteFill>
+            </DirectorTransitionWrapper>
           </ColorGrade>
           <DirectorAudioMixer
             timeline={timeline}

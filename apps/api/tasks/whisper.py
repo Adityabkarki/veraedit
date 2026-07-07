@@ -263,6 +263,80 @@ def _unwrap_convert_response(response: Any) -> Any:
     return response
 
 
+# OpenAI Whisper fallback pricing — $0.006 per minute of audio
+OPENAI_STT_COST_PER_SECOND_USD = 0.006 / 60.0
+
+
+def _transcribe_openai_whisper(
+    audio_path: Path,
+    language: str = "ne",
+) -> TranscriptResult:
+    """
+    Fallback STT via OpenAI whisper-1 (Fallback Guarantee Law).
+
+    Used when ElevenLabs rejects the call for billing/quota reasons so an
+    exhausted Scribe quota degrades to a slower/cheaper provider instead of
+    a hard pipeline stop. Word-level timestamps preserved.
+    """
+    from openai import OpenAI
+
+    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    start_time = time.perf_counter()
+
+    with open(audio_path, "rb") as audio_file:
+        response = client.audio.transcriptions.create(
+            file=audio_file,
+            model="whisper-1",
+            language=language,
+            response_format="verbose_json",
+            timestamp_granularities=["word", "segment"],
+        )
+
+    words = [
+        TranscriptWord(
+            word=str(getattr(w, "word", "")).strip(),
+            start=float(getattr(w, "start", 0.0)),
+            end=float(getattr(w, "end", 0.0)),
+        )
+        for w in (getattr(response, "words", None) or [])
+        if str(getattr(w, "word", "")).strip()
+    ]
+    segments = [
+        TranscriptSegment(
+            id=i,
+            text=str(getattr(s, "text", "")).strip(),
+            start=float(getattr(s, "start", 0.0)),
+            end=float(getattr(s, "end", 0.0)),
+            avg_logprob=float(getattr(s, "avg_logprob", 0.0)),
+            no_speech_prob=float(getattr(s, "no_speech_prob", 0.0)),
+        )
+        for i, s in enumerate(getattr(response, "segments", None) or [])
+    ]
+    duration = float(getattr(response, "duration", 0.0) or 0.0)
+    if not duration and words:
+        duration = words[-1].end
+
+    result = TranscriptResult(
+        full_text=str(getattr(response, "text", "") or ""),
+        language=str(getattr(response, "language", language) or language),
+        duration=duration,
+        words=words,
+        segments=segments,
+        cost_usd=duration * OPENAI_STT_COST_PER_SECOND_USD,
+        model="whisper-1",
+    )
+
+    log.info(
+        "openai_whisper_fallback_complete",
+        duration_audio_s=round(result.duration, 1),
+        elapsed_s=round(time.perf_counter() - start_time, 1),
+        word_count=result.word_count,
+        language_detected=result.language,
+        cost_usd=round(result.cost_usd, 6),
+    )
+    return result
+
+
 def transcribe_audio(
     audio_path: Path,
     language: str = "ne",
@@ -270,6 +344,9 @@ def transcribe_audio(
 ) -> TranscriptResult:
     """
     Transcribe an audio file using ElevenLabs Scribe.
+
+    Falls back to OpenAI whisper-1 when ElevenLabs rejects the request for
+    quota/billing reasons and OPENAI_API_KEY is configured.
 
     Args:
         audio_path: Path to audio (MP3, WAV, M4A, etc.).
@@ -321,7 +398,15 @@ def transcribe_audio(
                 keyterms=keyterms if keyterms else None,
             )
     except ApiError as exc:
-        raise RuntimeError(_friendly_elevenlabs_error(exc)) from exc
+        friendly = _friendly_elevenlabs_error(exc)
+        if is_elevenlabs_quota_error(friendly) and settings.OPENAI_API_KEY:
+            log.warning(
+                "elevenlabs_quota_falling_back_to_openai",
+                file=audio_path.name,
+                detail=friendly[:200],
+            )
+            return _transcribe_openai_whisper(audio_path, language=language)
+        raise RuntimeError(friendly) from exc
 
     elapsed = time.perf_counter() - start_time
     chunk = _unwrap_convert_response(response)

@@ -1079,6 +1079,24 @@ def _record_director_fallback(
     )
 
 
+def _build_director_sfx_urls(director_timeline: dict) -> dict[str, str]:
+    """Map timeline SFX soundIds to HTTP URLs served by remotion-service /sfx."""
+    from config import settings
+    from services.sfx_library import local_sfx_path
+
+    base = settings.REMOTION_SERVICE_URL.rstrip("/")
+    urls: dict[str, str] = {}
+    for entry in director_timeline.get("tracks", {}).get("sfx") or []:
+        sound_id = entry.get("soundId")
+        if not sound_id or sound_id in urls:
+            continue
+        if local_sfx_path(str(sound_id)) is None:
+            log.warning("director_sfx_file_missing: sound_id=%s", sound_id)
+            continue
+        urls[str(sound_id)] = f"{base}/sfx/{sound_id}.mp3"
+    return urls
+
+
 def _load_compiled_director_timeline_sync(
     project_id: str,
 ) -> tuple[dict | None, str | None]:
@@ -1246,9 +1264,11 @@ def _render_unified_director_export(
             )
             return None
 
+        sfx_urls = _build_director_sfx_urls(director_timeline)
         render_settings["asset_urls"] = asset_urls
         render_settings["primary_video_src"] = primary_video_src
         render_settings["camera_feeds"] = camera_feeds
+        render_settings["sfx_urls"] = sfx_urls
         render_settings["fps"] = director_timeline.get("fps", 30)
 
         from services.render.plan_render_segments import plan_render_segments
@@ -1288,6 +1308,7 @@ def _render_unified_director_export(
                     primary_video_src=primary_video_src,
                     dialogue_src=primary_video_src,
                     camera_feeds=camera_feeds,
+                    sfx_urls=sfx_urls,
                 )
             )
         except Exception as exc:

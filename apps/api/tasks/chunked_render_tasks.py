@@ -167,6 +167,7 @@ def render_segment_task(
                     primary_video_src=primary,
                     dialogue_src=primary,
                     camera_feeds=render_settings.get("camera_feeds") or [],
+                    sfx_urls=render_settings.get("sfx_urls") or {},
                     frame_range=(int(row.start_frame), int(row.end_frame)),
                 )
             )

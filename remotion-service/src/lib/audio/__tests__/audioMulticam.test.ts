@@ -73,10 +73,28 @@ describe("resolveSfx", () => {
       30,
     );
     expect(proposals).toHaveLength(1);
-    expect(proposals[0]!.soundId).toBe("shutter_click");
+    // stat_mention draws deterministically from the click-family variant pool.
+    expect(["shutter_click", "pop"]).toContain(proposals[0]!.soundId);
+    expect(
+      proposeSfxFromTriggers(
+        [
+          {
+            id: "stat-1",
+            type: "stat_mention",
+            transcriptStart: 2,
+            transcriptEnd: 4,
+            confidence: 0.9,
+            status: "realized",
+          },
+        ],
+        [],
+        "consultancy",
+        30,
+      )[0]!.soundId,
+    ).toBe(proposals[0]!.soundId);
   });
 
-  it("throttles excess SFX under minimalist density", () => {
+  it("does not propose SFX for caption phrases (captions are content)", () => {
     const proposals = proposeSfxFromTriggers(
       Array.from({ length: 5 }, (_, i) => ({
         id: `k-${i}`,
@@ -90,6 +108,24 @@ describe("resolveSfx", () => {
       "social",
       30,
     );
+    expect(proposals).toHaveLength(0);
+  });
+
+  it("throttles excess SFX under minimalist density", () => {
+    const proposals = proposeSfxFromTriggers(
+      Array.from({ length: 5 }, (_, i) => ({
+        id: `e-${i}`,
+        type: "high_emphasis_moment",
+        transcriptStart: i * 2,
+        transcriptEnd: i * 2 + 1,
+        confidence: 0.7 + i * 0.05,
+        status: "realized" as const,
+      })),
+      [],
+      "social",
+      30,
+    );
+    expect(proposals.length).toBeGreaterThan(0);
     const { sfx } = resolveSfxEntries(proposals, "minimalist");
     expect(sfx.length).toBeLessThan(proposals.length);
   });

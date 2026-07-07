@@ -17,12 +17,15 @@ depends_on = None
 
 
 def upgrade() -> None:
-    render_segment_status = sa.Enum(
+    render_segment_status = postgresql.ENUM(
         "pending",
         "rendering",
         "complete",
         "failed",
         name="render_segment_status_enum",
+        # Created explicitly below; create_type=False stops create_table from
+        # emitting a second CREATE TYPE in the same transaction.
+        create_type=False,
     )
     render_segment_status.create(op.get_bind(), checkfirst=True)
 
