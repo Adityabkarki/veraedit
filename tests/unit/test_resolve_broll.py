@@ -41,17 +41,18 @@ def test_resolve_broll_populates_asset_url(mock_search):
 
 
 @patch("services.director.resolve_broll.search_pexels")
-def test_resolve_broll_suppresses_when_no_match(mock_search):
+def test_resolve_broll_falls_back_to_mg_when_no_match(mock_search):
     mock_search.return_value = []
     result = resolve_broll_entries(_timeline_with_broll(), content_type="podcast")
     assert result["tracks"]["broll"] == []
+    assert len(result["tracks"]["motionGraphics"]) == 1
     trigger = result["triggers"][0]
-    assert trigger["status"] == "suppressed"
-    assert trigger["metadata"]["suppressionReason"] == "no_asset_found"
+    assert trigger["status"] == "realized"
+    assert trigger["metadata"]["fallbackTier"] == "broll_to_mg"
 
 
 @patch("services.director.resolve_broll.search_pexels")
-def test_reroll_broll_suppresses_on_empty_results(mock_search):
+def test_reroll_broll_falls_back_on_empty_results(mock_search):
     mock_search.return_value = []
     timeline = _timeline_with_broll()
     result = reroll_broll_with_pexels(
@@ -61,4 +62,5 @@ def test_reroll_broll_suppresses_on_empty_results(mock_search):
         content_type="podcast",
     )
     assert result["tracks"]["broll"] == []
-    assert result["triggers"][0]["status"] == "suppressed"
+    assert len(result["tracks"]["motionGraphics"]) == 1
+    assert result["triggers"][0]["status"] == "realized"

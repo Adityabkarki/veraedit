@@ -5,6 +5,7 @@
 export interface ProjectAssetLike {
   id: string
   original_filename: string
+  status?: string
   media_metadata?: {
     role?: string
     source?: string
@@ -30,6 +31,7 @@ export function isSecondaryBrollAsset(asset: ProjectAssetLike): boolean {
 /**
  * Choose the main project video asset.
  * API lists assets newest-first; B-roll inserts create a newer row that must be ignored.
+ * When the newest row is still uploading, prefer the newest ready primary asset instead.
  */
 export function pickPrimaryProjectAsset(
   assets: ProjectAssetLike[],
@@ -44,8 +46,8 @@ export function pickPrimaryProjectAsset(
 
   const primaryCandidates = assets.filter((a) => !isSecondaryBrollAsset(a))
   if (primaryCandidates.length > 0) {
-    // Newest-first list → first primary candidate is the latest main upload.
-    return primaryCandidates[0]
+    const ready = primaryCandidates.find((a) => a.status !== 'uploading')
+    return ready ?? primaryCandidates[0]
   }
 
   return assets[assets.length - 1]

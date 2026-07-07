@@ -5,6 +5,7 @@
  */
 
 import { useTimelineStore } from '@/stores/timelineStore'
+import { commitTimelineClips } from '@/lib/editor/timelineClipUpdates'
 import {
   CAPTION_EFFECT_CONFIG,
   captionEffectLabel,
@@ -45,11 +46,11 @@ export function CaptionEffectClipPanel() {
       captionCase: cfg?.captionCase,
       captionPosition: cfg?.position,
     })
-    useTimelineStore.setState({
-      clips: useTimelineStore.getState().clips.map((c) =>
+    commitTimelineClips((allClips) =>
+      allClips.map((c) =>
         c.id === clip.id ? { ...c, label: cfg?.label ?? captionEffectLabel(next) } : c,
       ),
-    })
+    )
   }
 
   return (

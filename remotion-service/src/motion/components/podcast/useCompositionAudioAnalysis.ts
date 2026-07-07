@@ -3,6 +3,7 @@ import { continueRender, delayRender, useVideoConfig } from "remotion";
 import { getAudioData } from "@remotion/media-utils";
 import type { AudioAnalysisTrack } from "@types/audio-analysis";
 import { buildClientAudioAnalysis } from "@lib/audio/analyzeClient";
+import { decodeAnalysisTrackBlob } from "@lib/audio/decodeAnalysisTrack";
 import { migrateAudioAnalysis } from "@lib/audio/migrateAudioAnalysis";
 import { CLIENT_ANALYSIS_MAX_SECONDS } from "@lib/audio/routing";
 import type { MotionPlan, MotionPlanAudio } from "../../types";
@@ -36,11 +37,25 @@ export function useCompositionAudioAnalysis(
 
     const handle = delayRender("Loading audio analysis sidecar");
     fetch(url)
-      .then((res) => {
+      .then(async (res) => {
         if (!res.ok) throw new Error(`sidecar HTTP ${res.status}`);
-        return res.json();
+        const contentType = res.headers.get("content-type") ?? "";
+        if (
+          contentType.includes("binary") ||
+          contentType.includes("octet-stream") ||
+          url.endsWith(".vae.bin.gz")
+        ) {
+          const buf = await res.arrayBuffer();
+          const sourceHash = audio?.sourceHash ?? "sidecar";
+          const meta = {
+            analysisPath: "server_librosa" as const,
+            generatedAt: new Date(0).toISOString(),
+          };
+          return decodeAnalysisTrackBlob(buf, meta, sourceHash);
+        }
+        return res.json().then((raw) => migrateAudioAnalysis(raw));
       })
-      .then((raw) => setFetched(migrateAudioAnalysis(raw)))
+      .then((track) => setFetched(track))
       .catch((err) => {
         console.warn("[useCompositionAudioAnalysis] sidecar fetch failed:", err);
       })

@@ -3,16 +3,10 @@
  */
 
 import type { Clip } from '@/stores/timelineStore'
-import { useTimelineStore, HISTORY_MAX } from '@/stores/timelineStore'
+import { useTimelineStore } from '@/stores/timelineStore'
+import { commitTimelineClips, getFullTimelineClips } from '@/lib/editor/timelineClipUpdates'
 import { useCaptionsStore, type Caption } from '@/stores/captionsStore'
 import { useUIStore } from '@/stores/uiStore'
-
-function pushHistory(
-  stack: { clips: Clip[]; tracks: import('@/stores/timelineStore').Track[] }[],
-  entry: { clips: Clip[]; tracks: import('@/stores/timelineStore').Track[] },
-) {
-  return [...stack.slice(-(HISTORY_MAX - 1)), entry]
-}
 
 export function captionToClip(caption: Caption): Clip {
   const duration = Math.max(0.1, caption.endTime - caption.startTime)
@@ -55,24 +49,24 @@ export function syncCaptionsToTimeline(
   options?: { actionLabel?: string; pushHistory?: boolean },
 ) {
   const s = useTimelineStore.getState()
-  const nonCaptionClips = s.clips.filter((c) => c.trackId !== 'captions')
   const captionClips = captions.map(captionToClip)
-  const nextClips = [...nonCaptionClips, ...captionClips]
+  const nextTracks = s.tracks.map((t) =>
+    t.id === 'captions' && captions.length > 0
+      ? { ...t, visible: true }
+      : t,
+  )
 
-  const patch: Partial<typeof s> = {
-    clips: nextClips,
-    tracks: s.tracks.map((t) =>
-      t.id === 'captions' && captions.length > 0
-        ? { ...t, visible: true }
-        : t,
-    ),
-  }
-  if (options?.actionLabel) patch.lastEditAction = options.actionLabel
-  if (options?.pushHistory) {
-    patch.undoStack = pushHistory(s.undoStack, { clips: s.clips, tracks: s.tracks })
-    patch.redoStack = []
-  }
-  useTimelineStore.setState(patch)
+  commitTimelineClips(
+    (clips) => [
+      ...clips.filter((c) => c.trackId !== 'captions'),
+      ...captionClips,
+    ],
+    {
+      tracks: nextTracks,
+      lastEditAction: options?.actionLabel,
+      recordUndo: options?.pushHistory,
+    },
+  )
 }
 
 /** Load captions store from saved timeline caption clips. */
@@ -100,7 +94,7 @@ export function syncCaptionsFromTimeline(clips: Clip[]): boolean {
 
 /** After drag/trim on a caption clip — update captions store times. */
 export function syncCaptionClipFromTimeline(clipId: string) {
-  const clip = useTimelineStore.getState().clips.find((c) => c.id === clipId)
+  const clip = getFullTimelineClips().find((c) => c.id === clipId)
   if (!clip || clip.trackId !== 'captions') return
 
   const startTime = clip.startTime
@@ -138,8 +132,5 @@ export function openCaptionEditor(captionId: string) {
 
 /** Clear caption clips from timeline (on reset). */
 export function clearCaptionClipsFromTimeline() {
-  const s = useTimelineStore.getState()
-  useTimelineStore.setState({
-    clips: s.clips.filter((c) => c.trackId !== 'captions'),
-  })
+  commitTimelineClips((clips) => clips.filter((c) => c.trackId !== 'captions'))
 }

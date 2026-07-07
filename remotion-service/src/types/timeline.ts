@@ -148,6 +148,13 @@ export interface DirectorTimeline {
     multicam: MulticamEntry[];
   };
   triggers: TriggerLogEntry[];
+  /** Render-time metadata (reframe, safe zones) — not used during compile. */
+  renderMetadata?: {
+    safeZoneMode?: "social_9_16" | "broadcast_16_9";
+    reframeWarning?: string | null;
+    panX?: number;
+    verticalReframed?: boolean;
+  };
 }
 
 export interface DirectorTimelineInput {

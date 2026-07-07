@@ -103,21 +103,52 @@ def extract_shorts_task(
         work_dir = Path(tempfile.gettempdir()) / "viraedit" / job_id / "shorts_work"
         work_dir.mkdir(parents=True, exist_ok=True)
 
-        results = asyncio.run(
-            extract_shorts_for_platforms(
-                local_path,
-                transcript,
-                platforms,
-                work_dir,
-                max_clips,
+        use_director = True
+        results: dict[str, list[dict]] = {}
+        try:
+            from processors.director_styled_extractor import (
+                extract_director_styled_shorts_for_platforms,
             )
-        )
+            from processors.remotion_client import remotion_service_healthy
+
+            if asyncio.run(remotion_service_healthy()):
+                results = asyncio.run(
+                    extract_director_styled_shorts_for_platforms(
+                        local_path,
+                        transcript,
+                        platforms,
+                        work_dir,
+                        max_clips,
+                        project_id=project_id,
+                    )
+                )
+            else:
+                use_director = False
+        except Exception as exc:
+            log.warning("director_styled_extract_failed_fallback", error=str(exc))
+            use_director = False
+
+        if not use_director or not results:
+            from processors.shorts_extractor import extract_shorts_for_platforms
+
+            results = asyncio.run(
+                extract_shorts_for_platforms(
+                    local_path,
+                    transcript,
+                    platforms,
+                    work_dir,
+                    max_clips,
+                )
+            )
 
         progress("uploading_results")
         output: dict[str, list[dict]] = {}
         for platform, clips in results.items():
             output[platform] = []
             for clip in clips:
+                if clip.get("key") and clip.get("url"):
+                    output[platform].append(clip)
+                    continue
                 clip_id = f"{job_id}_{platform}_{clip['clip_index']}"
                 key = f"projects/{project_id}/shorts/{platform}/{clip_id}.mp4"
                 storage_sync.put_file(key, Path(clip["local_path"]), "video/mp4")

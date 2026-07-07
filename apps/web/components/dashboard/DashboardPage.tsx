@@ -73,7 +73,7 @@ export function DashboardPage() {
     if (pendingProjectId) {
       const id = pendingProjectId
       setPendingProjectId(null)
-      router.push(`/projects/${id}`)
+      router.push(`/editor/${id}`)
     }
   }
 

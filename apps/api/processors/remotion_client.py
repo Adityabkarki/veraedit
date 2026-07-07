@@ -27,6 +27,47 @@ FONT_BY_STYLE: dict[str, str] = {
     "kinetic": "Montserrat",
 }
 
+PLATFORM_RENDER_VARIANTS: dict[str, dict[str, Any]] = {
+    "tiktok": {
+        "platform": "tiktok",
+        "showCtaBadge": True,
+        "captionDensity": "full_karaoke",
+        "endCardStyle": "follow_prompt",
+    },
+    "instagram": {
+        "platform": "instagram",
+        "showCtaBadge": True,
+        "captionDensity": "full_karaoke",
+        "endCardStyle": "follow_prompt",
+    },
+    "youtube": {
+        "platform": "youtube",
+        "showCtaBadge": True,
+        "captionDensity": "full_karaoke",
+        "endCardStyle": "follow_prompt",
+    },
+    "linkedin": {
+        "platform": "linkedin",
+        "showCtaBadge": False,
+        "captionDensity": "reduced",
+        "endCardStyle": "none",
+    },
+}
+
+
+def platform_to_render_variant_key(platform: str) -> str:
+    """Map API platform strings to PLATFORM_RENDER_VARIANTS keys."""
+    normalized = platform.lower().replace("-", "_")
+    if "linkedin" in normalized:
+        return "linkedin"
+    if "tiktok" in normalized:
+        return "tiktok"
+    if "instagram" in normalized:
+        return "instagram"
+    if "youtube" in normalized:
+        return "youtube"
+    return "tiktok"
+
 
 def _temp_overlay_path(prefix: str, suffix: str = ".webm") -> Path:
     out_dir = Path(tempfile.gettempdir()) / "viraedit" / "remotion"
@@ -322,8 +363,10 @@ async def render_director_export(
     camera_feeds: list[dict[str, Any]] | None = None,
     sfx_urls: dict[str, str] | None = None,
     font_family: str = "Montserrat",
+    platform_variant: dict[str, Any] | None = None,
+    frame_range: tuple[int, int] | None = None,
 ) -> str:
-    """Render a full Director timeline via remotion-service POST /render-director."""
+    """Render a Director timeline via remotion-service POST /render-director."""
     payload = {
         "timeline": timeline,
         "assetUrls": asset_urls or {},
@@ -332,11 +375,14 @@ async def render_director_export(
         "cameraFeeds": camera_feeds or [],
         "sfxUrls": sfx_urls or {},
         "fontFamily": font_family,
+        "platformVariant": platform_variant,
         "outputPath": output_path,
         "fps": timeline.get("fps", 30),
         "width": timeline.get("width"),
         "height": timeline.get("height"),
     }
+    if frame_range is not None:
+        payload["frameRange"] = [frame_range[0], frame_range[1]]
 
     async with httpx.AsyncClient(
         timeout=httpx.Timeout(

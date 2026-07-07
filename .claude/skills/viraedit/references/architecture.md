@@ -281,3 +281,18 @@ viraedit/
 │   └── fixtures/               Test data and mocks
 └── scripts/                    Setup and utility scripts
 ```
+
+---
+
+## Phase 15 — Long-Form Editor Performance
+
+| Threshold | Value |
+|-----------|-------|
+| Clip count | > 150 |
+| Duration | > 15 minutes |
+
+**NLE timeline:** `allClips` + viewport window; mutations via `commitTimelineClips()`; diff undo above threshold.
+
+**Director preview:** Initial window load + scroll fetch; B-roll via `DirectorBRollLayer`.
+
+**Waveform:** `GET /projects/{id}/audio-analysis/waveform` + cached peaks in timeline audio clips.

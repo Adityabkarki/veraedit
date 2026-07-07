@@ -7,6 +7,7 @@ import type { ApiSuggestion } from '@/stores/suggestionsStore'
 import { applySuggestionToEditor, type SuggestionAction } from '@/lib/applySuggestionClient'
 import { syncOverlaysToVisualLibrary } from '@/lib/applySuggestionClient'
 import { useTimelineStore, type Clip, type Track, type TimelineMarker } from '@/stores/timelineStore'
+import { getFullTimelineClips, replaceTimelineClips } from '@/lib/editor/timelineClipUpdates'
 import { useAutoEditStore } from '@/stores/autoEditStore'
 
 const PODCAST_TYPES = new Set(['podcast', 'video_podcast', 'interview'])
@@ -47,7 +48,7 @@ export function applyPodcastAutopilotIfNeeded(
   if (autopilot.length === 0) return { applied: false, count: 0 }
 
   const snapshot = {
-    clips: useTimelineStore.getState().clips.map((c) => ({ ...c })),
+    clips: getFullTimelineClips().map((c) => ({ ...c })),
     tracks: useTimelineStore.getState().tracks.map((t) => ({ ...t })),
     markers: useTimelineStore.getState().markers.map((m) => ({ ...m })),
   }
@@ -63,7 +64,7 @@ export function applyPodcastAutopilotIfNeeded(
 
   if (applied === 0) return { applied: false, count: 0 }
 
-  syncOverlaysToVisualLibrary(useTimelineStore.getState().clips)
+  syncOverlaysToVisualLibrary(getFullTimelineClips())
   store.markApplied(projectId, snapshot, applied)
   return { applied: true, count: applied }
 }
@@ -74,12 +75,11 @@ export function revertPodcastAutopilot(): boolean {
   const snap = store.snapshot
   if (!snap) return false
 
-  useTimelineStore.setState({
-    clips: snap.clips as Clip[],
+  replaceTimelineClips(snap.clips as Clip[], {
     tracks: snap.tracks as Track[],
-    markers: snap.markers as TimelineMarker[],
     lastEditAction: 'Reverted auto-edits',
   })
+  useTimelineStore.setState({ markers: snap.markers as TimelineMarker[] })
   store.clearApplied()
   return true
 }

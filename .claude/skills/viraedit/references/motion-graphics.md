@@ -455,3 +455,20 @@ an empty or thin plan.
 - Port 3500 internal only.
 - Remotion failures are non-fatal at export.
 - Every service function has at least one test.
+
+---
+
+## Phase 16 — Completeness components
+
+Atomic fallbacks in `remotion-service/src/motion/components/completeness/`:
+
+| Component ID | Use case |
+|--------------|----------|
+| `topic_title_card` | Podcast `topic_shift` when B-roll below confidence threshold |
+| `pull_quote_card` | `high_emphasis_moment` fallback across pillars |
+| `icon_point_callout` | Key point emphasis without full metric card |
+| `bullet_list_reveal` | Consultancy spoken enumerations |
+| `comparison_table` | `comparison_phrase` when data is not numeric |
+
+Registered in `ATOMIC_RENDERERS` via `adapters.tsx`. Fallback tiers defined in
+`fallbackChain.ts`; `auditCoverage.ts` reports trigger → component gaps.

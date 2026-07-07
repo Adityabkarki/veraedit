@@ -4,6 +4,7 @@
 
 import type { Clip, ClipEffects } from '@/stores/timelineStore'
 import { useTimelineStore } from '@/stores/timelineStore'
+import { commitTimelineClips, getFullTimelineClips } from '@/lib/editor/timelineClipUpdates'
 import { isImageClip } from '@/lib/mediaClips'
 import { overlayPreviewZIndex } from '@/lib/overlayPreview'
 import type {
@@ -145,7 +146,8 @@ export function clipToImageLayer(clip: Clip): ImageLayer {
 }
 
 export function selectedImageLayer(): ImageLayer | null {
-  const { clips, selectedClipIds } = useTimelineStore.getState()
+  const { selectedClipIds } = useTimelineStore.getState()
+  const clips = getFullTimelineClips()
   if (selectedClipIds.length !== 1) return null
   const clip = clips.find((c) => c.id === selectedClipIds[0])
   if (!clip || !isImageClip(clip)) return null
@@ -162,9 +164,9 @@ function patchEffects(clipId: string, patch: Partial<ClipEffects>, label?: strin
 export function updateImageLayer(clipId: string, patch: Partial<ImageLayer>) {
   const effects: Partial<ClipEffects> = {}
   if (patch.name !== undefined) {
-    useTimelineStore.setState((s) => ({
-      clips: s.clips.map((c) => (c.id === clipId ? { ...c, label: patch.name! } : c)),
-    }))
+    commitTimelineClips((allClips) =>
+      allClips.map((c) => (c.id === clipId ? { ...c, label: patch.name! } : c)),
+    )
   }
   if (patch.src !== undefined) effects.mediaUrl = patch.src
   if (patch.storageKey !== undefined) effects.storageKey = patch.storageKey
@@ -194,14 +196,14 @@ export function updateImageTransform(clipId: string, patch: Partial<ImageTransfo
 
 export function updateImageTiming(clipId: string, patch: Partial<ImageTiming>) {
   const store = useTimelineStore.getState()
-  const clip = store.clips.find((c) => c.id === clipId)
+  const clip = getFullTimelineClips().find((c) => c.id === clipId)
   if (!clip) return
 
   if (patch.startTime !== undefined) {
     store.moveClip(clipId, Math.max(0, patch.startTime))
   }
   if (patch.endTime !== undefined) {
-    const current = useTimelineStore.getState().clips.find((c) => c.id === clipId)
+    const current = getFullTimelineClips().find((c) => c.id === clipId)
     if (current) {
       const duration = Math.max(0.1, patch.endTime - current.startTime)
       store.trimClipEnd(clipId, duration)
@@ -261,14 +263,14 @@ export function removeImageLayer(clipId: string) {
 }
 
 export function bringImageLayerForward(clipId: string) {
-  const clip = useTimelineStore.getState().clips.find((c) => c.id === clipId)
+  const clip = getFullTimelineClips().find((c) => c.id === clipId)
   if (!clip) return
   const current = clip.effects?.layerOrder ?? overlayPreviewZIndex(clip)
   patchEffects(clipId, { layerOrder: current + 1 }, 'Brought image forward')
 }
 
 export function sendImageLayerBackward(clipId: string) {
-  const clip = useTimelineStore.getState().clips.find((c) => c.id === clipId)
+  const clip = getFullTimelineClips().find((c) => c.id === clipId)
   if (!clip) return
   const current = clip.effects?.layerOrder ?? overlayPreviewZIndex(clip)
   patchEffects(clipId, { layerOrder: Math.max(0, current - 1) }, 'Sent image backward')

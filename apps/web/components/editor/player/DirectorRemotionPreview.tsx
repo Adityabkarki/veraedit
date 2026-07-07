@@ -8,6 +8,8 @@ import dynamic from 'next/dynamic'
 import { usePlayerStore } from '@/stores/playerStore'
 import { useEditorStore } from '@/stores/editorStore'
 import { useTimelineStore } from '@/stores/timelineStore'
+import { useAssetStore } from '@/stores/assetStore'
+import { hasVideoLaneClip } from '@/lib/timelineLayers'
 import {
   fetchDirectorRenderProps,
   unifiedRenderPreviewEnabled,
@@ -44,6 +46,12 @@ export function DirectorRemotionPreview({
   const version = usePlayerStore((s) => s.previewNonce)
   const lastEditAction = useTimelineStore((s) => s.lastEditAction)
   const timelineVersion = useTimelineStore((s) => s.timelineVersion)
+  const clips = useTimelineStore((s) => s.clips)
+  const videoUrl = useAssetStore((s) => s.asset?.videoUrl ?? null)
+  const previewReady =
+    Boolean(videoUrl) &&
+    hasVideoLaneClip(clips) &&
+    unifiedRenderPreviewEnabled()
 
   const dims = useMemo(() => {
     if (aspectRatio === '9:16' || aspectRatio === '1:1') {
@@ -64,7 +72,7 @@ export function DirectorRemotionPreview({
   }, [onFailed])
 
   useEffect(() => {
-    if (!unifiedRenderPreviewEnabled()) return
+    if (!previewReady) return
     let cancelled = false
     setResolved(null)
     setError(null)
@@ -74,14 +82,24 @@ export function DirectorRemotionPreview({
       if (lastEditAction) {
         await saveProjectTimeline(projectId, 'Preview sync')
       }
-      const { data, error: err } = await fetchDirectorRenderProps(
+      let { data, error, status } = await fetchDirectorRenderProps(
         projectId,
         dims.width,
         dims.height,
       )
+      if (status === 404 && !lastEditAction) {
+        const saved = await saveProjectTimeline(projectId, 'Preview bootstrap')
+        if (saved.ok) {
+          ;({ data, error, status } = await fetchDirectorRenderProps(
+            projectId,
+            dims.width,
+            dims.height,
+          ))
+        }
+      }
       if (cancelled) return
-      if (err || !data) {
-        setError(err ?? 'Render preview unavailable.')
+      if (error || !data) {
+        setError(error ?? 'Render preview unavailable.')
         setResolved(null)
         onFailedRef.current?.()
         return
@@ -100,9 +118,10 @@ export function DirectorRemotionPreview({
     return () => {
       cancelled = true
     }
-  }, [projectId, dims.width, dims.height, version, lastEditAction, timelineVersion])
+  }, [projectId, dims.width, dims.height, version, lastEditAction, timelineVersion, previewReady])
 
   if (!unifiedRenderPreviewEnabled()) return null
+  if (!previewReady) return null
   if (error) {
     return (
       <div

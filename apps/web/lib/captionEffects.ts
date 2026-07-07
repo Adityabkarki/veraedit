@@ -4,6 +4,7 @@
 
 import type { Clip, Track } from '@/stores/timelineStore'
 import { useTimelineStore } from '@/stores/timelineStore'
+import { commitTimelineClips, getFullTimelineClips } from '@/lib/editor/timelineClipUpdates'
 
 export type CaptionAnimation =
   | 'pop'
@@ -207,7 +208,8 @@ export function insertCaptionEffectAt(
   const cfg = CAPTION_EFFECT_CONFIG[toolId]
   if (!cfg) return null
 
-  const { tracks, clips } = useTimelineStore.getState()
+  const { tracks } = useTimelineStore.getState()
+  const clips = getFullTimelineClips()
   const captionClip = captionClipAtTime(clips, atTime)
 
   const startTime = captionClip?.startTime ?? atTime
@@ -231,11 +233,13 @@ export function insertCaptionEffectAt(
     },
   }
 
-  useTimelineStore.setState({
-    tracks: ensureCaptionFxTrack(tracks),
-    clips: [...clips, clip],
-    lastEditAction: `Added ${cfg.label} to captions`,
-    selectedClipIds: [id],
-  })
+  commitTimelineClips(
+    (allClips) => [...allClips, clip],
+    {
+      tracks: ensureCaptionFxTrack(tracks),
+      lastEditAction: `Added ${cfg.label} to captions`,
+      selectedClipIds: [id],
+    },
+  )
   return id
 }

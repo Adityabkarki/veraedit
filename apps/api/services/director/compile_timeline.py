@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import Asset, AssetStatus, DirectorTimelineRecord, Project, Transcript
-from services.brand_theme_service import brand_kit_to_theme
+from services.brand_theme_service import brand_kit_to_theme, apply_style_dna_to_theme, validate_style_depth
 from services.director.content_type_map import (
     default_dimensions,
     resolve_director_content_type,
@@ -148,7 +148,11 @@ async def compile_project_director_timeline(
         compile_payload["cameraFeeds"] = camera_feeds
 
     timeline = await compile_director_timeline(compile_payload)
-    timeline = resolve_broll_entries(timeline, content_type=director_content_type)
+    timeline = resolve_broll_entries(
+        timeline,
+        content_type=director_content_type,
+        theme=theme,
+    )
 
     new_version = (active.version + 1) if active else 1
     parent_id = active.id if active else None
@@ -168,6 +172,10 @@ async def compile_project_director_timeline(
     )
     db.add(record)
     await db.flush()
+
+    from services.director.timeline_entry_sync import sync_timeline_entry_index
+
+    await sync_timeline_entry_index(db, record.id, timeline)
 
     if storage_upload is not None:
         key = f"projects/{project.id}/director-timelines/{record.id}.json"
@@ -247,17 +255,31 @@ async def _load_transcript(asset_id: uuid.UUID, db: AsyncSession) -> Transcript:
 def _resolve_theme(project: Project) -> dict[str, Any]:
     settings = project.settings or {}
     brand_kit = settings.get("brand_kit") or settings.get("brandKit")
+    style_dna = settings.get("style_dna") or settings.get("styleDna")
+
     if isinstance(brand_kit, dict) and brand_kit:
-        return brand_kit_to_theme(brand_kit)
-    return brand_kit_to_theme(
-        {
-            "primaryColor": "#C41E3A",
-            "secondaryColor": "#111113",
-            "accentColor": "#F59E0B",
-            "fontStyle": "nepali",
-            "logoText": project.name or "ViraEdit",
-        }
-    )
+        theme = brand_kit_to_theme(brand_kit)
+    else:
+        theme = brand_kit_to_theme(
+            {
+                "primaryColor": "#C41E3A",
+                "secondaryColor": "#111113",
+                "accentColor": "#F59E0B",
+                "fontStyle": "nepali",
+                "logoText": project.name or "ViraEdit",
+            }
+        )
+
+    if isinstance(style_dna, dict) and style_dna:
+        theme = apply_style_dna_to_theme(theme, style_dna)
+
+    depth = validate_style_depth(theme)
+    meta = dict(theme.get("meta") or {})
+    meta["styleDepthOk"] = depth["ok"]
+    if not depth["ok"]:
+        meta["styleDepthMissing"] = depth["missing"]
+    theme["meta"] = meta
+    return theme
 
 
 def _infer_duration(words: list[dict], segments: list[dict]) -> float:

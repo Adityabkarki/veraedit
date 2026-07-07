@@ -632,6 +632,20 @@ async def apply_style(
         parent_id=current_tl.id if current_tl else None,
     )
     db.add(new_tl)
+
+    # Phase 16 — persist cloned style DNA on project for Director theme depth
+    proj_result = await db.execute(select(Project).where(Project.id == project_id))
+    project = proj_result.scalar_one_or_none()
+    if project is not None and preset.dna is not None:
+        from services.brand_theme_service import project_style_dna_from_extracted
+
+        settings = dict(project.settings or {})
+        settings["style_dna"] = project_style_dna_from_extracted(preset.dna)
+        settings["styleDna"] = settings["style_dna"]
+        settings["last_style_preset_id"] = preset.id
+        settings["last_style_preset_name"] = preset.name
+        project.settings = settings
+
     await db.commit()
     await db.refresh(new_tl)
 

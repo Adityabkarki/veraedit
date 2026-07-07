@@ -253,8 +253,8 @@ function compileDirectorTimeline(body) {
   return JSON.parse(stdout);
 }
 
-function bridgeEditorTimeline(body) {
-  const script = path.join(__dirname, "scripts", "bridge-editor-timeline.ts");
+function prepareStyledShortTimeline(body) {
+  const script = path.join(__dirname, "scripts", "prepare-styled-short.ts");
   const stdout = execFileSync("npx", ["tsx", script], {
     input: JSON.stringify(body),
     encoding: "utf-8",
@@ -262,6 +262,45 @@ function bridgeEditorTimeline(body) {
     cwd: __dirname,
   });
   return JSON.parse(stdout);
+}
+
+function applyPlatformVariant(body) {
+  const script = path.join(__dirname, "scripts", "apply-platform-variant.ts");
+  const stdout = execFileSync("npx", ["tsx", script], {
+    input: JSON.stringify(body),
+    encoding: "utf-8",
+    maxBuffer: 50 * 1024 * 1024,
+    cwd: __dirname,
+  });
+  return JSON.parse(stdout);
+}
+
+function bridgeEditorTimeline(body) {
+  const script = path.join(__dirname, "scripts", "bridge-editor-timeline.ts");
+  try {
+    const stdout = execFileSync("npx", ["tsx", script], {
+      input: JSON.stringify(body),
+      encoding: "utf-8",
+      maxBuffer: 50 * 1024 * 1024,
+      cwd: __dirname,
+    });
+    return JSON.parse(stdout);
+  } catch (err) {
+    const stdout = err && err.stdout ? String(err.stdout) : "";
+    if (stdout.trim()) {
+      try {
+        const parsed = JSON.parse(stdout);
+        if (parsed && typeof parsed === "object") {
+          return parsed;
+        }
+      } catch (_parseErr) {
+        // fall through to rethrow with stderr context
+      }
+    }
+    const stderr = err && err.stderr ? String(err.stderr) : "";
+    const message = stderr.trim() || (err && err.message) || "Editor timeline bridge failed";
+    throw new Error(message);
+  }
 }
 
 app.post("/director/bridge-editor-timeline", (req, res) => {
@@ -310,6 +349,60 @@ app.post("/director/compile", (req, res) => {
   }
 });
 
+app.post("/director/prepare-styled-short", (req, res) => {
+  try {
+    const body = req.body;
+    if (
+      !body ||
+      body.startFrame == null ||
+      body.endFrame == null ||
+      !body.targetContentType ||
+      !body.projectId ||
+      !body.theme
+    ) {
+      return res.status(400).json({
+        success: false,
+        error:
+          "startFrame, endFrame, targetContentType, projectId, and theme are required",
+      });
+    }
+    const result = prepareStyledShortTimeline(body);
+    if (!result.success) {
+      return res.status(500).json(result);
+    }
+    res.json(result);
+  } catch (err) {
+    console.error("director/prepare-styled-short failed:", err);
+    res.status(500).json({
+      success: false,
+      error: err.message || "Styled short preparation failed",
+    });
+  }
+});
+
+app.post("/director/apply-platform-variant", (req, res) => {
+  try {
+    const body = req.body;
+    if (!body || !body.timeline || !body.platformVariant) {
+      return res.status(400).json({
+        success: false,
+        error: "timeline and platformVariant are required",
+      });
+    }
+    const result = applyPlatformVariant(body);
+    if (!result.success) {
+      return res.status(500).json(result);
+    }
+    res.json(result);
+  } catch (err) {
+    console.error("director/apply-platform-variant failed:", err);
+    res.status(500).json({
+      success: false,
+      error: err.message || "Platform variant application failed",
+    });
+  }
+});
+
 app.post("/render-director", async (req, res) => {
   try {
     const {
@@ -321,13 +414,24 @@ app.post("/render-director", async (req, res) => {
       sfxUrls = {},
       fontFamily = "Montserrat",
       outputPath,
+      platformVariant,
       fps = 30,
       width,
       height,
+      frameRange,
     } = req.body;
 
     if (!timeline || !outputPath) {
       return res.status(400).json({ success: false, error: "timeline and outputPath are required" });
+    }
+
+    let renderTimeline = timeline;
+    if (platformVariant) {
+      const variantResult = applyPlatformVariant({ timeline, platformVariant });
+      if (!variantResult.success) {
+        return res.status(500).json(variantResult);
+      }
+      renderTimeline = variantResult.timeline;
     }
 
     const bundleLocation = await getBundle();
@@ -335,7 +439,7 @@ app.post("/render-director", async (req, res) => {
       serveUrl: bundleLocation,
       id: "DirectorRender",
       inputProps: {
-        timeline,
+        timeline: renderTimeline,
         assetUrls,
         primaryVideoSrc,
         dialogueSrc,
@@ -347,20 +451,23 @@ app.post("/render-director", async (req, res) => {
 
     const durationInFrames = Math.max(
       1,
-      Number(timeline.durationInFrames) || Math.ceil((timeline.durationSeconds || 10) * fps),
+      Number(renderTimeline.durationInFrames) || Math.ceil((renderTimeline.durationSeconds || 10) * fps),
     );
 
     await renderMedia({
       composition: {
         ...composition,
         durationInFrames,
-        fps: Number(timeline.fps) || fps,
-        width: width || Number(timeline.width) || 1920,
-        height: height || Number(timeline.height) || 1080,
+        fps: Number(renderTimeline.fps) || fps,
+        width: width || Number(renderTimeline.width) || 1920,
+        height: height || Number(renderTimeline.height) || 1080,
       },
       serveUrl: bundleLocation,
       codec: "h264",
       outputLocation: outputPath,
+      ...(Array.isArray(frameRange) && frameRange.length === 2
+        ? { frameRange: [Number(frameRange[0]), Number(frameRange[1])] }
+        : {}),
       inputProps: {
         timeline,
         assetUrls,

@@ -5,6 +5,7 @@
 
 import type { Clip, Track } from '@/stores/timelineStore'
 import { useTimelineStore } from '@/stores/timelineStore'
+import { commitTimelineClips, getFullTimelineClips } from '@/lib/editor/timelineClipUpdates'
 import { defaultKeyframes } from '@/lib/effectKeyframes'
 import { applyEffectToTimeline, applyTransitionToTimeline } from '@/lib/applyEffects'
 import {
@@ -291,7 +292,7 @@ function ensureTrack(tracks: Track[], trackId: string, label: string, color: str
 function insertMusicBed(startTime: number): string | null {
   const duration = 30
   const id = `music-${Date.now().toString(36)}`
-  const { tracks, clips } = useTimelineStore.getState()
+  const { tracks } = useTimelineStore.getState()
   const clip: Clip = {
     id,
     trackId: 'music',
@@ -305,17 +306,19 @@ function insertMusicBed(startTime: number): string | null {
       styleTransfer: true,
     },
   }
-  useTimelineStore.setState({
-    tracks: ensureTrack(tracks, 'music', 'Music', '#10B981'),
-    clips: [...clips, clip],
-    lastEditAction: 'Added background music slot',
-    selectedClipIds: [id],
-  })
+  commitTimelineClips(
+    (clips) => [...clips, clip],
+    {
+      tracks: ensureTrack(tracks, 'music', 'Music', '#10B981'),
+      lastEditAction: 'Added background music slot',
+      selectedClipIds: [id],
+    },
+  )
   return id
 }
 
 function insertJumpCutAt(startTime: number): string | null {
-  const { clips } = useTimelineStore.getState()
+  const clips = getFullTimelineClips()
   const video = clips.find(
     (c) =>
       c.trackId === 'video' &&
@@ -368,7 +371,7 @@ export function insertStyleToolAt(toolId: string, toolName: string, startTime: n
     const result = applyTransitionToTimeline(transitionId, startTime)
     useTimelineStore.setState({ lastEditAction: result.message })
     if (!result.ok) return null
-    const { clips } = useTimelineStore.getState()
+    const clips = getFullTimelineClips()
     const video = clips.find(
       (c) =>
         c.trackId === 'video' &&
@@ -394,7 +397,7 @@ export function insertStyleToolAt(toolId: string, toolName: string, startTime: n
     presetId === 'ken_burns' ||
     (spec.effects as { effectType?: string }).effectType === 'digital_zoom'
 
-  const { clips: existingClips } = useTimelineStore.getState()
+  const existingClips = getFullTimelineClips()
   const parentVideo = existingClips.find(
     (c) =>
       c.trackId === 'video' &&
@@ -440,7 +443,8 @@ export function insertStyleToolAt(toolId: string, toolName: string, startTime: n
     effects,
   }
 
-  const { tracks, clips } = useTimelineStore.getState()
+  const { tracks } = useTimelineStore.getState()
+  const clips = getFullTimelineClips()
   let nextTracks = tracks
   let trackId = spec.trackId
 
@@ -464,16 +468,18 @@ export function insertStyleToolAt(toolId: string, toolName: string, startTime: n
     nextTracks = ensureTrack(nextTracks, CAMERA_TRACK_ID, 'Camera', '#2563EB')
   }
 
-  useTimelineStore.setState({
-    tracks: nextTracks,
-    clips: [...clips, clip],
-    lastEditAction: isZoomTool
-      ? `Added ${cameraZoomLabel(clip)} on Camera track — scrub playhead through the clip to preview`
-      : (spec.effects as { layout?: string }).layout
-        ? `${layoutEffectLabel(String((spec.effects as { layout?: string }).layout))} — add B-roll for the second panel, then scrub the playhead to preview`
-        : `Added ${toolName}`,
-    selectedClipIds: [id],
-  })
+  commitTimelineClips(
+    (allClips) => [...allClips, clip],
+    {
+      tracks: nextTracks,
+      lastEditAction: isZoomTool
+        ? `Added ${cameraZoomLabel(clip)} on Camera track — scrub playhead through the clip to preview`
+        : (spec.effects as { layout?: string }).layout
+          ? `${layoutEffectLabel(String((spec.effects as { layout?: string }).layout))} — add B-roll for the second panel, then scrub the playhead to preview`
+          : `Added ${toolName}`,
+      selectedClipIds: [id],
+    },
+  )
   if (isZoomTool) {
     openCameraZoomEditor(id)
     scrollTimelineToClip(clip)

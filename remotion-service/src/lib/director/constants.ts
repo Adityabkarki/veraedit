@@ -45,6 +45,11 @@ export const COMPONENT_LAYER_DEPTH: Record<string, number> = {
   feature_callout: 55,
   subscribe_badge: 90,
   cta_badge: 90,
+  topic_title_card: 18,
+  pull_quote_card: 62,
+  icon_point_callout: 66,
+  bullet_list_reveal: 32,
+  comparison_table: 30,
 };
 
 export const DEFAULT_LAYER_DEPTH = 40;

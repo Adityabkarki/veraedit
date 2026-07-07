@@ -2,7 +2,8 @@
  * Push current Brand Kit colors onto timeline motion-graphic clips (for export + edit panel).
  */
 import type { BrandKit } from '@/stores/visualLibraryStore'
-import { useTimelineStore, type Clip } from '@/stores/timelineStore'
+import type { Clip } from '@/stores/timelineStore'
+import { commitTimelineClips } from '@/lib/editor/timelineClipUpdates'
 import { isMotionGraphicProType } from '@/lib/motionGraphicsLibrary'
 import { resolveBrandKitTheme } from '@/lib/brandKitTheme'
 
@@ -17,8 +18,8 @@ export function syncMotionClipsToBrandKit(brandKit: BrandKit): number {
   const theme = resolveBrandKitTheme(brandKit)
   let updated = 0
 
-  useTimelineStore.setState((state) => ({
-    clips: state.clips.map((clip) => {
+  commitTimelineClips((allClips) =>
+    allClips.map((clip) => {
       if (!isMotionOverlayClip(clip)) return clip
       updated += 1
       const motionProps = {
@@ -36,7 +37,7 @@ export function syncMotionClipsToBrandKit(brandKit: BrandKit): number {
         },
       }
     }),
-  }))
+  )
 
   return updated
 }

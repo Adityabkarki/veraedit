@@ -44,6 +44,18 @@ log = structlog.get_logger("viraedit.shorts")
 class ShortRenderRequest(BaseModel):
     """Body for POST /shorts/{id}/render."""
     platform: RenderPlatform = RenderPlatform.TIKTOK
+    platforms: list[RenderPlatform] | None = Field(
+        default=None,
+        description="Render multiple platform variants from one Director compile",
+    )
+    render_all_scored_platforms: bool = Field(
+        default=False,
+        description="When true, render all platforms with score >= 5 from platform_scores",
+    )
+    allow_legacy_fallback: bool = Field(
+        default=False,
+        description="Allow FFmpeg crop fallback if Director render fails",
+    )
     name: str = Field(default="", max_length=255)
 
 
@@ -307,9 +319,17 @@ async def render_short(
         progress_percent=0.0,
         render_settings={
             "short_id": str(short_id),
+            "asset_id": str(short.asset_id),
             "start_time": short.start_time,
             "end_time": short.end_time,
+            "hook": short.hook,
+            "viral_score": short.viral_score,
+            "platform_scores": short.platform_scores or {},
+            "platforms": [p.value for p in body.platforms] if body.platforms else None,
+            "render_all_scored_platforms": body.render_all_scored_platforms,
+            "allow_legacy_fallback": body.allow_legacy_fallback,
             "is_short": True,
+            "director_styled": True,
         },
     )
     db.add(render)
@@ -350,9 +370,18 @@ async def render_short(
         "short_id": str(short_id),
         "render_id": str(render.id),
         "platform": body.platform.value,
+        "platforms_queued": (
+            [p.value for p in body.platforms]
+            if body.platforms
+            else (
+                "all_scored"
+                if body.render_all_scored_platforms
+                else [body.platform.value]
+            )
+        ),
         "task_id": task_id,
         "message": (
-            f"Short render queued for {body.platform.value}. "
+            f"Director-styled short render queued. "
             "Poll GET /renders/{render_id} for progress."
         ),
     }

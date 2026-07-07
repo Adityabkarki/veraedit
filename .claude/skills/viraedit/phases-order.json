@@ -75,5 +75,54 @@
     "title": "Style Extractor Fix: Capability Registry, Gap Report & Renderers",
     "file": "phase-10-Style-Extractor-fix/SKILL.md",
     "description": "Fix style extractor with capability registry, comprehensive gap report and renderer improvements"
+  },
+  {
+    "id": "11",
+    "name": "director-styled-shorts",
+    "title": "Director-Styled Shorts & Sizzle",
+    "file": "phase-11-director-styled-shorts/SKILL.md",
+    "description": "Route every Short/Sizzle through the Director pipeline for fully styled, platform-ready exports with kinetic captions and beat-synced transitions"
+  },
+  {
+    "id": "12",
+    "name": "analysis-scaling",
+    "title": "Long-Form AI Analysis Scaling",
+    "file": "phase-12-Analysis-scaling/SKILL.md",
+    "description": "Chunked/parallelized signal extraction for long videos — diarization, topic segmentation, stat/emphasis extraction with boundary reconciliation"
+  },
+  {
+    "id": "13",
+    "name": "storage-efficiency",
+    "title": "Long-Form Storage Efficiency",
+    "file": "phase-13-Storage-Efficiency/SKILL.md",
+    "description": "Compact binary storage for per-frame data and windowed Timeline access for large projects"
+  },
+  {
+    "id": "14",
+    "name": "render-scaling",
+    "title": "Long-Form Render Scaling",
+    "file": "phase-14-Render-Scaling/SKILL.md",
+    "description": "Chunked parallel rendering, lossless stitching, resumable render jobs, and pre-export time/cost estimation"
+  },
+  {
+    "id": "15",
+    "name": "editor-performance",
+    "title": "Long-Form Editor Performance",
+    "file": "phase-15-Editor-Performance/SKILL.md",
+    "description": "Editor and preview responsiveness for long timelines — viewport windowing, diff-based undo, waveform caching"
+  },
+  {
+    "id": "16",
+    "name": "production-completeness",
+    "title": "Production Completeness",
+    "file": "phase-16-production-completeness/SKILL.md",
+    "description": "Coverage audit, fallback guarantees, style depth validation, B-roll threshold tuning, and pre-export readiness gate"
+  },
+  {
+    "id": "17",
+    "name": "final-production",
+    "title": "Final Production — Honest Audit & Ship",
+    "file": "17-final-production.md",
+    "description": "Honest audit, library expansion, style depth verification, end-to-end wiring, and real-file proof for short-form and long-form exports"
   }
 ]

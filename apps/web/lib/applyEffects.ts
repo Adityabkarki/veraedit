@@ -4,6 +4,7 @@
 
 import type { Clip } from '@/stores/timelineStore'
 import { useTimelineStore } from '@/stores/timelineStore'
+import { commitTimelineClips, getFullTimelineClips, replaceTimelineClips } from '@/lib/editor/timelineClipUpdates'
 import {
   TRANSITIONS,
   COLOR_FILTERS,
@@ -101,7 +102,8 @@ function addEffectClip(
 ): string {
   const duration = Math.max(0.1, opts.end - opts.start)
   const id = `efx-${Date.now().toString(36)}`
-  const { tracks, clips } = useTimelineStore.getState()
+  const { tracks } = useTimelineStore.getState()
+  const clips = getFullTimelineClips()
 
   const effectClip: Clip = {
     id,
@@ -119,17 +121,15 @@ function addEffectClip(
     },
   }
 
-  useTimelineStore.setState({
-    tracks: ensureEffectsTrack(tracks),
-    clips: [...clips, effectClip],
-    undoStack: [
-      ...useTimelineStore.getState().undoStack.slice(-49),
-      { clips, tracks },
-    ],
-    redoStack: [],
-    lastEditAction: `Added ${opts.presetName} effect`,
-    selectedClipIds: [id],
-  })
+  commitTimelineClips(
+    (allClips) => [...allClips, effectClip],
+    {
+      tracks: ensureEffectsTrack(tracks),
+      recordUndo: true,
+      lastEditAction: `Added ${opts.presetName} effect`,
+      selectedClipIds: [id],
+    },
+  )
   useEffectsStore.getState().startEditingEffect(id)
   useEffectsStore.getState().clearEffectRange()
   return id
@@ -181,13 +181,7 @@ export function resolveVideoClipForTransition(
 }
 
 function commitClips(nextClips: Clip[], actionLabel: string) {
-  const s = useTimelineStore.getState()
-  useTimelineStore.setState({
-    clips: nextClips,
-    undoStack: [...s.undoStack.slice(-(49)), { clips: s.clips, tracks: s.tracks }],
-    redoStack: [],
-    lastEditAction: actionLabel,
-  })
+  replaceTimelineClips(nextClips, { recordUndo: true, lastEditAction: actionLabel })
 }
 
 function mergeClipEffects(clip: Clip, effectsPatch: NonNullable<Clip['effects']>): Clip {
@@ -371,7 +365,8 @@ function applyTextTemplate(effectId: string): ApplyEffectResult {
   const template = TEXT_TEMPLATES.find((t) => t.id === effectId)
   if (!template) return { ok: false, message: 'Unknown text template' }
 
-  const { playheadTime, tracks, clips } = useTimelineStore.getState()
+  const { playheadTime, tracks } = useTimelineStore.getState()
+  const clips = getFullTimelineClips()
   const { contentLanguage, brandKit, brandApplied } = useVisualLibraryStore.getState()
 
   const id = `txt-${Date.now().toString(36)}`
@@ -417,17 +412,15 @@ function applyTextTemplate(effectId: string): ApplyEffectResult {
     effects: offsetEffectsForLane(baseEffects, trackId, OVERLAY_FAMILY.prefix) as Clip['effects'],
   }
 
-  useTimelineStore.setState({
-    tracks: nextTracks,
-    clips: [...clips, clip],
-    undoStack: [
-      ...useTimelineStore.getState().undoStack.slice(-49),
-      { clips, tracks },
-    ],
-    redoStack: [],
-    lastEditAction: `Added ${template.name} to timeline`,
-    selectedClipIds: [id],
-  })
+  commitTimelineClips(
+    (allClips) => [...allClips, clip],
+    {
+      tracks: nextTracks,
+      recordUndo: true,
+      lastEditAction: `Added ${template.name} to timeline`,
+      selectedClipIds: [id],
+    },
+  )
   useVisualLibraryStore.setState({
     placedOverlays: [...useVisualLibraryStore.getState().placedOverlays, overlay],
     editingOverlayId: id,

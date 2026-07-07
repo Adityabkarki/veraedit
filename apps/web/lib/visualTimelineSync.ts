@@ -4,6 +4,7 @@
 
 import type { Clip, Track } from '@/stores/timelineStore'
 import { useTimelineStore } from '@/stores/timelineStore'
+import { commitTimelineClips, getFullTimelineClips } from '@/lib/editor/timelineClipUpdates'
 import {
   allocateDedicatedTrack,
   isFamilyTrack,
@@ -153,17 +154,17 @@ export function insertVisualElementAt(elementId: string, startTime: number): str
   }
 
   const clip = overlayToClip(overlay)
-  const { tracks, clips } = useTimelineStore.getState()
+  const { tracks } = useTimelineStore.getState()
+  const clips = getFullTimelineClips()
   const { tracks: nextTracks, trackId } = allocateDedicatedTrack(tracks, clips, OVERLAY_FAMILY)
   clip.trackId = trackId
   if (clip.effects) {
     clip.effects = offsetEffectsForLane(clip.effects, trackId, OVERLAY_FAMILY.prefix) as typeof clip.effects
   }
-  useTimelineStore.setState({
-    tracks: nextTracks,
-    clips: [...clips, clip],
-    lastEditAction: `Added ${el.label} element`,
-  })
+  commitTimelineClips(
+    (allClips) => [...allClips, clip],
+    { tracks: nextTracks, lastEditAction: `Added ${el.label} element` },
+  )
   useVisualLibraryStore.setState({
     placedOverlays: [...useVisualLibraryStore.getState().placedOverlays, overlay],
     editingOverlayId: id,
@@ -215,17 +216,17 @@ export function insertVisualTemplateAt(templateId: string, startTime: number): s
   }
 
   const clip = overlayToClip(overlay, template)
-  const { tracks, clips } = useTimelineStore.getState()
+  const { tracks } = useTimelineStore.getState()
+  const clips = getFullTimelineClips()
   const { tracks: nextTracks, trackId } = allocateDedicatedTrack(tracks, clips, OVERLAY_FAMILY)
   clip.trackId = trackId
   if (clip.effects) {
     clip.effects = offsetEffectsForLane(clip.effects, trackId, OVERLAY_FAMILY.prefix) as typeof clip.effects
   }
-  useTimelineStore.setState({
-    tracks: nextTracks,
-    clips: [...clips, clip],
-    lastEditAction: `Added ${template.name} to timeline`,
-  })
+  commitTimelineClips(
+    (allClips) => [...allClips, clip],
+    { tracks: nextTracks, lastEditAction: `Added ${template.name} to timeline` },
+  )
   useVisualLibraryStore.setState({
     placedOverlays: [...useVisualLibraryStore.getState().placedOverlays, overlay],
     editingOverlayId: id,
@@ -234,12 +235,13 @@ export function insertVisualTemplateAt(templateId: string, startTime: number): s
 }
 
 export function removeVisualFromTimeline(overlayId: string) {
-  const { clips } = useTimelineStore.getState()
-  useTimelineStore.setState({
-    clips: clips.filter((c) => c.id !== overlayId),
-    selectedClipIds: useTimelineStore.getState().selectedClipIds.filter((x) => x !== overlayId),
-    lastEditAction: 'Removed visual overlay',
-  })
+  commitTimelineClips(
+    (clips) => clips.filter((c) => c.id !== overlayId),
+    {
+      selectedClipIds: useTimelineStore.getState().selectedClipIds.filter((x) => x !== overlayId),
+      lastEditAction: 'Removed visual overlay',
+    },
+  )
   useVisualLibraryStore.setState((s) => ({
     placedOverlays: s.placedOverlays.filter((o) => o.id !== overlayId),
     editingOverlayId: s.editingOverlayId === overlayId ? null : s.editingOverlayId,
@@ -259,10 +261,10 @@ export function updateVisualOnTimeline(overlayId: string, changes: Partial<Place
 
   const template = VISUAL_TEMPLATES.find((t) => t.id === updated.templateId)
   const nextClip = overlayToClip(updated, template)
-  useTimelineStore.setState((s) => ({
-    clips: s.clips.map((c) => (c.id === overlayId ? { ...nextClip, id: overlayId } : c)),
-    lastEditAction: 'Updated visual overlay',
-  }))
+  commitTimelineClips(
+    (clips) => clips.map((c) => (c.id === overlayId ? { ...nextClip, id: overlayId } : c)),
+    { lastEditAction: 'Updated visual overlay' },
+  )
 }
 
 /** After dragging/resizing an overlay clip on the timeline. */

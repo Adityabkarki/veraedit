@@ -63,6 +63,8 @@ celery_app = Celery(
         "tasks.proxy_tasks",
         "tasks.audio_analysis_task",
         "tasks.multicam_sync",
+        "tasks.chunked_analysis_tasks",
+        "tasks.chunked_render_tasks",
     ],
 )
 
@@ -123,6 +125,8 @@ celery_app.conf.update(
         "tasks.cut.*":               {"queue": "render"},
         "tasks.proxy.*":             {"queue": "render"},
         "tasks.audio_analysis.*":    {"queue": "analysis"},
+        "tasks.chunked_analysis.*": {"queue": "analysis"},
+        "tasks.chunked_render.*":  {"queue": "render"},
     },
 
     # Default queue for unrouted tasks

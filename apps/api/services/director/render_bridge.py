@@ -15,10 +15,13 @@ from services.director.compile_timeline import get_active_director_timeline
 
 log = structlog.get_logger("viraedit.director.render")
 
+from services.director.render_precedence import (
+    project_uses_director_engine as _project_settings_use_director_engine,
+)
+
 
 def project_uses_director_engine(project: Project) -> bool:
-    settings = project.settings or {}
-    return bool(settings.get("useDirectorEngine") or settings.get("use_director_engine"))
+    return _project_settings_use_director_engine(project.settings)
 
 
 async def render_project_director_export(

@@ -3,7 +3,7 @@
  */
 
 import { api } from '@/lib/api'
-import { apiTimelineToStore, type ApiTimelineData } from '@/lib/timelineApi'
+import { type ApiTimelineData } from '@/lib/timelineApi'
 import { applySuggestionToEditor, syncOverlaysToVisualLibrary } from '@/lib/applySuggestionClient'
 import { useTimelineStore } from '@/stores/timelineStore'
 import type { SuggestionAction } from '@/lib/applySuggestionClient'
@@ -41,24 +41,19 @@ export async function acceptSuggestionApi(
 
   // Prefer server timeline when available
   if (res.data?.timeline?.data) {
-    const { tracks, clips } = apiTimelineToStore(res.data.timeline.data)
-    useTimelineStore.setState({
-      tracks,
-      clips,
-      lastEditAction: 'AI suggestion applied',
+    useTimelineStore.getState().loadFromApi(res.data.timeline.data, {
+      preservePlayhead: true,
     })
-    syncOverlaysToVisualLibrary(clips)
+    syncOverlaysToVisualLibrary(useTimelineStore.getState().getFullClips())
     applied = true
   } else {
-    // Reload full timeline from API (accept may have created a new version)
     const tl = await api.get<{ data: ApiTimelineData }>(`/projects/${projectId}/timeline`)
     if (tl.data?.data) {
-      const { tracks, clips } = apiTimelineToStore(tl.data.data)
-      useTimelineStore.setState({ tracks, clips, lastEditAction: 'AI suggestion applied' })
-      syncOverlaysToVisualLibrary(clips)
+      useTimelineStore.getState().loadFromApi(tl.data.data, { preservePlayhead: true })
+      syncOverlaysToVisualLibrary(useTimelineStore.getState().getFullClips())
       applied = true
     } else if (action) {
-      syncOverlaysToVisualLibrary(useTimelineStore.getState().clips)
+      syncOverlaysToVisualLibrary(useTimelineStore.getState().getFullClips())
       applied = true
     }
   }

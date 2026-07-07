@@ -253,6 +253,85 @@ async def create_render(
     }
 
 
+# ── POST /renders/estimate ────────────────────────────────────────────────────
+
+@router.post(
+    "/{project_id}/renders/estimate",
+    summary="Estimate render time and cost before export",
+)
+async def estimate_render_job(
+    project_id: uuid.UUID,
+    db: DbDep,
+    current_user: CurrentUser,
+    platform: RenderPlatform = RenderPlatform.YOUTUBE,
+) -> dict:
+    """Pre-export wall-clock and cost estimate for the active Director timeline."""
+    await _get_project_or_404(project_id, current_user.id, db)
+
+    from services.director.compile_timeline import get_active_director_timeline
+    from services.render.estimate_render import estimate_render
+
+    record = await get_active_director_timeline(project_id, db)
+    if record is None or not record.data:
+        raise HTTPException(
+            status_code=404,
+            detail="No compiled Director timeline found. Run Auto Edit before estimating export.",
+        )
+
+    estimate = estimate_render(record.data)
+
+    from services.director.export_readiness import check_export_readiness
+
+    readiness, _ = check_export_readiness(record.data, auto_resolve=False)
+
+    return {
+        "projectId": str(project_id),
+        "platform": platform.value,
+        "timelineId": str(record.id),
+        "estimate": estimate,
+        "exportReadiness": readiness.to_dict(),
+        "renderModes": ["now", "background"],
+        "message": (
+            f"Estimated render time: ~{estimate['estimatedWallClockSeconds'] // 60} min "
+            f"({estimate['segmentCount']} segment(s))."
+        ),
+    }
+
+
+# ── POST /renders/{render_id}/retry-segments ──────────────────────────────────
+
+@router.post(
+    "/{project_id}/renders/{render_id}/retry-segments",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Retry failed render segments only",
+)
+async def retry_failed_render_segments(
+    project_id: uuid.UUID,
+    render_id: uuid.UUID,
+    db: DbDep,
+    current_user: CurrentUser,
+) -> dict:
+    """Re-dispatch only failed segments per the Render Resumability Law."""
+    render = await _get_render_or_404(project_id, render_id, db)
+    render_settings = dict(render.render_settings or {})
+
+    try:
+        from tasks.chunked_render_tasks import retry_failed_render_segments
+
+        retry_failed_render_segments(str(render.id), str(project_id), render_settings)
+    except Exception as exc:
+        log.warning("retry_render_segments_failed", render_id=str(render_id), error=str(exc))
+        raise HTTPException(
+            status_code=503,
+            detail="Could not queue segment retry. Is the render worker running?",
+        ) from exc
+
+    return {
+        "renderId": str(render.id),
+        "message": "Failed segments queued for retry. Completed segments are reused.",
+    }
+
+
 # ── GET /renders ──────────────────────────────────────────────────────────────
 
 @router.get(

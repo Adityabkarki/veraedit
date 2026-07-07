@@ -28,6 +28,7 @@ export interface ComparisonSignal extends TimeRangeSignal {
 
 export interface EmphasisSignal extends TimeRangeSignal {
   text?: string;
+  confidenceSource?: "heuristic" | "ml";
 }
 
 export interface WordSignal {

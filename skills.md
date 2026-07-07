@@ -334,27 +334,50 @@ Look & VFX, Audio & Multicam) are wired into the live upload → compile → ren
 pipeline. They apply during the migration from the legacy editor path to the
 Director Engine pipeline.
 
+### The Director Timeline Primacy Law
+
+When a compiled `DirectorTimeline` row exists for a project **and** `useDirectorEngine`
+is enabled, it is the **sole** source of render props, resolved via
+`timelineToMotionPlan()` — exactly as preview does per the Preview/Export Parity Law.
+The editor-timeline bridge (`bridge-editor-timeline`) is used **only** as a complete,
+whole-project fallback for projects that have no compiled `DirectorTimeline` at all
+(or when `useDirectorEngine` is explicitly off for safe rollback) — never as a partial
+base that compiled data gets patched onto field-by-field. There is no merge step. One
+source or the other, chosen once per project state.
+
+**Violation to reject:** any code path that starts from the bridged editor timeline
+and attempts to layer compiled Director data on top of it (gap-fill merge of
+`motionGraphics`, `vfx`, `grade`, `sfx`, etc.). If a compiled `DirectorTimeline`
+exists and the flag is on, use it directly and completely.
+
 ### The Preview/Export Parity Law
 
 There is exactly **one** Composition component (`DirectorRender`) and exactly
-**one** props-resolution path (`editor timeline` → `bridgeEditorTimelineToDirector`
-→ `resolveDirectorRenderProps` → `timelineToMotionPlan()` → props) used for both
-the live preview and the final export.
+**one** props-resolution precedence used for both live preview and final export:
+
+1. **Compiled path:** active `director_timelines` row → `resolveDirectorRenderProps`
+   → `timelineToMotionPlan()` → `DirectorRender` props
+2. **Bridge fallback:** saved editor timeline → `bridgeEditorTimelineToDirector`
+   → `timelineToMotionPlan()` → `DirectorRender` props (only when no compiled timeline
+   exists, or `useDirectorEngine` is off)
 
 Preview and export must never diverge into separate composition definitions or
 separate prop-construction logic. The unified export path (`_render_unified_director_export`)
-and the preview API (`GET /director-render-props`) both call the same bridge and
-render `DirectorRender` with identical `inputProps`.
+and the preview API (`GET /director-render-props`) must apply the same precedence
+check and render `DirectorRender` with identical `inputProps` for the same project state.
 
 **Violations to reject:**
 - Export paths that render raw FFmpeg video + captions while preview shows Remotion layers
-- Preview overlays built only in `VisualOverlayLayer` without a bridged `DirectorTimeline`
+- Shallow gap-fill merges from compiled `DirectorTimeline` onto a bridged editor base
+- Preview overlays built only in `VisualOverlayLayer` without a resolved `DirectorTimeline`
 - Duplicate `timelineToMotionPlan()` call sites that construct props differently for preview vs export
 - Adding export-only or preview-only composition stacks for motion graphics, VFX, grade, or audio
+- Silent fallback to FFmpeg when the Director/bridge path fails without surfacing why
 
-**Required pattern:** when the editor timeline changes, re-fetch `director-render-props`
-for preview; when exporting, bridge the same saved timeline snapshot before calling
-`POST /render-director`.
+**Required pattern:** when the editor timeline or compiled Director timeline changes,
+re-fetch `director-render-props` for preview; when exporting, apply the same precedence
+check before calling `POST /render-director`. Bridge failures must log the exception,
+project ID, and failed step, and surface a user-visible fallback warning — never lie.
 
 ### The Feature-Flag Migration Law
 
@@ -374,6 +397,48 @@ end-to-end on real content per content type.
 **Required pattern:** gate all Director Engine UI and export wiring behind
 `useDirectorEngine` per project. Existing users on the legacy editor see no
 change until the flag is explicitly enabled for their project.
+
+### The Timeline Slicing Determinism Law
+
+Slicing a parent `DirectorTimeline` down to a Short's `[startFrame, endFrame]`
+window is a pure function of `(parentTimeline, startFrame, endFrame)` — frame
+remapping, entry filtering, and boundary handling must produce identical output
+every time, with no live recomputation of already-resolved triggers during
+slicing itself.
+
+**Violations to reject:**
+- Slicing that re-runs signal extraction or trigger resolution on the clip window
+- Non-deterministic boundary handling (random tie-breaking, time-dependent logic)
+- Partially overlapping motion-graphics or B-roll entries rendered truncated
+  instead of dropped per the Re-Skin Consistency Law
+
+### The Re-Skin Consistency Law
+
+When a sliced clip is re-skinned into a different pillar than its parent (e.g. a
+Consultancy long-form video producing a Social-styled Short), pacing, grade, and
+caption style are **fully replaced** by the target pillar's Director rules — never
+a partial blend of old and new styling. Content-driven decisions (which stat got
+a metric card, which topic got B-roll) may be retained if their originating
+trigger's transcript window falls entirely inside the clip; a trigger whose window
+is cut in half by the clip boundary is dropped, not rendered truncated.
+
+**Violations to reject:**
+- Carrying over parent pillar pacing, grade, or caption style into a Social Short
+- Rendering motion-graphics entries whose trigger window was truncated by slicing
+- Blending parent and target pillar transition choices on the same clip
+
+### The Platform Variant Law
+
+Multiple platform-targeted outputs (YouTube Shorts, Instagram Reels, TikTok,
+LinkedIn) from the same underlying clip are produced from **one** signal-extraction
++ compile pass, varying only in render-time parameters (CTA badge presence/style,
+caption density, end-card) — never by re-running full Director signal extraction
+once per platform.
+
+**Violations to reject:**
+- Re-compiling or re-slicing a `DirectorTimeline` per platform export
+- Re-running signal extraction for each platform variant of the same Short
+- Platform-specific cut or grade changes that diverge from the shared compiled timeline
 
 ### The Honest Confidence Law
 
@@ -408,6 +473,51 @@ may be marked `status: 'realized'` while that field is empty or null.
 **Required pattern:** resolution either successfully fetches a real asset and
 populates the URL field, or the trigger is marked `suppressed` with an explicit
 reason (e.g. `'no_asset_found'`). Never silently ship broken assets.
+
+---
+
+## Production Completeness Laws
+
+These laws close the gap between individually working subsystems and a finished
+export on real long-form Podcast and Consultancy content.
+
+### The Fallback Guarantee Law
+
+Every Director trigger type that gets **realized** (survives Density Throttle)
+must produce a rendered visual outcome — never nothing. If the ideal component for
+that trigger type does not exist yet, or the ideal B-roll match does not clear
+the confidence threshold, a defined fallback tier renders instead (Topic Title
+Card, Pull-Quote Card, Icon Callout, etc.). A realized trigger producing no
+visible output is treated as a bug, not an acceptable gap. The `fallbackTier`
+used must be logged on the `TriggerLogEntry` metadata for inspection.
+
+**Violation to reject:** realizing a trigger with empty B-roll URL and no motion
+graphics fallback; suppressing a high-confidence trigger without a nearby fallback
+visual within the same segment.
+
+### The Style Depth Law
+
+A cloned or applied style (`ThemeToken` + `GradeToken`) must influence every layer
+capable of being themed: colors, fonts, grade, motion personality (`defaultCurve`),
+and B-roll search bias (visual mood keywords appended to search queries). A style
+application that only changes colors and fonts is incomplete and must be flagged,
+not shipped as "style applied."
+
+**Required pattern:** style extraction populates `motion.defaultCurve` from pacing
+(`fast` → `snappy_spring`, `slow` → `elegant_glide`) and `grade` from
+`visual_style`; B-roll queries append mood keywords from the resolved theme.
+
+### The Pre-Export Completeness Gate Law
+
+Before a project is offered for export, a completeness pass runs across the compiled
+`DirectorTimeline` checking for: segments exceeding a maximum duration with no
+visual variety (~45s), any B-roll entry below the match-confidence threshold,
+and any high-confidence suppressed trigger with no fallback rendered nearby.
+Results are either auto-resolved (Ken Burns pan, Topic Title Card insert) or
+surfaced to the user as a short, actionable checklist — never silently ignored.
+
+**Violation to reject:** offering export when static stretches or empty realized
+triggers remain; auto-fixing without logging what changed.
 
 ---
 
@@ -479,6 +589,88 @@ present), computed once at ingest — never assumed pre-synced by upload order.
 Automatic camera-angle switching must respect a minimum shot duration and bias toward
 cutting on speaker changes or topic shifts (existing Director signals) rather than
 arbitrary timers.
+
+---
+
+## Long-Form Analysis Scaling Laws
+
+### The Chunk Overlap & Boundary Reconciliation Law
+
+Any module processing long content in chunks must use overlapping chunk windows (not
+adjacent, non-overlapping ones). A reconciliation pass must run after chunk-level
+processing to deduplicate detections that fall in the overlap region and merge/align
+boundaries (e.g. a topic segment split across a chunk edge) into one coherent result.
+A trigger or segment must never be double-counted or silently dropped at a chunk boundary.
+
+### The Speaker Identity Continuity Law
+
+When diarization runs in chunks, each chunk's local speaker IDs (e.g. "Speaker A,"
+"Speaker B" within that chunk) must be reconciled to **global**, file-consistent speaker
+IDs via embedding similarity matching across chunk boundaries — not assumed to align by
+label alone. "Speaker A" in chunk 3 is not guaranteed to be the same person as
+"Speaker A" in chunk 1 without this reconciliation step.
+
+### The Chunked Cost Accounting Law
+
+When AI analysis is split across parallel chunk-processing tasks, every chunk's cost must
+be attributed atomically to the same project's `ai_spend_records` ledger. Parallel writes
+must not race or lose cost data — the existing $2/hour budget enforcement must see the
+true aggregate cost of a chunked job, not an undercount from a race condition.
+
+---
+
+## Long-Form Storage Efficiency Laws
+
+### The Binary Payload Law
+
+Any per-frame or otherwise high-cardinality analysis data (audio amplitude/band arrays,
+and any future frame-indexed dataset) is stored as a compact, quantized binary blob in
+object storage (MinIO), referenced by a lightweight database row containing metadata only
+(content hash, frame count, band count, format version). It is never stored as a raw JSON
+array of per-frame objects in a Postgres JSONB column.
+
+### The Windowed Timeline Access Law
+
+Any client (editor UI, Trigger Log viewer) reading a `DirectorTimeline` for a long
+project must be able to fetch a time-windowed slice of its tracks (e.g. entries between
+frame X and Y) rather than always loading the entire Timeline JSON. The full JSONB blob
+remains the single source of truth for compile/render — this law governs *read* access
+patterns for UI purposes, not the canonical storage format itself.
+
+---
+
+## Long-Form Render Scaling Laws
+
+### The Segment Boundary Alignment Law
+
+When a render is split into parallel segments, boundaries must align with existing hard cut
+points or fall entirely outside any active transition window in the Timeline — never split
+mid-transition or mid-clip. A transition is one atomic unit; it belongs entirely to one render
+segment.
+
+### The Render Resumability Law
+
+Every render segment's completion status and output location are persisted independently. A
+failed or retried render only re-runs the segments that failed — never restarts the whole
+export from zero, regardless of video length.
+
+---
+
+## Long-Form Editor Performance Laws
+
+### The Viewport Windowing Law
+
+For any project whose Timeline exceeds a size threshold, the editor loads and renders only
+the timeline entries within the current viewport plus a small buffer — never the entire
+project's Timeline data at once. Scrolling or zooming triggers a windowed fetch (via the
+Storage Efficiency Engine's windowed Timeline API for Director timelines, or client-side
+clip filtering for the NLE) rather than assuming all data is already in memory.
+
+### The Diff-Based Undo Law
+
+For projects exceeding the same size threshold, undo/redo history stores structural
+diffs/patches between states, not full Timeline snapshots. Fifty levels of full snapshots on
+a large project is unbounded memory growth; fifty levels of diffs is not.
 
 ---
 

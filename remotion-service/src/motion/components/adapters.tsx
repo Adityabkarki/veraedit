@@ -26,6 +26,13 @@ import {
   VerticalClipTemplate,
 } from "./social";
 import { DeviceMockup3D, DynamicFeatureCallout } from "./showcase";
+import {
+  TopicTitleCard,
+  PullQuoteCard,
+  IconPointCallout,
+  BulletListReveal,
+  ComparisonTable,
+} from "./completeness";
 
 interface ElementProps {
   el: MotionElement;
@@ -235,6 +242,54 @@ export const AtomicFeatureCallout: React.FC<ElementProps> = ({ el }) => (
   />
 );
 
+export const AtomicTopicTitleCard: React.FC<ElementProps> = ({ el }) => (
+  <TopicTitleCard
+    startSeconds={el.startSeconds}
+    endSeconds={el.endSeconds}
+    label={String(el.props.label ?? el.props.title ?? "Topic")}
+    subtitle={String(el.props.subtitle ?? "")}
+  />
+);
+
+export const AtomicPullQuoteCard: React.FC<ElementProps> = ({ el }) => (
+  <PullQuoteCard
+    startSeconds={el.startSeconds}
+    endSeconds={el.endSeconds}
+    text={String(el.props.text ?? el.props.quote ?? "")}
+    attribution={String(el.props.attribution ?? el.props.author ?? "")}
+  />
+);
+
+export const AtomicIconPointCallout: React.FC<ElementProps> = ({ el }) => (
+  <IconPointCallout
+    startSeconds={el.startSeconds}
+    endSeconds={el.endSeconds}
+    label={String(el.props.label ?? el.props.text ?? "Key point")}
+    icon={(String(el.props.icon ?? "star") as "star" | "check" | "bolt")}
+    xPct={el.position.xPct}
+    yPct={el.position.yPct}
+  />
+);
+
+export const AtomicBulletListReveal: React.FC<ElementProps> = ({ el }) => (
+  <BulletListReveal
+    startSeconds={el.startSeconds}
+    endSeconds={el.endSeconds}
+    title={String(el.props.title ?? "Key points")}
+    items={strList(el.props.items ?? el.props.steps ?? el.props.labels)}
+  />
+);
+
+export const AtomicComparisonTable: React.FC<ElementProps> = ({ el }) => (
+  <ComparisonTable
+    startSeconds={el.startSeconds}
+    endSeconds={el.endSeconds}
+    title={String(el.props.title ?? "Comparison")}
+    labels={strList(el.props.labels)}
+    values={strList(el.props.values) ?? numList(el.props.values)?.map(String)}
+  />
+);
+
 /** Registry entries for atomic pillar components. */
 export const ATOMIC_RENDERERS: Record<string, React.FC<ElementProps>> = {
   eq_visualizer: AtomicEqVisualizer,
@@ -257,4 +312,9 @@ export const ATOMIC_RENDERERS: Record<string, React.FC<ElementProps>> = {
   callout_line: AtomicFeatureCallout,
   dynamic_feature_callout: AtomicFeatureCallout,
   device_mockup: AtomicDeviceMockup,
+  topic_title_card: AtomicTopicTitleCard,
+  pull_quote_card: AtomicPullQuoteCard,
+  icon_point_callout: AtomicIconPointCallout,
+  bullet_list_reveal: AtomicBulletListReveal,
+  comparison_table: AtomicComparisonTable,
 };

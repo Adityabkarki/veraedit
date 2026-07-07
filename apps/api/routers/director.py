@@ -28,6 +28,7 @@ from services.director.compile_timeline import (
 )
 from services.director.extract_signals import extract_director_signals
 from services.director.validate_timeline import validate_director_timeline
+from services.director.export_readiness import check_export_readiness
 from services.multicam.sync import sync_camera_feeds
 
 router = APIRouter(prefix="/api/v1/director", tags=["director"])
@@ -203,6 +204,29 @@ def post_director_validate(req: DirectorValidateRequest) -> dict[str, Any]:
         )
     report = validate_director_timeline(req.timeline)
     return report.to_dict()
+
+
+class DirectorExportReadinessRequest(BaseModel):
+    timeline: dict[str, Any] = Field(default_factory=dict)
+    auto_resolve: bool = Field(
+        False,
+        description="Insert Topic Title Cards for auto-fixable static stretches",
+    )
+
+
+@router.post("/export-readiness")
+def post_director_export_readiness(req: DirectorExportReadinessRequest) -> dict[str, Any]:
+    """Pre-export completeness gate — static stretches, B-roll confidence, fallback gaps."""
+    if not req.timeline:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "missing_timeline", "message": "timeline payload is required"},
+        )
+    report, timeline = check_export_readiness(req.timeline, auto_resolve=req.auto_resolve)
+    payload = report.to_dict()
+    if req.auto_resolve and report.auto_fixes_applied:
+        payload["timeline"] = timeline
+    return payload
 
 
 async def _get_owned_project(

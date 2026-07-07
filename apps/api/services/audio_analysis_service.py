@@ -52,8 +52,11 @@ def sidecar_storage_key(
     source_hash: str,
     fps: int,
     band_count: int,
+    *,
+    binary: bool = True,
 ) -> str:
-    return f"projects/{project_id}/audio-analysis/{source_hash}_{fps}_{band_count}.json"
+    ext = "vae.bin.gz" if binary else "json"
+    return f"projects/{project_id}/audio-analysis/{source_hash}_{fps}_{band_count}.{ext}"
 
 
 def load_sidecar_track(
@@ -62,17 +65,21 @@ def load_sidecar_track(
     fps: int,
     band_count: int,
 ) -> dict[str, Any] | None:
-    key = sidecar_storage_key(project_id, source_hash, fps, band_count)
-    try:
-        resp = storage_sync.client.get_object(
-            Bucket=storage_sync.bucket,
-            Key=key,
-        )
-        raw = json.loads(resp["Body"].read())
-        if isinstance(raw, dict) and raw.get("frames"):
-            return raw
-    except Exception as exc:
-        log.debug("audio_sidecar_miss key=%s error=%s", key, exc)
+    from processors.audio_analysis_binary import decode_sidecar_payload
+
+    for binary in (True, False):
+        key = sidecar_storage_key(project_id, source_hash, fps, band_count, binary=binary)
+        try:
+            resp = storage_sync.client.get_object(
+                Bucket=storage_sync.bucket,
+                Key=key,
+            )
+            raw = resp["Body"].read()
+            track = decode_sidecar_payload(raw, source_hash=source_hash)
+            if isinstance(track, dict) and track.get("frames"):
+                return track
+        except Exception as exc:
+            log.debug("audio_sidecar_miss key=%s error=%s", key, exc)
     return None
 
 
@@ -81,22 +88,94 @@ def store_sidecar_track(
     track: dict[str, Any],
     fps: int,
     band_count: int,
+    *,
+    db_session: Any | None = None,
 ) -> str:
-    from processors.audio_analysis_track import quantize_sidecar
+    from processors.audio_analysis_binary import encode_analysis_track
 
     source_hash = str(track.get("sourceHash") or "unknown")
-    key = sidecar_storage_key(project_id, source_hash, fps, band_count)
+    key = sidecar_storage_key(project_id, source_hash, fps, band_count, binary=True)
+    payload = encode_analysis_track(track)
     storage_sync.put_object(
         key,
-        quantize_sidecar(track),
-        content_type="application/json",
+        payload,
+        content_type="application/vnd.viraedit.audio-analysis+binary",
     )
+    frames = track.get("frames") or []
+    meta = dict(track.get("meta") or {})
+    meta["storageFormat"] = "binary"
+
+    if db_session is not None:
+        _upsert_audio_analysis_record(
+            db_session,
+            project_id=project_id,
+            source_hash=source_hash,
+            storage_key=key,
+            track=track,
+            fps=fps,
+            band_count=band_count,
+            meta=meta,
+        )
+
     log.info(
-        "audio_sidecar_stored key=%s frames=%d",
+        "audio_sidecar_stored key=%s frames=%d bytes=%d format=binary",
         key,
-        len(track.get("frames") or []),
+        len(frames),
+        len(payload),
     )
     return key
+
+
+def _upsert_audio_analysis_record(
+    db_session: Any,
+    *,
+    project_id: str,
+    source_hash: str,
+    storage_key: str,
+    track: dict[str, Any],
+    fps: int,
+    band_count: int,
+    meta: dict[str, Any],
+) -> None:
+    """Persist metadata pointer row (no per-frame data in Postgres)."""
+    try:
+        from sqlalchemy import select
+
+        from models.audio_analysis_record import AudioAnalysisRecord
+
+        result = db_session.execute(
+            select(AudioAnalysisRecord).where(
+                AudioAnalysisRecord.project_id == project_id,
+                AudioAnalysisRecord.source_hash == source_hash,
+                AudioAnalysisRecord.fps == fps,
+                AudioAnalysisRecord.band_count == band_count,
+            )
+        )
+        existing = result.scalar_one_or_none()
+        frames = track.get("frames") or []
+        if existing:
+            existing.storage_key = storage_key
+            existing.frame_count = len(frames)
+            existing.peak_amplitude = float(track.get("peakAmplitude") or 1.0)
+            existing.storage_format = "binary"
+            existing.meta_json = meta
+        else:
+            db_session.add(
+                AudioAnalysisRecord(
+                    project_id=project_id,
+                    source_hash=source_hash,
+                    storage_key=storage_key,
+                    schema_version=2,
+                    fps=fps,
+                    frame_count=len(frames),
+                    band_count=band_count,
+                    peak_amplitude=float(track.get("peakAmplitude") or 1.0),
+                    storage_format="binary",
+                    meta_json=meta,
+                )
+            )
+    except Exception as exc:
+        log.warning("audio_analysis_record_upsert_failed error=%s", exc)
 
 
 def build_server_track_sync(

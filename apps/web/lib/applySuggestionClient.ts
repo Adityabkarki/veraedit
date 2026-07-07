@@ -5,6 +5,7 @@
 
 import type { Clip, Track } from '@/stores/timelineStore'
 import { useTimelineStore } from '@/stores/timelineStore'
+import { commitTimelineClips, getFullTimelineClips, replaceTimelineClips } from '@/lib/editor/timelineClipUpdates'
 import { useCaptionsStore } from '@/stores/captionsStore'
 import { usePlayerStore } from '@/stores/playerStore'
 import { useTranscriptStore } from '@/stores/transcriptStore'
@@ -140,7 +141,8 @@ export function applySuggestionToEditor(
   const actionType = resolveActionType(action, suggestionType)
   if (!actionType) return false
 
-  const { tracks, clips, setPlayheadTime, addMarker } = useTimelineStore.getState()
+  const { tracks, setPlayheadTime, addMarker } = useTimelineStore.getState()
+  const clips = getFullTimelineClips()
   let nextTracks = [...tracks]
   let nextClips = [...clips]
 
@@ -219,9 +221,8 @@ export function applySuggestionToEditor(
       return false
   }
 
-  useTimelineStore.setState({
+  replaceTimelineClips(nextClips, {
     tracks: nextTracks,
-    clips: nextClips,
     lastEditAction: 'AI suggestion applied',
   })
 
@@ -271,7 +272,8 @@ export function applyAvCutsFromRanges(
   const valid = ranges.filter((r) => r.end > r.start)
   if (valid.length === 0) return 0
 
-  const { clips, tracks, beginEdit, endEdit } = useTimelineStore.getState()
+  const { tracks, beginEdit, endEdit } = useTimelineStore.getState()
+  const clips = getFullTimelineClips()
   beginEdit()
 
   let workingClips = clips
@@ -286,7 +288,7 @@ export function applyAvCutsFromRanges(
   }
 
   const next = applyCutsToClips(workingClips, valid)
-  useTimelineStore.setState({ clips: next, tracks: [...tracks] })
+  replaceTimelineClips(next, { tracks: [...tracks] })
 
   const newDuration = timelineVideoDuration(next)
   const player = usePlayerStore.getState()

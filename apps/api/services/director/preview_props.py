@@ -12,6 +12,7 @@ from processors.storage_helpers import S3Storage
 from services.asset_media import playback_storage_key
 from services.director.compile_timeline import get_active_director_timeline
 from services.director.legacy_timeline_bridge import bridge_editor_timeline_to_director
+from services.director.render_precedence import should_use_compiled_director_timeline
 
 log = structlog.get_logger("viraedit.director.preview_props")
 
@@ -53,16 +54,55 @@ async def get_active_editor_timeline(project_id: Any, db: AsyncSession) -> dict 
     return row.data if row else None
 
 
-def _merge_director_layers(bridged: dict, compiled: dict) -> dict:
-    """Overlay compiled director layers when editor bridge has none."""
-    compiled_tracks = compiled.get("tracks") or {}
-    bridged_tracks = bridged.setdefault("tracks", {})
-    for key in ("motionGraphics", "vfx", "multicam", "sfx", "transitions"):
-        if compiled_tracks.get(key) and not bridged_tracks.get(key):
-            bridged_tracks[key] = compiled_tracks[key]
-    if compiled.get("theme") and not bridged.get("theme"):
-        bridged["theme"] = compiled["theme"]
-    return bridged
+async def resolve_director_timeline_for_render(
+    project: Project,
+    timeline_data: dict[str, Any],
+    db: AsyncSession,
+    *,
+    width: int = 1920,
+    height: int = 1080,
+) -> dict[str, Any]:
+    """
+    Choose the sole DirectorTimeline source for preview/export (Primacy Law).
+    Compiled timeline when present and flag is on; otherwise bridge editor timeline.
+    """
+    settings = project.settings or {}
+    record = await get_active_director_timeline(project.id, db)
+    compiled = record.data if record and record.data else None
+
+    if should_use_compiled_director_timeline(settings=settings, compiled_timeline=compiled):
+        log.info(
+            "director_render_source_compiled",
+            project_id=str(project.id),
+            timeline_id=str(record.id) if record else None,
+        )
+        return compiled
+
+    content_type = str(
+        project.content_type.value
+        if hasattr(project.content_type, "value")
+        else project.content_type or "podcast"
+    ).lower()
+    if content_type not in ("podcast", "consultancy", "social", "showcase"):
+        content_type = "podcast"
+
+    theme = (timeline_data.get("metadata") or {}).get("theme")
+    log.info(
+        "director_render_source_bridge",
+        project_id=str(project.id),
+        use_director_engine=bool(
+            settings.get("useDirectorEngine") or settings.get("use_director_engine")
+        ),
+        has_compiled=compiled is not None,
+    )
+    return await bridge_editor_timeline_to_director(
+        timeline_data,
+        project_id=str(project.id),
+        width=width,
+        height=height,
+        content_type=content_type,
+        theme=theme if isinstance(theme, dict) else None,
+    )
 
 
 async def resolve_director_render_props(
@@ -77,29 +117,9 @@ async def resolve_director_render_props(
     Build the exact DirectorRender input props used by unified export.
     Preview and export must call this — never construct props separately.
     """
-    content_type = str(
-        project.content_type.value
-        if hasattr(project.content_type, "value")
-        else project.content_type or "podcast"
-    ).lower()
-    if content_type not in ("podcast", "consultancy", "social", "showcase"):
-        content_type = "podcast"
-
-    theme = (timeline_data.get("metadata") or {}).get("theme")
-    bridged = await bridge_editor_timeline_to_director(
-        timeline_data,
-        project_id=str(project.id),
-        width=width,
-        height=height,
-        content_type=content_type,
-        theme=theme if isinstance(theme, dict) else None,
+    director_timeline = await resolve_director_timeline_for_render(
+        project, timeline_data, db, width=width, height=height,
     )
-
-    settings = project.settings or {}
-    if settings.get("useDirectorEngine") or settings.get("use_director_engine"):
-        record = await get_active_director_timeline(project.id, db)
-        if record and record.data:
-            bridged = _merge_director_layers(bridged, record.data)
 
     storage = S3Storage()
     result = await db.execute(
@@ -120,16 +140,16 @@ async def resolve_director_render_props(
     if primary is not None:
         primary_video_src = asset_urls.get(str(primary.id))
 
-    camera_feeds = settings.get("cameraFeeds") or []
+    camera_feeds = (project.settings or {}).get("cameraFeeds") or []
 
     return {
         "compositionId": DIRECTOR_RENDER_COMPOSITION_ID,
-        "durationInFrames": int(bridged.get("durationInFrames") or 300),
-        "fps": int(bridged.get("fps") or 30),
-        "width": int(bridged.get("width") or width),
-        "height": int(bridged.get("height") or height),
+        "durationInFrames": int(director_timeline.get("durationInFrames") or 300),
+        "fps": int(director_timeline.get("fps") or 30),
+        "width": int(director_timeline.get("width") or width),
+        "height": int(director_timeline.get("height") or height),
         "inputProps": {
-            "timeline": bridged,
+            "timeline": director_timeline,
             "assetUrls": asset_urls,
             "primaryVideoSrc": primary_video_src,
             "dialogueSrc": primary_video_src,

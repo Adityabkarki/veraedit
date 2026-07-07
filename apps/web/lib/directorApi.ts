@@ -17,6 +17,31 @@ export async function fetchDirectorTimeline(
   return { data: res.data, error: res.error }
 }
 
+export interface PaginatedTriggersResponse {
+  timelineId: string
+  projectId: string
+  triggers: DirectorTimeline['triggers']
+  total: number
+  cursor: number
+  limit: number
+  nextCursor: number | null
+  hasMore: boolean
+}
+
+export async function fetchDirectorTimelineTriggers(
+  timelineId: string,
+  options?: { cursor?: number; limit?: number; status?: 'realized' | 'suppressed' },
+): Promise<{ data: PaginatedTriggersResponse | null; error: string | null }> {
+  const params = new URLSearchParams()
+  params.set('cursor', String(options?.cursor ?? 0))
+  params.set('limit', String(options?.limit ?? 50))
+  if (options?.status) params.set('status', options.status)
+  const res = await api.get<PaginatedTriggersResponse>(
+    `/timelines/${timelineId}/triggers?${params.toString()}`,
+  )
+  return { data: res.data, error: res.error }
+}
+
 export async function compileDirectorTimeline(
   projectId: string,
   contentType: DirectorContentType,
@@ -90,13 +115,61 @@ export async function fetchDirectorRenderProps(
   projectId: string,
   width = 1920,
   height = 1080,
-): Promise<{ data: DirectorRenderPropsResponse | null; error: string | null }> {
+): Promise<{
+  data: DirectorRenderPropsResponse | null
+  error: string | null
+  status: number | null
+}> {
   const res = await api.get<DirectorRenderPropsResponse>(
     `/projects/${projectId}/director-render-props?width=${width}&height=${height}`,
+  )
+  return { data: res.data, error: res.error, status: res.status }
+}
+
+export function unifiedRenderPreviewEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_UNIFIED_RENDER_PREVIEW === 'true'
+}
+
+export interface ExportReadinessIssue {
+  id: string
+  kind: string
+  message: string
+  startSeconds: number
+  endSeconds: number
+  autoResolvable: boolean
+  resolved: boolean
+  resolution?: string | null
+}
+
+export interface ExportReadinessResponse {
+  ready: boolean
+  skipped?: boolean
+  reason?: string
+  issueCount: number
+  unresolvedCount: number
+  autoFixesApplied?: number
+  checklist: string[]
+  issues: ExportReadinessIssue[]
+  timelineId?: string | null
+  version?: number
+  timeline?: DirectorTimeline
+}
+
+export async function fetchExportReadiness(
+  projectId: string,
+): Promise<{ data: ExportReadinessResponse | null; error: string | null }> {
+  const res = await api.get<ExportReadinessResponse>(
+    `/projects/${projectId}/director-timeline/export-readiness`,
   )
   return { data: res.data, error: res.error }
 }
 
-export function unifiedRenderPreviewEnabled(): boolean {
-  return process.env.NEXT_PUBLIC_UNIFIED_RENDER_PREVIEW !== 'false'
+export async function applyExportReadinessFixes(
+  projectId: string,
+): Promise<{ data: ExportReadinessResponse | null; error: string | null }> {
+  const res = await api.post<ExportReadinessResponse>(
+    `/projects/${projectId}/director-timeline/export-readiness`,
+    { auto_resolve: true },
+  )
+  return { data: res.data, error: res.error }
 }

@@ -2,7 +2,7 @@
  * Pipeline polling — keeps editor UI in sync while transcription / analysis run.
  */
 
-import { loadEditorProject } from '@/lib/editorData'
+import { loadEditorProject, refreshPipelineAssetStatus } from '@/lib/editorData'
 import type { AssetStatus } from '@/stores/assetStore'
 
 export const PIPELINE_POLL_MS = 3000
@@ -99,7 +99,7 @@ export async function pollEditorPipeline(
   projectId: string,
   startedAt: number,
 ): Promise<PipelinePollState> {
-  const result = await loadEditorProject(projectId, { reloadTimeline: false })
+  const result = await refreshPipelineAssetStatus(projectId)
   const elapsedMs = Date.now() - startedAt
 
   if (result.error || result.assetStatus === 'error') {

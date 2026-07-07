@@ -210,5 +210,7 @@ def build_from_media(
 
 
 def quantize_sidecar(track: dict[str, Any]) -> bytes:
-    """Compact JSON sidecar for MinIO storage."""
-    return json.dumps(track, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    """Compact binary sidecar for MinIO storage (Phase 13)."""
+    from processors.audio_analysis_binary import encode_analysis_track
+
+    return encode_analysis_track(track)

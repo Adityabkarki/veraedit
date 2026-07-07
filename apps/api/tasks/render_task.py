@@ -117,13 +117,31 @@ def render_video(
         _update_render_status(render_id, "processing", progress=15.0)
 
         if stored_settings.get("is_short"):
-            storage_key, out_duration = _render_short_clip(
+            director_short = _render_director_styled_short(
                 render_id,
-                str(stored_settings.get("asset_id", "")),
-                float(stored_settings.get("start_time", 0.0)),
-                float(stored_settings.get("end_time", 0.0)),
+                project_id,
+                platform,
+                stored_settings,
                 render_settings,
             )
+            if director_short is not None:
+                storage_key, out_duration = director_short
+            elif stored_settings.get("director_styled") and not stored_settings.get(
+                "allow_legacy_fallback"
+            ):
+                raise RuntimeError(
+                    "Director-styled short render failed. "
+                    "Ensure the Remotion service is running, then retry. "
+                    "Pass allow_legacy_fallback=true to use the legacy FFmpeg crop."
+                )
+            else:
+                storage_key, out_duration = _render_short_clip(
+                    render_id,
+                    str(stored_settings.get("asset_id", "")),
+                    float(stored_settings.get("start_time", 0.0)),
+                    float(stored_settings.get("end_time", 0.0)),
+                    render_settings,
+                )
         else:
             unified_result = _render_unified_director_export(
                 render_id,
@@ -134,6 +152,9 @@ def render_video(
             if unified_result is not None:
                 storage_key, out_duration = unified_result
             else:
+                _surface_director_fallback_warning(
+                    render_id, project_id, render_settings,
+                )
                 storage_key, out_duration = _real_render(
                     render_id, project_id, platform, render_settings, timeline_data
                 )
@@ -1007,6 +1028,84 @@ def _concat_with_transitions(
 
 # ── Main render ─────────────────────────────────────────────────────────────
 
+def _surface_director_fallback_warning(
+    render_id: str,
+    project_id: str,
+    render_settings: dict,
+) -> None:
+    """Emit WebSocket + status update when export falls back to basic FFmpeg."""
+    warning = render_settings.get("director_fallback_warning")
+    if not warning:
+        return
+    log.error(
+        "director_render_fallback_to_ffmpeg: project_id=%s render_id=%s detail=%s",
+        project_id,
+        render_id,
+        render_settings.get("director_fallback_detail", ""),
+    )
+    try:
+        from ws.publisher import emit_render_progress
+        emit_render_progress(
+            project_id,
+            render_id,
+            status="processing",
+            progress_percent=18.0,
+            message=warning,
+        )
+    except Exception:
+        pass
+
+
+def _record_director_fallback(
+    render_settings: dict,
+    *,
+    project_id: str,
+    step: str,
+    exc: Exception,
+) -> None:
+    """Record a loud fallback reason before returning None to the FFmpeg path."""
+    from services.director.render_precedence import FALLBACK_USER_MESSAGE
+
+    detail = f"{step}: {exc}"
+    render_settings["director_fallback_warning"] = FALLBACK_USER_MESSAGE
+    render_settings["director_fallback_detail"] = detail
+    render_settings["render_path"] = "legacy_ffmpeg_fallback"
+    log.error(
+        "director_render_path_failed: project_id=%s step=%s error=%s",
+        project_id,
+        step,
+        exc,
+        exc_info=True,
+    )
+
+
+def _load_compiled_director_timeline_sync(
+    project_id: str,
+) -> tuple[dict | None, str | None]:
+    """Return (timeline_data, timeline_id) for the active compiled Director timeline."""
+    from sqlalchemy import text
+
+    engine = _get_sync_conn()
+    try:
+        with engine.begin() as conn:
+            tl_row = conn.execute(
+                text(
+                    """
+                    SELECT id, data FROM director_timelines
+                    WHERE project_id = :pid AND is_active = true
+                    ORDER BY version DESC LIMIT 1
+                    """
+                ),
+                {"pid": project_id},
+            ).fetchone()
+    finally:
+        engine.dispose()
+
+    if not tl_row or not tl_row.data:
+        return None, None
+    return tl_row.data, str(tl_row.id)
+
+
 def _render_unified_director_export(
     render_id: str,
     project_id: str,
@@ -1014,16 +1113,22 @@ def _render_unified_director_export(
     timeline_data: dict,
 ) -> tuple[str, float] | None:
     """
-    Preview/Export Parity path — bridge the saved editor timeline to DirectorTimeline,
-    render via remotion-service DirectorRender composition + timelineToMotionPlan(),
-    then burn captions from the same editor timeline snapshot.
+    Preview/Export Parity path — Director Timeline Primacy Law.
 
-    Falls back to None so the legacy FFmpeg path can run if Remotion is unavailable.
+    IF compiled DirectorTimeline exists and useDirectorEngine is on:
+        render it directly via DirectorRender + timelineToMotionPlan()
+    ELSE:
+        bridge the saved editor timeline (legacy fallback only)
+
+    Returns None (with fallback recorded on render_settings) so FFmpeg can run.
     """
     import asyncio
     import tempfile
     from pathlib import Path
     from sqlalchemy import text
+
+    from services.director.legacy_timeline_bridge import bridge_editor_timeline_to_director
+    from services.director.render_precedence import should_use_compiled_director_timeline
 
     width = int(render_settings.get("width", 1920))
     height = int(render_settings.get("height", 1080))
@@ -1040,7 +1145,11 @@ def _render_unified_director_export(
             if project_row:
                 project_settings = project_row.settings or {}
                 if project_row.content_type:
-                    content_type = str(project_row.content_type.value if hasattr(project_row.content_type, "value") else project_row.content_type).lower()
+                    content_type = str(
+                        project_row.content_type.value
+                        if hasattr(project_row.content_type, "value")
+                        else project_row.content_type
+                    ).lower()
                     if content_type not in ("podcast", "consultancy", "social", "showcase"):
                         content_type = "podcast"
 
@@ -1057,7 +1166,6 @@ def _render_unified_director_export(
         engine.dispose()
 
     from processors.storage_helpers import S3Storage
-    from services.director.legacy_timeline_bridge import bridge_editor_timeline_to_director
 
     storage = S3Storage()
     asset_urls: dict[str, str] = {}
@@ -1069,32 +1177,58 @@ def _render_unified_director_export(
             primary_video_src = url
 
     camera_feeds = project_settings.get("cameraFeeds") or []
-    theme = (timeline_data.get("metadata") or {}).get("theme")
+    compiled, compiled_id = _load_compiled_director_timeline_sync(project_id)
+    use_compiled = should_use_compiled_director_timeline(
+        settings=project_settings,
+        compiled_timeline=compiled,
+    )
+    burn_editor_captions = not use_compiled
 
-    try:
-        bridged = asyncio.run(
-            bridge_editor_timeline_to_director(
-                timeline_data,
-                project_id=project_id,
-                width=width,
-                height=height,
-                content_type=content_type,
-                theme=theme if isinstance(theme, dict) else None,
-            )
+    if use_compiled:
+        director_timeline = compiled
+        render_source = "compiled_director_timeline"
+        log.info(
+            "unified_director_source_compiled",
+            project_id=project_id,
+            timeline_id=compiled_id,
         )
-    except Exception as exc:
-        log.warning("unified_director_bridge_failed: %s", exc)
-        return None
+    else:
+        theme = (timeline_data.get("metadata") or {}).get("theme")
+        try:
+            director_timeline = asyncio.run(
+                bridge_editor_timeline_to_director(
+                    timeline_data,
+                    project_id=project_id,
+                    width=width,
+                    height=height,
+                    content_type=content_type,
+                    theme=theme if isinstance(theme, dict) else None,
+                )
+            )
+        except Exception as exc:
+            _record_director_fallback(
+                render_settings,
+                project_id=project_id,
+                step="bridge_editor_timeline",
+                exc=exc,
+            )
+            return None
+        render_source = "bridged_editor_timeline"
+        log.info(
+            "unified_director_source_bridge",
+            project_id=project_id,
+            has_compiled=compiled is not None,
+        )
 
-    if not bridged.get("tracks", {}).get("video"):
+    if not director_timeline.get("tracks", {}).get("video"):
         log.info("unified_director_skipped_no_video", project_id=project_id)
+        _record_director_fallback(
+            render_settings,
+            project_id=project_id,
+            step="validate_video_tracks",
+            exc=RuntimeError("Director timeline has no video clips to render."),
+        )
         return None
-
-    # Prefer compiled director_timelines motion/VFX when flag is on and timeline exists.
-    if project_settings.get("useDirectorEngine") or project_settings.get("use_director_engine"):
-        merged = _merge_director_timeline_layers(bridged, project_id)
-        if merged is not None:
-            bridged = merged
 
     with tempfile.TemporaryDirectory(prefix="viraedit_unified_render_") as tmp_dir:
         tmp = Path(tmp_dir)
@@ -1104,13 +1238,51 @@ def _render_unified_director_export(
         from processors.remotion_client import render_director_export, remotion_service_healthy
 
         if not asyncio.run(remotion_service_healthy()):
-            log.warning("unified_director_skipped_remotion_down", project_id=project_id)
+            _record_director_fallback(
+                render_settings,
+                project_id=project_id,
+                step="remotion_health_check",
+                exc=RuntimeError("Remotion service is not reachable."),
+            )
             return None
+
+        render_settings["asset_urls"] = asset_urls
+        render_settings["primary_video_src"] = primary_video_src
+        render_settings["camera_feeds"] = camera_feeds
+        render_settings["fps"] = director_timeline.get("fps", 30)
+
+        from services.render.plan_render_segments import plan_render_segments
+
+        planned = plan_render_segments(director_timeline)
+        if len(planned) > 1:
+            try:
+                from tasks.chunked_render_tasks import dispatch_chunked_director_render
+
+                storage_key, duration = dispatch_chunked_director_render(
+                    render_id,
+                    project_id,
+                    director_timeline,
+                    render_settings,
+                )
+                render_settings["render_path"] = "chunked_director_export"
+                log.info(
+                    "chunked_director_render_complete",
+                    project_id=project_id,
+                    segments=len(planned),
+                    storage_key=storage_key,
+                )
+                return storage_key, duration
+            except Exception as exc:
+                log.warning(
+                    "chunked_director_render_failed_fallback_single",
+                    project_id=project_id,
+                    error=str(exc),
+                )
 
         try:
             asyncio.run(
                 render_director_export(
-                    bridged,
+                    director_timeline,
                     output_path=out.as_posix(),
                     asset_urls=asset_urls,
                     primary_video_src=primary_video_src,
@@ -1119,170 +1291,44 @@ def _render_unified_director_export(
                 )
             )
         except Exception as exc:
-            log.warning("unified_director_render_failed: %s", exc, exc_info=True)
+            _record_director_fallback(
+                render_settings,
+                project_id=project_id,
+                step="render_director_export",
+                exc=exc,
+            )
             return None
 
         _update_render_status(render_id, "processing", progress=88.0)
-        final_out, duration = _maybe_burn_timeline_captions(
-            out, timeline_data, tmp, render_id,
-        )
+        if burn_editor_captions:
+            final_out, duration = _maybe_burn_timeline_captions(
+                out, timeline_data, tmp, render_id,
+            )
+        else:
+            final_out, duration = out, _ffprobe_duration(out)
         duration = _ffprobe_duration(final_out) if duration <= 0 else duration
 
         _update_render_status(render_id, "processing", progress=90.0)
-        storage_key = f"renders/{project_id}/{render_settings.get('platform', 'youtube')}/{render_id[:8]}/output.mp4"
+        storage_key = (
+            f"renders/{project_id}/{render_settings.get('platform', 'youtube')}"
+            f"/{render_id[:8]}/output.mp4"
+        )
         _s3_client().upload_file(
             Filename=str(final_out),
             Bucket="viraedit-renders",
             Key=storage_key,
             ExtraArgs={"ContentType": "video/mp4"},
         )
+        render_settings["render_path"] = render_source
         log.info(
             "unified_director_render_complete",
             project_id=project_id,
             storage_key=storage_key,
-            motion_graphics=len(bridged.get("tracks", {}).get("motionGraphics", [])),
-            vfx=len(bridged.get("tracks", {}).get("vfx", [])),
-        )
-        return storage_key, duration
-
-
-def _merge_director_timeline_layers(bridged: dict, project_id: str) -> dict | None:
-    """Overlay compiled director motion/VFX/multicam onto bridged editor timeline."""
-    from sqlalchemy import text
-
-    engine = _get_sync_conn()
-    try:
-        with engine.begin() as conn:
-            tl_row = conn.execute(
-                text(
-                    """
-                    SELECT data FROM director_timelines
-                    WHERE project_id = :pid AND is_active = true
-                    ORDER BY version DESC LIMIT 1
-                    """
-                ),
-                {"pid": project_id},
-            ).fetchone()
-    finally:
-        engine.dispose()
-
-    if not tl_row or not tl_row.data:
-        return None
-
-    compiled = tl_row.data
-    compiled_tracks = compiled.get("tracks") or {}
-    bridged_tracks = bridged.setdefault("tracks", {})
-
-    for key in ("motionGraphics", "vfx", "multicam", "sfx", "transitions"):
-        compiled_layer = compiled_tracks.get(key) or []
-        if compiled_layer and not bridged_tracks.get(key):
-            bridged_tracks[key] = compiled_layer
-
-    if compiled.get("theme") and not bridged.get("theme"):
-        bridged["theme"] = compiled["theme"]
-
-    return bridged
-
-
-def _try_render_director_engine(
-    render_id: str,
-    project_id: str,
-    render_settings: dict,
-) -> tuple[str, float] | None:
-    """
-    When useDirectorEngine is enabled and a compiled director timeline exists,
-    render via remotion-service DirectorRender composition instead of legacy FFmpeg.
-    Returns None to fall back to the legacy path.
-    """
-    import asyncio
-    import tempfile
-    from pathlib import Path
-    from sqlalchemy import text
-
-    engine = _get_sync_conn()
-    try:
-        with engine.begin() as conn:
-            project_row = conn.execute(
-                text("SELECT settings FROM projects WHERE id = :id"),
-                {"id": project_id},
-            ).fetchone()
-            if not project_row:
-                return None
-            settings = project_row.settings or {}
-            if not (settings.get("useDirectorEngine") or settings.get("use_director_engine")):
-                return None
-
-            tl_row = conn.execute(
-                text(
-                    """
-                    SELECT id, data FROM director_timelines
-                    WHERE project_id = :pid AND is_active = true
-                    ORDER BY version DESC LIMIT 1
-                    """
-                ),
-                {"pid": project_id},
-            ).fetchone()
-            if not tl_row or not tl_row.data:
-                log.info("director_render_skipped_no_timeline", project_id=project_id)
-                return None
-
-            asset_rows = conn.execute(
-                text(
-                    """
-                    SELECT id, storage_key, original_filename
-                    FROM assets WHERE project_id = :pid ORDER BY created_at ASC
-                    """
-                ),
-                {"pid": project_id},
-            ).fetchall()
-    finally:
-        engine.dispose()
-
-    from processors.storage_helpers import S3Storage
-
-    storage = S3Storage()
-    asset_urls: dict[str, str] = {}
-    primary_video_src: str | None = None
-    for row in asset_rows:
-        url = storage.get_presigned_url(row.storage_key, filename=row.original_filename)
-        asset_urls[str(row.id)] = url
-        if primary_video_src is None:
-            primary_video_src = url
-
-    camera_feeds = settings.get("cameraFeeds") or []
-    timeline = tl_row.data
-
-    with tempfile.TemporaryDirectory(prefix="viraedit_director_render_") as tmp_dir:
-        out = Path(tmp_dir) / "director_export.mp4"
-        _update_render_status(render_id, "processing", progress=40.0)
-
-        from processors.remotion_client import render_director_export
-
-        asyncio.run(
-            render_director_export(
-                timeline,
-                output_path=out.as_posix(),
-                asset_urls=asset_urls,
-                primary_video_src=primary_video_src,
-                dialogue_src=primary_video_src,
-                camera_feeds=camera_feeds,
-            )
-        )
-
-        _update_render_status(render_id, "processing", progress=90.0)
-        duration = _ffprobe_duration(out)
-        storage_key = f"renders/{project_id}/{render_settings.get('platform', 'youtube')}/{render_id[:8]}/output.mp4"
-        _s3_client().upload_file(
-            Filename=str(out),
-            Bucket="viraedit-renders",
-            Key=storage_key,
-            ExtraArgs={"ContentType": "video/mp4"},
-        )
-        log.info(
-            "director_render_complete",
-            project_id=project_id,
-            timeline_id=str(tl_row.id),
-            storage_key=storage_key,
+            render_source=render_source,
+            motion_graphics=len(
+                director_timeline.get("tracks", {}).get("motionGraphics", [])
+            ),
+            vfx=len(director_timeline.get("tracks", {}).get("vfx", [])),
         )
         return storage_key, duration
 
@@ -1578,6 +1624,108 @@ def _maybe_burn_timeline_captions(
     _update_render_status(render_id, "processing", progress=92.0)
     render_captions(output_path, out, words, style=style, style_overrides=style_overrides)
     return out, _ffprobe_duration(out)
+
+
+def _render_director_styled_short(
+    render_id: str,
+    project_id: str,
+    platform: str,
+    stored_settings: dict,
+    render_settings: dict,
+) -> tuple[str, float] | None:
+    """
+    Director-styled Short export — reframe → compile once → render-director per platform.
+    """
+    import asyncio
+
+    from processors.remotion_client import remotion_service_healthy
+    from services.director.styled_shorts_pipeline import (
+        platforms_from_scores,
+        run_styled_short_pipeline_sync,
+    )
+
+    asset_id = str(stored_settings.get("asset_id", "") or "")
+    start_time = float(stored_settings.get("start_time", 0.0))
+    end_time = float(stored_settings.get("end_time", 0.0))
+    if not asset_id or end_time <= start_time:
+        log.warning(
+            "director_styled_short_skipped_invalid_window",
+            render_id=render_id,
+            asset_id=asset_id,
+        )
+        return None
+
+    if not asyncio.run(remotion_service_healthy()):
+        _record_director_fallback(
+            render_settings,
+            project_id=project_id,
+            step="remotion_health_check",
+            exc=RuntimeError("Remotion service is not reachable."),
+        )
+        return None
+
+    platforms: list[str] = list(stored_settings.get("platforms") or [])
+    if not platforms:
+        if stored_settings.get("render_all_scored_platforms"):
+            platforms = platforms_from_scores(stored_settings.get("platform_scores"))
+        else:
+            platforms = [platform]
+
+    _update_render_status(render_id, "processing", progress=25.0)
+
+    try:
+        base_timeline, outputs, reframed = run_styled_short_pipeline_sync(
+            project_id=project_id,
+            asset_id=asset_id,
+            start_time=start_time,
+            end_time=end_time,
+            platforms=platforms,
+            hook=stored_settings.get("hook"),
+            viral_score=stored_settings.get("viral_score"),
+            upload_prefix=f"renders/shorts/{asset_id}/{render_id[:8]}",
+            ffprobe_duration=_ffprobe_duration,
+        )
+    except Exception as exc:
+        log.warning(
+            "director_styled_short_pipeline_failed",
+            render_id=render_id,
+            error=str(exc),
+            exc_info=True,
+        )
+        _record_director_fallback(
+            render_settings,
+            project_id=project_id,
+            step="styled_short_pipeline",
+            exc=exc,
+        )
+        return None
+
+    primary = next(
+        (o for o in outputs if o.platform == platform or platform in o.platform),
+        outputs[0],
+    )
+
+    render_settings["director_styled"] = True
+    render_settings["render_source"] = "director_styled_short"
+    render_settings["compiled_timeline_id"] = base_timeline.get("projectId")
+    render_settings["reframe_warning"] = reframed.warning
+    render_settings["platform_outputs"] = {
+        o.platform: {
+            "storage_key": o.storage_key,
+            "duration_seconds": o.duration_seconds,
+            "variant_key": o.variant_key,
+        }
+        for o in outputs
+    }
+
+    _update_render_status(render_id, "processing", progress=92.0)
+    log.info(
+        "director_styled_short_complete: asset=%s platforms=%s primary=%s",
+        asset_id,
+        [o.platform for o in outputs],
+        primary.storage_key,
+    )
+    return primary.storage_key, primary.duration_seconds
 
 
 def _render_short_clip(

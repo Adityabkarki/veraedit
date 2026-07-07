@@ -4,6 +4,7 @@
 
 import type { Clip, Track } from '@/stores/timelineStore'
 import { useTimelineStore } from '@/stores/timelineStore'
+import { commitTimelineClips, getFullTimelineClips } from '@/lib/editor/timelineClipUpdates'
 import { allocateStackedTrack, BROLL_FAMILY, OVERLAY_FAMILY, IMAGES_FAMILY } from '@/lib/timelineLayers'
 import { isChartOrProcessClip } from '@/lib/chartVisualTypes'
 import { resolveSfxSlug } from '@/lib/sfxLibrary'
@@ -246,7 +247,8 @@ export function insertSfxAt(
 ): string | null {
   const cfg = sfxConfigForTool(toolId)
   const duration = Math.max(0.1, cfg.duration)
-  const { tracks, clips } = useTimelineStore.getState()
+  const { tracks } = useTimelineStore.getState()
+  const clips = getFullTimelineClips()
   const { tracks: nextTracks, trackId } = allocateSfxTrack(
     tracks,
     clips,
@@ -273,12 +275,14 @@ export function insertSfxAt(
     },
   }
 
-  useTimelineStore.setState({
-    tracks: nextTracks,
-    clips: [...clips, clip],
-    lastEditAction: `Added ${cfg.label} sound`,
-    selectedClipIds: [id],
-  })
+  commitTimelineClips(
+    (allClips) => [...allClips, clip],
+    {
+      tracks: nextTracks,
+      lastEditAction: `Added ${cfg.label} sound`,
+      selectedClipIds: [id],
+    },
+  )
   return id
 }
 
@@ -291,7 +295,8 @@ export function insertBrollAt(
   const brollType = BROLL_TYPE_BY_TOOL[toolId] ?? 'cutaway'
 
   const clipDuration = Math.max(0.5, duration)
-  const { tracks, clips } = useTimelineStore.getState()
+  const { tracks } = useTimelineStore.getState()
+  const clips = getFullTimelineClips()
   const { tracks: nextTracks, trackId } = allocateStackedTrack(
     tracks,
     clips,
@@ -323,11 +328,13 @@ export function insertBrollAt(
     },
   }
 
-  useTimelineStore.setState({
-    tracks: nextTracks,
-    clips: [...clips, clip],
-    lastEditAction: 'Added B-Roll slot',
-    selectedClipIds: [id],
-  })
+  commitTimelineClips(
+    (allClips) => [...allClips, clip],
+    {
+      tracks: nextTracks,
+      lastEditAction: 'Added B-Roll slot',
+      selectedClipIds: [id],
+    },
+  )
   return id
 }

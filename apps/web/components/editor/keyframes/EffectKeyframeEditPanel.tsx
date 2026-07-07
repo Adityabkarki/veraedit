@@ -2,6 +2,7 @@
 
 import { useEffectsStore } from '@/stores/effectsStore'
 import { useTimelineStore } from '@/stores/timelineStore'
+import { commitTimelineClips } from '@/lib/editor/timelineClipUpdates'
 import type { Clip, EffectKeyframe } from '@/stores/timelineStore'
 import { formatEffectTime } from '@/components/editor/timeline/EffectRangeOverlay'
 import { RightPanelHeader } from '@/components/editor/RightPanelHeader'
@@ -39,17 +40,13 @@ export function EffectKeyframeEditPanel() {
   const effectType = clip.effects.effectType ?? 'filter'
 
   const updateClip = (patch: Partial<NonNullable<Clip['effects']>>, label: string) => {
-    useTimelineStore.setState((s) => {
-      const next = s.clips.map((c) =>
-        c.id === clip.id ? { ...c, effects: { ...c.effects, ...patch } } : c,
-      )
-      return {
-        clips: next,
-        undoStack: [...s.undoStack.slice(-49), { clips: s.clips, tracks: s.tracks }],
-        redoStack: [],
-        lastEditAction: label,
-      }
-    })
+    commitTimelineClips(
+      (allClips) =>
+        allClips.map((c) =>
+          c.id === clip.id ? { ...c, effects: { ...c.effects, ...patch } } : c,
+        ),
+      { recordUndo: true, lastEditAction: label },
+    )
   }
 
   const updateKeyframe = (index: number, changes: Partial<EffectKeyframe>) => {
@@ -65,11 +62,13 @@ export function EffectKeyframeEditPanel() {
   }
 
   const removeEffect = () => {
-    useTimelineStore.setState((s) => ({
-      clips: s.clips.filter((c) => c.id !== clip.id),
-      selectedClipIds: s.selectedClipIds.filter((id) => id !== clip.id),
-      lastEditAction: 'Removed effect',
-    }))
+    commitTimelineClips(
+      (allClips) => allClips.filter((c) => c.id !== clip.id),
+      {
+        selectedClipIds: useTimelineStore.getState().selectedClipIds.filter((id) => id !== clip.id),
+        lastEditAction: 'Removed effect',
+      },
+    )
     stopEditingEffect()
   }
 

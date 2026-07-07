@@ -15,6 +15,8 @@
  */
 
 import { api } from '@/lib/api'
+import { primeAssetPlaybackAfterUpload } from '@/lib/editorData'
+import type { AssetStatus } from '@/stores/assetStore'
 
 export const CHUNK_SIZE = 5 * 1024 * 1024 // 5 MB
 
@@ -193,6 +195,14 @@ export async function uploadVideoFile(
       error: confirmed.error ?? 'Upload finished but could not be confirmed.',
     }
   }
+
+  await primeAssetPlaybackAfterUpload(projectId, {
+    id: confirmed.data.id,
+    original_filename: confirmed.data.original_filename,
+    duration_seconds: confirmed.data.duration_seconds,
+    status: confirmed.data.status as AssetStatus,
+    storage_key: confirmed.data.storage_key,
+  })
 
   return { ok: true, assetId: asset_id, asset: confirmed.data }
 }

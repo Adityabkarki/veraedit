@@ -14,6 +14,7 @@ from sqlalchemy import select
 from dependencies import CurrentUser, DbDep
 from exceptions import ProjectNotFoundError
 from models import DirectorTimelineRecord, Project
+from schemas.timeline import TimelineDataModel
 from services.director.compile_timeline import get_active_director_timeline
 from services.director.overrides import (
     delete_timeline_entry,
@@ -22,6 +23,7 @@ from services.director.overrides import (
     swap_timeline_component,
 )
 from services.director.validate_timeline import validate_director_timeline
+from services.director.export_readiness import check_export_readiness
 
 router = APIRouter(prefix="/api/v1/projects", tags=["director-timeline"])
 log = structlog.get_logger("viraedit.director_timeline")
@@ -85,6 +87,81 @@ async def get_project_director_timeline_validation(
     return result
 
 
+class ExportReadinessRequest(BaseModel):
+    auto_resolve: bool = Field(
+        False,
+        description="Apply Ken Burns or Topic Title Card fixes for static stretches",
+    )
+
+
+@router.get("/{project_id}/director-timeline/export-readiness")
+async def get_project_export_readiness(
+    project_id: uuid.UUID,
+    db: DbDep,
+    current_user: CurrentUser,
+) -> dict[str, Any]:
+    """Pre-export completeness scan on the active Director timeline."""
+    await _get_owned_project(project_id, current_user.id, db)
+    record = await get_active_director_timeline(project_id, db)
+    if record is None:
+        return {
+            "ready": True,
+            "skipped": True,
+            "reason": "No compiled Director timeline — legacy export path.",
+            "issueCount": 0,
+            "unresolvedCount": 0,
+            "checklist": [],
+            "issues": [],
+        }
+
+    report, _ = check_export_readiness(record.data, auto_resolve=False)
+    payload = report.to_dict()
+    payload["skipped"] = False
+    payload["timelineId"] = str(record.id)
+    payload["version"] = record.version
+    return payload
+
+
+@router.post("/{project_id}/director-timeline/export-readiness")
+async def post_project_export_readiness(
+    project_id: uuid.UUID,
+    body: ExportReadinessRequest,
+    db: DbDep,
+    current_user: CurrentUser,
+) -> dict[str, Any]:
+    """Run completeness gate; optionally auto-fix and persist the Director timeline."""
+    await _get_owned_project(project_id, current_user.id, db)
+    record = await get_active_director_timeline(project_id, db)
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No compiled Director timeline found. Run Auto Edit before export.",
+        )
+
+    report, timeline = check_export_readiness(record.data, auto_resolve=body.auto_resolve)
+    if body.auto_resolve and report.auto_fixes_applied > 0:
+        record.data = timeline
+        record.has_manual_overrides = True
+        from services.director.timeline_entry_sync import sync_timeline_entry_index
+
+        await sync_timeline_entry_index(db, record.id, timeline)
+        await db.commit()
+        await db.refresh(record)
+        log.info(
+            "export_readiness_auto_fix",
+            project_id=str(project_id),
+            fixes=report.auto_fixes_applied,
+        )
+
+    payload = report.to_dict()
+    payload["skipped"] = False
+    payload["timelineId"] = str(record.id)
+    payload["version"] = record.version
+    if body.auto_resolve:
+        payload["timeline"] = timeline
+    return payload
+
+
 @router.patch("/{project_id}/director-timeline")
 async def patch_project_director_timeline(
     project_id: uuid.UUID,
@@ -126,6 +203,11 @@ async def patch_project_director_timeline(
 
     record.data = data
     record.has_manual_overrides = True
+
+    from services.director.timeline_entry_sync import sync_timeline_entry_index
+
+    await sync_timeline_entry_index(db, record.id, data)
+
     await db.commit()
     await db.refresh(record)
 
@@ -164,9 +246,10 @@ async def get_director_render_props(
     project = await _get_owned_project(project_id, current_user.id, db)
     timeline_data = await get_active_editor_timeline(project_id, db)
     if not timeline_data:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No editor timeline found. Save the project before previewing.",
+        timeline_data = TimelineDataModel.empty().model_dump()
+        log.info(
+            "director_render_props_synthetic_timeline",
+            project_id=str(project_id),
         )
 
     try:

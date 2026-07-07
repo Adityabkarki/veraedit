@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from services.director.analysis.chunked_extraction import extract_director_signals_chunked
 from services.director.signals.emphasis_scoring import extract_emphasis_moments
 from services.director.signals.feature_mention import extract_feature_mentions
 from services.director.signals.phrase_spotting import extract_comparisons, extract_cta_phrases
@@ -22,13 +23,27 @@ def extract_director_signals(
     audio_frames: list[dict] | None = None,
     fps: float = 30.0,
     speakers_meta: list[dict] | None = None,
+    use_chunking: bool = True,
 ) -> dict[str, Any]:
     """
     Run all Director signal modules and return a unified payload for the TS rule engine.
 
     Field names use camelCase to match remotion-service DirectorSignals.
+    Long-form content (>15 min) uses chunked parallel extraction with reconciliation.
     """
     word_list = words or _words_from_segments(segments)
+    duration = duration_seconds or _infer_duration(segments, word_list)
+
+    if use_chunking and duration > 15 * 60:
+        return extract_director_signals_chunked(
+            segments=segments,
+            words=word_list,
+            duration_seconds=duration,
+            audio_frames=audio_frames,
+            fps=fps,
+            speakers_meta=speakers_meta,
+        )
+
     speaker_changes = extract_speaker_changes(word_list, speakers_meta)
     topic_shifts = extract_topic_shifts(segments)
     stats = extract_stats(segments)
@@ -51,8 +66,6 @@ def extract_director_signals(
         for i, w in enumerate(word_list)
         if w.get("type") != "silence"
     ]
-
-    duration = duration_seconds or _infer_duration(segments, word_list)
 
     return {
         "durationSeconds": duration,

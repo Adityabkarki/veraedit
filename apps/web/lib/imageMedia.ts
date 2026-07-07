@@ -4,6 +4,7 @@
 
 import type { Clip } from '@/stores/timelineStore'
 import { useTimelineStore } from '@/stores/timelineStore'
+import { commitTimelineClips, getFullTimelineClips } from '@/lib/editor/timelineClipUpdates'
 import { useUIStore } from '@/stores/uiStore'
 import {
   allocateDedicatedTrack,
@@ -45,7 +46,8 @@ export function insertImageAt(
 ): string | null {
   const spec = IMAGE_DEFAULTS[toolId] ?? IMAGE_DEFAULTS.image_photo
   const duration = spec.duration
-  const { tracks, clips } = useTimelineStore.getState()
+  const { tracks } = useTimelineStore.getState()
+  const clips = getFullTimelineClips()
   const { tracks: nextTracks, trackId } = allocateDedicatedTrack(
     tracks,
     clips,
@@ -74,12 +76,14 @@ export function insertImageAt(
     },
   }
 
-  useTimelineStore.setState({
-    tracks: nextTracks,
-    clips: [...clips, clip],
-    lastEditAction: `Added ${toolName} overlay`,
-    selectedClipIds: [id],
-  })
+  commitTimelineClips(
+    (allClips) => [...allClips, clip],
+    {
+      tracks: nextTracks,
+      lastEditAction: `Added ${toolName} overlay`,
+      selectedClipIds: [id],
+    },
+  )
   openImageEditor(id)
   return id
 }
@@ -143,8 +147,7 @@ export async function removeBackgroundFromImageClip(
   clipId: string,
   onProgress?: (progress: import('@/lib/backgroundRemoval').BackgroundRemovalProgress) => void,
 ): Promise<void> {
-  const { clips } = useTimelineStore.getState()
-  const clip = clips.find((c) => c.id === clipId)
+  const clip = getFullTimelineClips().find((c) => c.id === clipId)
   const src = clip?.effects?.mediaUrl
   if (!clip || !src) {
     throw new Error('Add an image before removing the background.')

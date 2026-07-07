@@ -15,6 +15,7 @@ from .base import BaseModel
 
 if TYPE_CHECKING:
     from .project import Project
+    from .render_segment import RenderSegmentRecord
     from .timeline import Timeline
 
 
@@ -80,3 +81,8 @@ class Render(BaseModel):
     # Relationships
     project: Mapped["Project"] = relationship("Project", back_populates="renders")
     timeline: Mapped["Timeline"] = relationship("Timeline", back_populates="renders")
+    segments: Mapped[list["RenderSegmentRecord"]] = relationship(
+        "RenderSegmentRecord",
+        back_populates="render",
+        cascade="all, delete-orphan",
+    )

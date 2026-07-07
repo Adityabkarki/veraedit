@@ -12,6 +12,7 @@ function mk(
   confidence: number,
   componentId: string,
   props?: Record<string, unknown>,
+  metadata?: Record<string, unknown>,
 ): TriggerCandidate {
   return {
     id: `${type}-${Math.round(start * 1000)}`,
@@ -21,6 +22,7 @@ function mk(
     confidence: clamp01(confidence),
     componentId,
     props,
+    metadata,
   };
 }
 
@@ -42,6 +44,10 @@ export function proposeSocialTriggers(signals: DirectorSignals): TriggerCandidat
 
   const hookWindow = signals.emphasisMoments.filter((e) => e.start <= 3);
   for (const hook of hookWindow) {
+    const confidenceSource =
+      hook.confidenceSource === "ml" || hook.confidenceSource === "heuristic"
+        ? hook.confidenceSource
+        : undefined;
     out.push(
       mk(
         "hook_phrase",
@@ -50,6 +56,7 @@ export function proposeSocialTriggers(signals: DirectorSignals): TriggerCandidat
         hook.confidence,
         "kinetic_text",
         { text: hook.text ?? "Hook" },
+        confidenceSource ? { confidenceSource } : undefined,
       ),
     );
   }

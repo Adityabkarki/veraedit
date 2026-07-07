@@ -65,6 +65,13 @@ export interface ApiTimelineResponse {
   can_redo?: boolean
 }
 
+/** True when GET /timeline returned a row stored in the DB (not the synthetic empty default). */
+export function isPersistedTimelineResponse(
+  response: ApiTimelineResponse | null | undefined,
+): boolean {
+  return Boolean(response?.id)
+}
+
 const TYPE_TO_TRACK_ID: Record<string, string> = {
   video:    'video',
   audio:    'audio',

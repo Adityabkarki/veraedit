@@ -23,10 +23,12 @@
 
 import { useRef, useCallback, useEffect, useMemo } from 'react'
 import { useDismissClipEditorOnEscape } from '@/hooks/useDismissClipEditorOnEscape'
+import { useTimelineWindowSync } from '@/hooks/useTimelineWindowSync'
 import { useTimelineStore, PPS_MIN, PPS_MAX, PPS_DEFAULT } from '@/stores/timelineStore'
 import { useEffectsStore }  from '@/stores/effectsStore'
 import { useUIStore }       from '@/stores/uiStore'
 import { insertStyleToolAt, parseStyleToolDrag } from '@/lib/styleToolboxSync'
+import { commitTimelineClips, getFullTimelineClips } from '@/lib/editor/timelineClipUpdates'
 import { allocateStackedTrack, BROLL_FAMILY, IMAGES_FAMILY } from '@/lib/timelineLayers'
 import { PanelTooltip } from '@/components/editor/PanelTooltip'
 import { TimelineRuler } from '@/components/editor/timeline/TimelineRuler'
@@ -92,6 +94,9 @@ export function Timeline() {
   const {
     tracks,
     clips,
+    allClips,
+    longFormMode,
+    totalDurationSec,
     pixelsPerSecond,
     snapEnabled,
     selectedClipIds,
@@ -122,6 +127,8 @@ export function Timeline() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const verticalScrollRef = useRef<HTMLDivElement>(null)
 
+  useTimelineWindowSync(scrollRef)
+
   // Non-passive wheel listener so preventDefault() works (React 18 makes onWheel passive)
   useEffect(() => {
     const el = scrollRef.current
@@ -135,11 +142,14 @@ export function Timeline() {
     return () => el.removeEventListener('wheel', handler)
   }, [])
 
-  // Compute total timeline duration from the rightmost clip edge
-  const totalDuration = Math.max(
-    20,
-    ...clips.map((c) => c.startTime + c.duration)
-  )
+  // Compute total timeline duration (stable for long-form windowed mode)
+  const durationSource =
+    longFormMode && totalDurationSec > 0
+      ? totalDurationSec
+      : Math.max(20, ...(longFormMode && allClips.length > 0 ? allClips : clips).map(
+          (c) => c.startTime + c.duration,
+        ))
+  const totalDuration = durationSource
   const totalWidth = totalDuration * pixelsPerSecond + CONTENT_PADDING_R
   const tracksHeight = visibleTracks.length * TRACK_HEIGHT
   const tracksContentHeight = timelineTracksContentHeightPx(visibleTracks.length)
@@ -209,7 +219,8 @@ export function Timeline() {
       let data: { id: string; type: string; url: string; name: string }
       try { data = JSON.parse(raw) } catch { return }
 
-      const { tracks, clips } = useTimelineStore.getState()
+      const { tracks } = useTimelineStore.getState()
+      const clips = getFullTimelineClips()
       const id = `media-${Date.now().toString(36)}`
 
       if (data.type === 'audio') {
@@ -220,28 +231,28 @@ export function Timeline() {
             { id: 'music', label: 'Music', color: '#10B981', muted: false, locked: false, visible: true },
           ]
         }
-        useTimelineStore.setState({
-          tracks: nextTracks,
-          clips: [
-            ...clips,
-            {
-              id,
-              trackId: 'music',
-              startTime: t,
-              duration: 10,
-              label: `Music: ${data.name}`,
-              type: 'music' as const,
-              effects: {
-                mediaUrl: data.url,
-                mediaAssetId: data.id,
-                musicBed: true,
-                isPlaceholder: false,
-              },
-            },
-          ],
-          lastEditAction: `Added ${data.name}`,
-          selectedClipIds: [id],
-        })
+        const newClip = {
+          id,
+          trackId: 'music',
+          startTime: t,
+          duration: 10,
+          label: `Music: ${data.name}`,
+          type: 'music' as const,
+          effects: {
+            mediaUrl: data.url,
+            mediaAssetId: data.id,
+            musicBed: true,
+            isPlaceholder: false,
+          },
+        }
+        commitTimelineClips(
+          (allClips) => [...allClips, newClip],
+          {
+            tracks: nextTracks,
+            lastEditAction: `Added ${data.name}`,
+            selectedClipIds: [id],
+          },
+        )
         return
       }
 
@@ -252,35 +263,35 @@ export function Timeline() {
       const { tracks: nextTracks, trackId } = allocateStackedTrack(
         tracks, clips, t, duration, family,
       )
-      useTimelineStore.setState({
-        tracks: nextTracks,
-        clips: [
-          ...clips,
-          {
-            id,
-            trackId,
-            startTime: t,
-            duration,
-            label: data.name,
-            type: 'overlay' as const,
-            effects: {
-              visualType,
-              overlayMode: 'fullscreen' as const,
+      const newClip = {
+        id,
+        trackId,
+        startTime: t,
+        duration,
+        label: data.name,
+        type: 'overlay' as const,
+        effects: {
+          visualType,
+          overlayMode: 'fullscreen' as const,
               widthPct: 100,
               heightPct: 100,
               xPct: 50,
               yPct: 50,
               mediaUrl: data.url,
               mediaAssetId: data.id,
-              mediaKind: data.type === 'image' ? ('image' as const) : ('video' as const),
-              isPlaceholder: false,
-              displayValue: '',
-            },
-          },
-        ],
-        lastEditAction: `Added ${data.name}`,
-        selectedClipIds: [id],
-      })
+          mediaKind: data.type === 'image' ? ('image' as const) : ('video' as const),
+          isPlaceholder: false,
+          displayValue: '',
+        },
+      }
+      commitTimelineClips(
+        (allClips) => [...allClips, newClip],
+        {
+          tracks: nextTracks,
+          lastEditAction: `Added ${data.name}`,
+          selectedClipIds: [id],
+        },
+      )
     },
     [pixelsPerSecond, setPlayheadTime],
   )

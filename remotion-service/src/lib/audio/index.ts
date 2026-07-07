@@ -6,3 +6,5 @@ export * from "./frameLookup";
 export * from "./routing";
 export * from "./cacheKey";
 export * from "./migrateAudioAnalysis";
+export * from "./encodeAnalysisTrack";
+export * from "./decodeAnalysisTrack";

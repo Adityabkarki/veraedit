@@ -4,10 +4,12 @@
  * VideoPreview — centre panel: video player + style reference + gap resolution.
  */
 
+import { useEffect } from 'react'
 import { useEditorStore, type AspectRatio } from '@/stores/editorStore'
 import { PanelTooltip } from '@/components/editor/PanelTooltip'
 import { VideoPlayer } from '@/components/editor/player/VideoPlayer'
 import { useAssetStore } from '@/stores/assetStore'
+import { refreshPipelineAssetStatus } from '@/lib/editorData'
 
 const ASPECT_OPTIONS: { label: string; value: AspectRatio }[] = [
   { label: '16:9', value: '16:9' },
@@ -23,13 +25,20 @@ interface VideoPreviewProps {
 }
 
 export function VideoPreview({ src, projectId }: VideoPreviewProps) {
-  const assetVideoUrl = useAssetStore((s) => s.asset?.videoUrl ?? undefined)
+  const asset = useAssetStore((s) => s.asset)
+  const assetVideoUrl = asset?.videoUrl ?? undefined
   const videoSrc = src ?? assetVideoUrl
   const durationMin = useAssetStore((s) =>
     s.asset?.durationSeconds ? s.asset.durationSeconds / 60 : 0,
   )
   const aspectRatio = useEditorStore((s) => s.aspectRatio)
   const setAspectRatio = useEditorStore((s) => s.setAspectRatio)
+
+  // Recover playback URL if the asset loaded before confirm finished.
+  useEffect(() => {
+    if (!projectId || !asset?.id || asset.videoUrl || asset.status === 'uploading') return
+    void refreshPipelineAssetStatus(projectId)
+  }, [projectId, asset?.id, asset?.videoUrl, asset?.status])
 
   return (
     <div

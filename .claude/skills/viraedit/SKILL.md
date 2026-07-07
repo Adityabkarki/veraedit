@@ -13,7 +13,7 @@ description: >
   ALWAYS use this skill when the user says "continue" if ViraEdit context exists.
    When the user says "let's continue phase" (or "continue phase"), use the
    phases-order.json and build_state.py --phases mode to track and build the
-   11 phases (00-10) from the phase-*/ folders.
+   17 phases (00-16) from the phase-*/ folders.
 ---
 
 # ViraEdit — Master Overview
@@ -206,9 +206,9 @@ The build is driven by `skills-order.json`. Each entry references a skill file.
 The agent reads `build_state.py` to find the current module index, then loads the corresponding skill file.
 Trigger: "continue", "next task", "keep going"
 
-### Track B: 10 Phases (new cursor-style phases)
+### Track B: 17 Phases (new cursor-style phases)
 The phases build is driven by `phases-order.json` in the skills root.
-Each phase lives in its own directory (`phase-0-foundation/` through `phase-9-remotion/`) containing a `SKILL.md`.
+Each phase lives in its own directory (`phase-0-foundation/` through `phase-16-production-completeness/`) containing a `SKILL.md`.
 Read `00-NORTH-STAR.md` before any phase — it defines the product vision.
 Use `python scripts/build_state.py --phases` to show/advance phase state.
 Trigger: "let's continue phase", "continue phase"
@@ -226,6 +226,12 @@ Trigger: "let's continue phase", "continue phase"
 | 08 | Fine-Tuning & Audit | `phase-8-fine-tuning-audit/SKILL.md` | Hardening pass on all existing modules |
 | 09 | Remotion Rendering | `phase-9-remotion-rendering/SKILL.md` | React-based caption & motion graphics pipeline |
 | 10 | Style Extractor Fix | `phase-10-Style-Extractor-fix/SKILL.md` | Capability Registry, gap report & renderer improvements |
+| 11 | Director-Styled Shorts & Sizzle | `phase-11-director-styled-shorts/SKILL.md` | Route Shorts/Sizzle through Director pipeline for styled platform-ready clips |
+| 12 | Long-Form AI Analysis Scaling | `phase-12-Analysis-scaling/SKILL.md` | Chunked signal extraction for long videos with boundary reconciliation |
+| 13 | Long-Form Storage Efficiency | `phase-13-Storage-Efficiency/SKILL.md` | Binary per-frame storage and windowed Timeline access |
+| 14 | Long-Form Render Scaling | `phase-14-Render-Scaling/SKILL.md` | Parallel segmented rendering, resumable exports, cost estimation |
+| 15 | Long-Form Editor Performance | `phase-15-Editor-Performance/SKILL.md` | Viewport windowing, diff-based undo, waveform caching |
+| 16 | Production Completeness | `phase-16-production-completeness/SKILL.md` | Coverage audit, fallback guarantees, style depth, B-roll thresholds, readiness gate |
 
 Read `skills-order.json`, `build_state.py`, and the current module's skill file.
 Existing `references/phase-map.md` can supplement with detailed tasks.

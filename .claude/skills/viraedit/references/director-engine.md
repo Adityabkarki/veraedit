@@ -277,6 +277,93 @@ Internal Node endpoint called by the Python API. Runs `scripts/compile-director.
 | vlog, shorts           | social          | 1080×1920          |
 | other                  | podcast         | 1920×1080          |
 
+---
+
+## Long-Form Analysis Scaling (Phase 12)
+
+Signal extraction automatically chunks content longer than **15 minutes**. Short-form
+projects (≤15 min) use the original single-pass path with identical output.
+
+### Chunk planning thresholds
+
+| Parameter | Value |
+|-----------|-------|
+| Chunk threshold | 15 minutes (900 s) — below this, no chunking |
+| Core window target | 9 minutes per chunk |
+| Overlap buffer | 25 seconds on each side of every core window |
+
+Implementation: `apps/api/services/director/analysis/plan_chunks.py` (Python) and
+`remotion-service/src/lib/analysis/planChunks.ts` (TypeScript mirror).
+
+### Reconciliation per module
+
+| Module | Reconciler | Strategy |
+|--------|------------|----------|
+| Diarization | `reconcile_diarization` | Embedding cosine similarity (≥0.82) or temporal overlap at chunk boundaries → global speaker IDs (`G0`, `G1`, …) |
+| Topic segmentation | `reconcile_topics` | Merge boundaries in overlap zones; keep higher-confidence boundary |
+| Stats, emphasis, features, CTAs, scenes | `reconcile_triggers` | Deduplicate triggers within 1.5 s in overlap zones; keep highest confidence |
+
+### Dispatch
+
+- **Sync path:** `extract_director_signals()` → `extract_director_signals_chunked()` with `ThreadPoolExecutor` when duration > 15 min.
+- **Async path:** Celery `group` of `tasks.chunked_analysis.process_chunk` + `chord` callback `tasks.chunked_analysis.reconcile` on the `analysis` queue.
+
+### Cost accounting
+
+Each parallel chunk records cost via `budget.record_chunk_atomic()` — one `INSERT` per
+chunk into `ai_spend_records` (no read-modify-write races). The $2/hour hard limit and
+$1.60/hour warning threshold see incremental cost as chunks complete.
+
+---
+
+## Long-Form Storage Efficiency (Phase 13)
+
+### Binary audio analysis format
+
+Per-frame `AudioAnalysisTrack` data is stored as gzip-compressed binary in MinIO
+(`*.vae.bin.gz`), not as JSON arrays in Postgres. Encode/decode:
+`processors/audio_analysis_binary.py` and `remotion-service/src/lib/audio/encodeAnalysisTrack.ts`.
+
+Metadata pointer rows live in `audio_analysis_records` (sourceHash, storageKey, frameCount,
+bandCount, peakAmplitude). Legacy JSON sidecars remain readable; migration script:
+`scripts/migrate_audio_analysis_binary.py`.
+
+### Windowed timeline API
+
+```
+GET /api/v1/timelines/{timeline_id}/window?startFrame=X&endFrame=Y
+GET /api/v1/timelines/{timeline_id}/triggers?cursor=0&limit=50&status=realized
+```
+
+`timeline_entry_index` is regenerated from canonical `director_timelines.data` JSONB on every
+compile/override write — never edited independently. Render/compile always reads full JSONB.
+
+---
+
+## Long-Form Render Scaling (Phase 14)
+
+### Segment planning
+
+| Parameter | Value |
+|-----------|-------|
+| Split threshold | 10 minutes of frames |
+| Target segment duration | 4 minutes |
+| Boundary rule | Split only at clip edges — never inside `TransitionEntry` or mid-clip |
+
+Implementation: `services/render/plan_render_segments.py` and
+`remotion-service/src/lib/render/planRenderSegments.ts`.
+
+### Resumability model
+
+`render_segments` table tracks each segment: `pending | rendering | complete | failed`.
+Celery `group` renders segments in parallel; `chord` callback stitches via FFmpeg concat
+(`-c copy`). Retry via `POST .../renders/{id}/retry-segments` re-dispatches **failed only**.
+
+### Pre-export estimate
+
+`POST /api/v1/projects/{id}/renders/estimate` — wall-clock seconds and optional infra cost
+from duration × layer complexity × parallel segment factor.
+
 ### Phase 1 validation (2026-07-05)
 
 Compile script verified for all four pillars with synthetic transcript fixtures:
@@ -416,3 +503,135 @@ Automated compile + validate passes for all four pillars using messy synthetic s
 | showcase (screen demo) | ✅ synthetic | ⏸️ pending |
 
 **Production gate:** all four real-video rows must pass automated + manual checks before default-on.
+
+---
+
+## Phase 11 — Director-Styled Shorts & Sizzle
+
+Shorts and Sizzle exports route through the same Director compile + `POST /render-director` path as full projects (Preview/Export Parity Law).
+
+### Pipeline
+
+1. **`sliceTimeline()`** — pure function `(parentTimeline, startFrame, endFrame)` → trimmed timeline; drops truncated motion-graphics/B-roll triggers per Re-Skin Consistency Law.
+2. **Fallback compile** — when no parent `DirectorTimeline` exists, scoped signal extraction on the clip window + `runDirector()` (Social pillar).
+3. **`reskinTimeline()`** — Consultancy/Podcast parent → Social Short: replaces pacing (`aggressive`), grade (Social preset), captions (`karaoke`), and re-runs Cuts & Motion transitions.
+4. **`applyPlatformVariantToTimeline()`** — render-time only: TikTok/Instagram vs LinkedIn CTA/caption density (Platform Variant Law — one compile, many exports).
+5. **`enforceVerticalSafeZones()`** — forces 9:16 dimensions so motion components apply social safe zones (bottom 15%, right 10%).
+
+### Platform variant table
+
+| Platform | CTA badge | Caption density | End card |
+|----------|-----------|-----------------|----------|
+| TikTok | yes | full_karaoke | follow_prompt |
+| Instagram | yes | full_karaoke | follow_prompt |
+| YouTube Shorts | yes | full_karaoke | follow_prompt |
+| LinkedIn | no | reduced (standard) | none |
+
+### Before / after
+
+| | Raw Short extraction | Director-styled Short |
+|--|---------------------|----------------------|
+| Captions | Burned FFmpeg ASS | Kinetic karaoke via `DirectorRender` |
+| Grade | None | Social pillar preset |
+| Cuts | Single trim | Beat-synced aggressive pacing |
+| CTA | None | Platform-variant badge at render time |
+
+### API wiring
+
+| Endpoint | Change |
+|----------|--------|
+| `POST /projects/{id}/shorts/{id}/render` | Passes `asset_id`, `hook`, `viral_score`; render task calls `_render_director_styled_short()` → `POST /director/prepare-styled-short` → `POST /render-director` |
+| `POST /sizzle/generate` | After montage assembly, `_try_director_styled_sizzle()` compiles Social timeline; falls back to legacy caption burn |
+
+---
+
+## Phase 15 — Long-Form Editor Performance
+
+Keeps the NLE and Director preview responsive on 90-minute projects. **Below threshold** (≤150 clips and ≤15 min): legacy full-timeline behavior — no windowing, full snapshot undo.
+
+### Thresholds
+
+| Constant | Value | Effect |
+|----------|-------|--------|
+| `LONG_FORM_CLIP_COUNT_THRESHOLD` | 150 | Enables viewport windowing + diff undo |
+| `LONG_FORM_DURATION_THRESHOLD_SECONDS` | 900 (15 min) | Same |
+| `WINDOW_PREFETCH_SECONDS` | 30 | Scroll/zoom buffer around viewport |
+
+### Frontend (NLE)
+
+| Module | Role |
+|--------|------|
+| `apps/web/stores/timelineStore.ts` | `longFormMode`, `allClips` (full set), `clips` (visible window), `totalDurationSec`, diff undo |
+| `apps/web/lib/editor/timelineWindowing.ts` | Visible time window + clip filter |
+| `apps/web/lib/editor/timelineHistory.ts` | JSON patch undo/redo |
+| `apps/web/lib/editor/waveformPeaks.ts` | Peak cache per zoom bucket; optional `AudioAnalysisTrack` amplitudes |
+| `apps/web/hooks/useTimelineWindowSync.ts` | Scroll/zoom → refresh window; debounced `GET /timelines/{id}/window` |
+| `apps/web/components/editor/player/Waveform.tsx` | Cached peaks (no per-frame re-seed) |
+
+### Remotion (DirectorRender)
+
+| Change | Detail |
+|--------|--------|
+| `MotionGraphicsComposition` | Timed elements wrapped in `<Sequence>` (not internal `currentTime` checks) |
+| `MulticamCompositor` | One `<Sequence>` per multicam entry |
+
+### API
+
+| Endpoint | Phase 15 use |
+|----------|--------------|
+| `GET /api/v1/timelines/{id}/window?startFrame=&endFrame=` | Prefetch director track entries on scroll (via `syncDirectorWindow`) |
+
+### Laws (skills.md)
+
+- **Viewport Windowing Law** — render/fetch only viewport + buffer for long projects.
+- **Diff-Based Undo Law** — store structural patches, not full snapshots, above threshold.
+| `POST /director/prepare-styled-short` | Remotion service orchestrator (slice → reskin → platform variant) |
+
+---
+
+## Phase 16 — Production Completeness
+
+Closes coverage gaps on real long-form Podcast and Consultancy exports.
+
+### Laws (skills.md)
+
+- **Fallback Guarantee** — every realized trigger produces a visible outcome; B-roll failures convert to MG fallbacks.
+- **Style Depth** — cloned styles populate `grade`, `motion.defaultCurve`, and `meta.brollMoodKeywords`.
+- **Pre-Export Completeness Gate** — static stretches, low-confidence B-roll, and suppressed high-confidence triggers are flagged or auto-fixed before export.
+
+### Coverage audit
+
+| Module | Role |
+|--------|------|
+| `remotion-service/src/lib/director/auditCoverage.ts` | Trigger type → built/partial/missing gap report |
+| `remotion-service/src/lib/director/fallbackChain.ts` | Tiered component resolution per trigger type |
+
+### B-roll thresholds (validated Phase 16)
+
+| Constant | Value | Meaning |
+|----------|-------|---------|
+| `MATCH_THRESHOLD` | 0.75 | Strong topical match |
+| `PARTIAL_THRESHOLD` | 0.45 | Usable with awareness; below → Topic Title Card fallback |
+
+| Module | Role |
+|--------|------|
+| `apps/api/services/director/broll_confidence.py` | Positional prior + query/tag overlap scoring |
+| `apps/api/services/director/resolve_broll.py` | Pexels resolve or MG fallback (never suppress-only) |
+
+### Pre-export gate
+
+| Module | Role |
+|--------|------|
+| `apps/api/services/director/export_readiness.py` | Static stretch scan (45s), B-roll confidence, suppressed-trigger gaps |
+| `POST /api/v1/director/export-readiness` | Run gate; optional `auto_resolve` inserts Topic Title Cards |
+| `POST /projects/{id}/renders/estimate` | Includes `exportReadiness` summary |
+| `GET /projects/{id}/director-timeline/export-readiness` | Project-scoped gate (used by Export modal) |
+| `POST /projects/{id}/director-timeline/export-readiness` | Auto-fix + persist Director timeline |
+
+### Phase 7 validation
+
+```bash
+python scripts/phase16_validate.py
+```
+
+Synthetic Podcast + Consultancy compile → B-roll fallback → readiness gate. Real uploads still required for final production proof.

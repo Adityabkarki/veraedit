@@ -3,16 +3,12 @@
 /**
  * Waveform — canvas-based audio waveform visualisation.
  *
- * Draws a realistic-looking stereo waveform using a seeded pseudo-random
- * pattern (consistent on every render for the same audio source).
- * Highlights the played portion in the track colour and dims the unplayed.
- *
- * Used in:
- *   – Audio track in the Timeline clip lane
- *   – (future) full-width waveform below the video preview
+ * Peaks are pre-computed and cached per zoom level (Phase 15).
+ * Reuses AudioAnalysisTrack amplitudes when provided.
  */
 
 import { useEffect, useRef } from 'react'
+import { getCachedWaveformPeaks, type AnalysisFrameLike } from '@/lib/editor/waveformPeaks'
 
 interface WaveformProps {
   /** Total duration in seconds (determines bar count) */
@@ -24,20 +20,17 @@ interface WaveformProps {
   /** Component height in px */
   height?:      number
   className?:   string
+  /** Stable id for peak cache (e.g. clip or asset id) */
+  sourceId?:    string
+  /** Timeline zoom — drives peak cache bucket */
+  pixelsPerSecond?: number
+  /** Optional encoded analysis frames for real peaks */
+  analysisFrames?: AnalysisFrameLike[]
 }
 
 const PLAYED_ALPHA   = 0.9
 const UNPLAYED_ALPHA = 0.35
 const BAR_GAP        = 1
-
-/** Deterministic pseudo-random number from a seed */
-function seededRandom(seed: number): () => number {
-  let s = seed
-  return () => {
-    s = (s * 9301 + 49297) % 233280
-    return s / 233280
-  }
-}
 
 export function Waveform({
   duration,
@@ -45,6 +38,9 @@ export function Waveform({
   color    = '#8B5CF6',
   height   = 36,
   className = '',
+  sourceId,
+  pixelsPerSecond = 50,
+  analysisFrames,
 }: WaveformProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -67,37 +63,33 @@ export function Waveform({
     const barW    = 3
     const step    = barW + BAR_GAP
     const nBars   = Math.floor(W / step)
-    const rand    = seededRandom(Math.floor(duration))
+    const peaks   = getCachedWaveformPeaks({
+      sourceId,
+      duration,
+      barCount: nBars,
+      pixelsPerSecond,
+      analysisFrames,
+    })
 
     const playedFraction = Math.min(1, currentTime / Math.max(1, duration))
     const playedX        = playedFraction * W
 
     for (let i = 0; i < nBars; i++) {
       const x         = i * step
-      const amplitude = 0.2 + rand() * 0.8   // 20–100 % of max height
+      const amplitude = peaks[i]?.amplitude ?? 0.5
       const barH      = Math.max(2, amplitude * (H * 0.85))
       const y         = (H - barH) / 2
 
       const played  = x < playedX
       const alpha   = played ? PLAYED_ALPHA : UNPLAYED_ALPHA
 
-      ctx.fillStyle = color
-        .replace(/^#/, '')
-        .match(/.{2}/g)!
-        .reduce((acc, hex, i) => {
-          const val = parseInt(hex, 16)
-          return acc + (i === 0 ? `${val},` : i === 1 ? `${val},` : `${val}`)
-        }, 'rgba(')
-        + `,${alpha})`
-
-      // Use a simpler colour assignment
       ctx.globalAlpha = alpha
       ctx.fillStyle   = color
       ctx.fillRect(x, y, barW, barH)
     }
 
     ctx.globalAlpha = 1
-  }, [duration, currentTime, color, height])
+  }, [duration, currentTime, color, height, sourceId, pixelsPerSecond, analysisFrames])
 
   return (
     <canvas

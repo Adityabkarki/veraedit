@@ -8,6 +8,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { useTimelineStore, type Clip } from '@/stores/timelineStore'
+import { commitTimelineClips, replaceTimelineClips } from '@/lib/editor/timelineClipUpdates'
 import { brandKitToApiPayload, resolveBrandKitTheme } from '@/lib/brandKitTheme'
 import { useVisualLibraryStore } from '@/stores/visualLibraryStore'
 import { useTranscriptStore } from '@/stores/transcriptStore'
@@ -131,12 +132,14 @@ export function MotionGraphicsTab() {
         effects: laneEffects as Clip['effects'],
       }
 
-      useTimelineStore.setState({
-        tracks: alloc.tracks,
-        clips: [...clips, clip],
-        selectedClipIds: [id],
-        lastEditAction: `Added ${def.label}`,
-      })
+      commitTimelineClips(
+        (allClips) => [...allClips, clip],
+        {
+          tracks: alloc.tracks,
+          selectedClipIds: [id],
+          lastEditAction: `Added ${def.label}`,
+        },
+      )
       openMotionGraphicEditor(id)
       setLastAdded(def.label)
       setTimeout(() => setLastAdded(null), 2000)
@@ -178,13 +181,12 @@ export function MotionGraphicsTab() {
       }
 
       const firstStart = Math.min(...payloads.map((p) => p.startTime))
-      useTimelineStore.setState({
+      replaceTimelineClips(nextClips, {
         tracks: nextTracks,
-        clips: nextClips,
         selectedClipIds: [],
-        playheadTime: Number.isFinite(firstStart) ? firstStart : 0,
         lastEditAction: `Applied ${presetLabel} style (${payloads.length} graphics)`,
       })
+      useTimelineStore.getState().setPlayheadTime(Number.isFinite(firstStart) ? firstStart : 0)
 
       const typeHint = summaryTypes?.length
         ? ` · ${summaryTypes.slice(0, 3).join(', ')}${summaryTypes.length > 3 ? '…' : ''}`

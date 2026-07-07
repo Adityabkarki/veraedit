@@ -4,6 +4,7 @@
 
 import type { Clip } from '@/stores/timelineStore'
 import { useTimelineStore } from '@/stores/timelineStore'
+import { commitTimelineClips, getFullTimelineClips } from '@/lib/editor/timelineClipUpdates'
 import {
   allocateDedicatedTrack,
   allocateStackedTrack,
@@ -112,7 +113,8 @@ export function insertChartCatalogItem(
   if (!item) return null
 
   const id = `ch-${Date.now().toString(36)}`
-  const { tracks, clips } = useTimelineStore.getState()
+  const { tracks } = useTimelineStore.getState()
+  const clips = getFullTimelineClips()
 
   if (asBroll) {
     const { tracks: nextTracks, trackId } = allocateStackedTrack(
@@ -131,12 +133,14 @@ export function insertChartCatalogItem(
       type: 'overlay',
       effects: brollFullscreenDefaults(item),
     }
-    useTimelineStore.setState({
-      tracks: nextTracks,
-      clips: [...clips, clip],
-      lastEditAction: `Added ${toolName} as full-screen B-Roll`,
-      selectedClipIds: [id],
-    })
+    commitTimelineClips(
+      (allClips) => [...allClips, clip],
+      {
+        tracks: nextTracks,
+        lastEditAction: `Added ${toolName} as full-screen B-Roll`,
+        selectedClipIds: [id],
+      },
+    )
     return id
   }
 
@@ -154,11 +158,13 @@ export function insertChartCatalogItem(
       OVERLAY_FAMILY.prefix,
     ) as Clip['effects'],
   }
-  useTimelineStore.setState({
-    tracks: nextTracks,
-    clips: [...clips, clip],
-    lastEditAction: `Added ${toolName} overlay`,
-    selectedClipIds: [id],
-  })
+  commitTimelineClips(
+    (allClips) => [...allClips, clip],
+    {
+      tracks: nextTracks,
+      lastEditAction: `Added ${toolName} overlay`,
+      selectedClipIds: [id],
+    },
+  )
   return id
 }

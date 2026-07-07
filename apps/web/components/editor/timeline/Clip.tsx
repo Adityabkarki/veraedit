@@ -16,6 +16,7 @@
 
 import { useCallback, useState, useRef } from 'react'
 import { useTimelineStore } from '@/stores/timelineStore'
+import { commitTimelineClips, getFullTimelineClips } from '@/lib/editor/timelineClipUpdates'
 import { useUIStore } from '@/stores/uiStore'
 import { useVisualLibraryStore } from '@/stores/visualLibraryStore'
 import { syncOverlayClipFromTimeline } from '@/lib/visualTimelineSync'
@@ -33,6 +34,8 @@ import { isCameraZoomClip, cameraZoomLabel, openCameraZoomEditor } from '@/lib/c
 import { isMotionGraphicProType } from '@/lib/motionGraphicsLibrary'
 import { openMotionGraphicEditor } from '@/components/editor/motion/MotionGraphicsEditPanel'
 import { keyframesUseNormalizedOffsets } from '@/lib/effectKeyframes'
+import { Waveform } from '@/components/editor/player/Waveform'
+import { useProjectAudioAnalysisFrames } from '@/hooks/useProjectAudioPeaks'
 
 const SNAP_THRESHOLD_PX = 8
 const MIN_DURATION      = 0.1    // seconds
@@ -74,6 +77,8 @@ export function Clip({ clip, track }: ClipProps) {
   const [showTooltip, setShowTooltip] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const tooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const analysisFrames = useProjectAudioAnalysisFrames()
+  const showWaveform = clip.type === 'audio' || clip.type === 'music' || clip.trackId === 'audio'
 
   const finishEdit = useCallback(
     (label: string) => {
@@ -393,6 +398,19 @@ export function Clip({ clip, track }: ClipProps) {
         )}
 
         {/* Label */}
+        {showWaveform ? (
+          <div className="absolute inset-x-3 top-1 bottom-1 pointer-events-none">
+            <Waveform
+              duration={clip.duration}
+              currentTime={Math.max(0, playheadTime - clip.startTime)}
+              color={track.color}
+              height={28}
+              sourceId={clip.id}
+              pixelsPerSecond={pixelsPerSecond}
+              analysisFrames={analysisFrames}
+            />
+          </div>
+        ) : (
         <span
           className="absolute inset-x-3 top-1/2 -translate-y-1/2
                      text-[10px] font-medium truncate pointer-events-none"
@@ -400,6 +418,7 @@ export function Clip({ clip, track }: ClipProps) {
         >
           {isBroll ? 'B-Roll' : isImage ? `🖼 ${clip.label}` : isCameraZoom ? `📷 ${cameraZoomLabel(clip)}` : clip.label}
         </span>
+        )}
 
         {clip.effects?.styleTransfer && (
           <span
@@ -522,11 +541,13 @@ export function Clip({ clip, track }: ClipProps) {
                 if (clip.trackId === 'captions') {
                   useCaptionsStore.getState().deleteCaption(clip.id)
                 } else if (clip.trackId === 'effects') {
-                  useTimelineStore.setState((s) => ({
-                    clips: s.clips.filter((c) => c.id !== clip.id),
-                    selectedClipIds: s.selectedClipIds.filter((id) => id !== clip.id),
-                    lastEditAction: 'Removed effect',
-                  }))
+                  commitTimelineClips(
+                    (allClips) => allClips.filter((c) => c.id !== clip.id),
+                    {
+                      selectedClipIds: useTimelineStore.getState().selectedClipIds.filter((id) => id !== clip.id),
+                      lastEditAction: 'Removed effect',
+                    },
+                  )
                   useEffectsStore.getState().stopEditingEffect()
                 } else {
                   selectClip(clip.id)
@@ -548,15 +569,15 @@ export function Clip({ clip, track }: ClipProps) {
 
 /** After trim/move, keep last keyframe aligned with clip end. */
 function syncEffectClipAfterTrim(clipId: string) {
-  const clip = useTimelineStore.getState().clips.find((c) => c.id === clipId)
+  const clip = getFullTimelineClips().find((c) => c.id === clipId)
   if (!clip?.effects?.keyframes?.length) return
   const kfs = [...clip.effects.keyframes].sort((a, b) => a.offset - b.offset)
   const last = kfs[kfs.length - 1]
   if (Math.abs(last.offset - clip.duration) < 0.05) return
   kfs[kfs.length - 1] = { ...last, offset: clip.duration }
-  useTimelineStore.setState((s) => ({
-    clips: s.clips.map((c) =>
+  commitTimelineClips((allClips) =>
+    allClips.map((c) =>
       c.id === clipId ? { ...c, effects: { ...c.effects, keyframes: kfs } } : c,
     ),
-  }))
+  )
 }

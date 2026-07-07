@@ -4,6 +4,7 @@
 
 import type { Clip, Track } from '@/stores/timelineStore'
 import { useTimelineStore } from '@/stores/timelineStore'
+import { commitTimelineClips } from '@/lib/editor/timelineClipUpdates'
 import { useUIStore } from '@/stores/uiStore'
 
 export const CAMERA_TRACK_ID = 'camera'
@@ -138,29 +139,25 @@ export function updateCameraZoomClip(
   clipId: string,
   patch: { duration?: number; scaleEnd?: number; label?: string },
 ): void {
-  useTimelineStore.setState((s) => {
-    const next = s.clips.map((c) => {
-      if (c.id !== clipId || !isCameraZoomClip(c)) return c
-      const duration = patch.duration ?? c.duration
-      const scaleEnd = patch.scaleEnd ?? cameraZoomScaleEnd(c)
-      return {
-        ...c,
-        duration,
-        label: patch.label ?? cameraZoomLabel(c),
-        effects: {
-          ...c.effects,
-          keyframes: [
-            { offset: 0, value: 1 },
-            { offset: 1, value: Math.max(1, Math.min(2, scaleEnd)) },
-          ],
-        },
-      }
-    })
-    return {
-      clips: next,
-      undoStack: [...s.undoStack.slice(-49), { clips: s.clips, tracks: s.tracks }],
-      redoStack: [],
-      lastEditAction: 'Updated camera zoom',
-    }
-  })
+  commitTimelineClips(
+    (allClips) =>
+      allClips.map((c) => {
+        if (c.id !== clipId || !isCameraZoomClip(c)) return c
+        const duration = patch.duration ?? c.duration
+        const scaleEnd = patch.scaleEnd ?? cameraZoomScaleEnd(c)
+        return {
+          ...c,
+          duration,
+          label: patch.label ?? cameraZoomLabel(c),
+          effects: {
+            ...c.effects,
+            keyframes: [
+              { offset: 0, value: 1 },
+              { offset: 1, value: Math.max(1, Math.min(2, scaleEnd)) },
+            ],
+          },
+        }
+      }),
+    { recordUndo: true, lastEditAction: 'Updated camera zoom' },
+  )
 }

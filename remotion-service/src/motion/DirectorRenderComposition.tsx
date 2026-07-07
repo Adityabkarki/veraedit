@@ -15,6 +15,7 @@ import { useCompositionAudioAnalysis } from "./components/podcast/useComposition
 import { ColorGrade } from "./components/vfx/ColorGrade";
 import { VfxOverlayLayer } from "./components/vfx/overlays/VfxOverlayLayer";
 import { DirectorVideoLayer } from "./components/director/DirectorVideoLayer";
+import { DirectorBRollLayer } from "./components/director/DirectorBRollLayer";
 import { DirectorAudioMixer } from "./components/director/DirectorAudioMixer";
 import { MotionGraphicsComposition } from "./MotionGraphicsComposition";
 
@@ -58,6 +59,10 @@ export const DirectorRenderComposition: React.FC<DirectorRenderProps> = ({
                 assetUrls={assetUrls}
                 primaryVideoSrc={primaryVideoSrc}
                 cameraFeeds={cameraFeeds}
+              />
+              <DirectorBRollLayer
+                entries={timeline.tracks.broll}
+                assetUrls={assetUrls}
               />
               <MotionGraphicsComposition
                 plan={plan}

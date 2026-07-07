@@ -7,6 +7,7 @@ import {
   apiTimelineToStore,
   storeToApiTimeline,
   apiTimelineHasVideo,
+  isPersistedTimelineResponse,
   isTimelineStaleForAsset,
   timelinePrimaryAssetId,
   upgradeTimelinePrimaryAsset,
@@ -366,5 +367,33 @@ describe('timelineApi — empty project', () => {
   it('storeToApiTimeline works with default tracks and no clips', () => {
     const api = storeToApiTimeline(INITIAL_TRACKS.map((t) => ({ ...t })), [], 'asset-x', 0)
     expect(api.tracks.every((t) => t.clips.length === 0)).toBe(true)
+  })
+})
+
+describe('isPersistedTimelineResponse', () => {
+  it('returns false for synthetic GET /timeline default (id null)', () => {
+    expect(
+      isPersistedTimelineResponse({
+        id: null,
+        version: 0,
+        data: {
+          schema_version: 1,
+          tracks: [
+            { id: 'track-video-1', type: 'video', name: 'Main Video', clips: [] },
+          ],
+          global_settings: { duration: 0, resolution: '1920x1080', fps: 30 },
+        },
+      }),
+    ).toBe(false)
+  })
+
+  it('returns true when timeline row exists in DB', () => {
+    expect(
+      isPersistedTimelineResponse({
+        id: 'tl-uuid',
+        version: 2,
+        data: SAMPLE,
+      }),
+    ).toBe(true)
   })
 })

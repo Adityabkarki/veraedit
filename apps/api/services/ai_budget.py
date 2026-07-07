@@ -106,6 +106,37 @@ class AIBudgetTracker:
         except Exception as exc:
             log.warning("ai_spend_persist_failed", action=action, error=str(exc))
 
+    def record_chunk_atomic(
+        self,
+        cost_usd: float,
+        *,
+        chunk_index: int,
+        workspace_id: str,
+        project_id: str | None = None,
+        job_id: str | None = None,
+        provider: str = "openai",
+        action: str = "chunked_analysis",
+        model: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Atomically record one chunk's AI cost (Phase 12).
+
+        Each parallel Celery worker INSERTs its own row — no read-modify-write races.
+        Also updates the in-process hourly tracker for the current worker.
+        """
+        chunk_meta = {"chunkIndex": chunk_index, **(metadata or {})}
+        self.record(
+            cost_usd,
+            action=action,
+            workspace_id=workspace_id,
+            project_id=project_id,
+            job_id=job_id,
+            provider=provider,
+            model=model,
+            metadata=chunk_meta,
+        )
+
     @property
     def hourly_spend(self) -> float:
         return sum(cost for _, cost in self._calls)

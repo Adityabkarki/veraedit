@@ -12,6 +12,7 @@ import { applyLookToTimeline } from "@lib/look/resolveLook";
 import { applyAudioMulticamToTimeline } from "@lib/audio/applyAudioMulticam";
 import { DENSITY_LIMITS, DENSITY_WINDOW_SECONDS } from "./constants";
 import { layerConflict, layerDepthForComponent } from "./layerRegistry";
+import { resolveComponentWithFallback } from "./fallbackChain";
 import { proposeConsultancyTriggers } from "./rules/consultancy";
 import { proposePodcastTriggers } from "./rules/podcast";
 import { proposeShowcaseTriggers } from "./rules/showcase";
@@ -171,6 +172,8 @@ export function resolveTimeline(options: ResolveTimelineOptions): DirectorTimeli
         ? c.metadata.confidenceSource
         : undefined;
 
+    let triggerMetadata: Record<string, unknown> = { ...(c.metadata ?? {}) };
+
     if (c.brollQuery && contentType === "podcast") {
       broll.push({
         id: entryId,
@@ -182,13 +185,24 @@ export function resolveTimeline(options: ResolveTimelineOptions): DirectorTimeli
         triggerId: c.id,
       });
     } else {
+      const { componentId, fallbackTier, usedFallback } = resolveComponentWithFallback(
+        c.type,
+        c.componentId,
+      );
+      const props = { ...(c.props ?? {}) };
+      if (usedFallback && c.type === "topic_shift" && props.label == null) {
+        props.label = c.metadata?.topicLabel ?? "Topic";
+      }
+      if (usedFallback) {
+        triggerMetadata = { ...triggerMetadata, fallbackTier };
+      }
       motionGraphics.push({
         id: entryId,
-        componentId: c.componentId,
+        componentId,
         startFrame,
         durationInFrames: durationInFramesEntry,
-        layerDepth: layerDepthForComponent(c.componentId),
-        props: c.props ?? {},
+        layerDepth: layerDepthForComponent(componentId),
+        props,
         triggerId: c.id,
       });
     }
@@ -201,7 +215,7 @@ export function resolveTimeline(options: ResolveTimelineOptions): DirectorTimeli
       confidence: c.confidence,
       status: "realized",
       resultingEntryId: entryId,
-      metadata: c.metadata,
+      metadata: triggerMetadata,
       confidenceSource,
     });
   }

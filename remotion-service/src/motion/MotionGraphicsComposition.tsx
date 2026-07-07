@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Sequence, useVideoConfig } from "remotion";
 import type { MotionGraphicsProps } from "./types";
 import { renderMotionElement } from "./elements";
 import { FONT_DISPLAY } from "./fonts";
@@ -21,9 +21,7 @@ export const MotionGraphicsComposition: React.FC<MotionGraphicsProps> = ({
   theme: rawTheme,
   transparentBackground = false,
 }) => {
-  const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const currentTime = frame / fps;
   const elements = plan?.elements ?? [];
   const family = fontFamily || FONT_DISPLAY;
   const theme = useMemo(
@@ -59,13 +57,26 @@ export const MotionGraphicsComposition: React.FC<MotionGraphicsProps> = ({
       }}
     >
       {elements.map((el) => {
-        if (
-          currentTime < el.startSeconds ||
-          currentTime > el.endSeconds
-        ) {
-          if (!alwaysOn.has(el.type)) return null;
+        if (alwaysOn.has(el.type)) {
+          return (
+            <React.Fragment key={el.id}>{renderMotionElement(el, family)}</React.Fragment>
+          );
         }
-        return renderMotionElement(el, family);
+        const fromFrame = Math.max(0, Math.round(el.startSeconds * fps));
+        const durationInFrames = Math.max(
+          1,
+          Math.round((el.endSeconds - el.startSeconds) * fps),
+        );
+        return (
+          <Sequence
+            key={el.id}
+            from={fromFrame}
+            durationInFrames={durationInFrames}
+            layout="none"
+          >
+            {renderMotionElement(el, family)}
+          </Sequence>
+        );
       })}
     </AbsoluteFill>
   );

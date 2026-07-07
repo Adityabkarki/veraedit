@@ -11,6 +11,7 @@ import { uploadVideoFile } from '@/lib/upload'
 import { captionMetadataForExport } from '@/lib/captionBurnStyle'
 import { useCaptionsStore, type CaptionStyle } from '@/stores/captionsStore'
 import { useTimelineStore, type Clip, type Track } from '@/stores/timelineStore'
+import { replaceTimelineClips } from '@/lib/editor/timelineClipUpdates'
 import { resolveBrandKitTheme } from '@/lib/brandKitTheme'
 import { useVisualLibraryStore } from '@/stores/visualLibraryStore'
 import { resolveCaptionEffectAt, isCaptionEffectClip } from '@/lib/captionEffects'
@@ -158,7 +159,7 @@ export async function prepareClipsForExport(
   }
 
   if (nextClips.some((c, i) => c !== clips[i])) {
-    useTimelineStore.setState({ clips: nextClips })
+    replaceTimelineClips(nextClips, { tracks })
   }
 
   return { tracks, clips: nextClips, warnings }

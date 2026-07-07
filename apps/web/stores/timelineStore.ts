@@ -27,6 +27,24 @@ import {
   IMAGES_FAMILY,
   offsetEffectsForLane,
 } from '@/lib/timelineLayers'
+import {
+  shouldUseLongFormOptimizations,
+  timelineDurationSeconds,
+} from '@/lib/editor/longFormThresholds'
+import {
+  applyFullClipList,
+  fullTimelineClips,
+  mutateFullClipList,
+} from '@/lib/editor/timelineClipState'
+import {
+  applyTimelinePatch,
+  computeTimelinePatch,
+  type HistoryEntry,
+  type SnapshotHistoryEntry,
+} from '@/lib/editor/timelineHistory'
+import { framesFromTimeWindow, computeVisibleTimeWindow, filterClipsToWindow } from '@/lib/editor/timelineWindowing'
+import { fetchDirectorTimelineWindow } from '@/lib/directorTimelineWindow'
+import { useDirectorStore } from '@/stores/directorStore'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -207,12 +225,12 @@ export interface TimelineMarker {
   type: 'chapter' | 'cue'
 }
 
-interface HistoryEntry {
+interface PendingSnapshot {
   clips: Clip[]
   tracks: Track[]
 }
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+// HistoryEntry imported from timelineHistory (diff | snapshot)
 
 export const PPS_MIN     = 4     // pixels per second — most zoomed out
 export const PPS_MAX     = 400   // pixels per second — most zoomed in
@@ -270,10 +288,18 @@ export interface TimelineState {
   lastEditAction:    string | null
   /** Bumped on API reloads so preview can refresh without overwriting backend edits. */
   timelineVersion:   number
+  /** Long-form optimizations active (viewport windowing + diff undo). */
+  longFormMode:      boolean
+  /** Full clip list when longFormMode — `clips` holds the visible window only. */
+  allClips:          Clip[]
+  directorTimelineId: string | null
+  viewportWidthPx:   number
+  /** Full project duration — stable when `clips` is viewport-windowed. */
+  totalDurationSec:  number
   undoStack:         HistoryEntry[]
   redoStack:         HistoryEntry[]
   /** Snapshot saved at drag-start; committed on drag-end */
-  _pendingSnapshot:  HistoryEntry | null
+  _pendingSnapshot:  PendingSnapshot | null
 
   /** Build the timeline from a real asset: one video + one audio clip. */
   loadFromAsset:       (opts: { label: string; durationSeconds: number; assetId?: string }) => void
@@ -294,6 +320,11 @@ export interface TimelineState {
   zoomOut:             () => void
   zoomToFit:           (viewportWidthPx: number, durationSec: number) => void
   setScrollX:          (x: number) => void
+  /** Refresh visible clip window after scroll/zoom (long-form only). */
+  refreshVisibleWindow: (viewportWidthPx: number) => void
+  /** Debounced window fetch for director timelines (long-form only). */
+  syncDirectorWindow: (viewportWidthPx: number, fps?: number) => Promise<void>
+  setDirectorTimelineId: (id: string | null) => void
 
   // ── Selection ────────────────────────────────────────────────────────────
   selectClip:          (id: string | null, addToSelection?: boolean) => void
@@ -330,6 +361,22 @@ export interface TimelineState {
   /** Update overlay clip transform (preview drag / edit panel). */
   updateOverlayClip: (clipId: string, patch: Partial<ClipEffects>) => void
 
+  /** Return the full clip list (not viewport-windowed). */
+  getFullClips: () => Clip[]
+  /**
+   * Mutate the full clip list with long-form windowing applied.
+   * Use this instead of setState({ clips }) from outside the store.
+   */
+  commitClipsUpdate: (
+    mutator: (clips: Clip[]) => Clip[],
+    options?: {
+      tracks?: Track[]
+      lastEditAction?: string
+      selectedClipIds?: string[]
+      recordUndo?: boolean
+    },
+  ) => void
+
   // ── Undo / redo ──────────────────────────────────────────────────────────
   undo:                () => void
   redo:                () => void
@@ -360,9 +407,81 @@ function clampTime(t: number): number {
 
 function pushToHistory(
   stack: HistoryEntry[],
-  entry: HistoryEntry
+  entry: HistoryEntry,
 ): HistoryEntry[] {
   return [...stack.slice(-(HISTORY_MAX - 1)), entry]
+}
+
+function configureLongForm(clips: Clip[]): {
+  longFormMode: boolean
+  allClips: Clip[]
+} {
+  const duration = timelineDurationSeconds(clips)
+  const longFormMode = shouldUseLongFormOptimizations(clips.length, duration)
+  return { longFormMode, allClips: longFormMode ? clips : [] }
+}
+
+function snapshotEntry(clips: Clip[], tracks: Track[]): SnapshotHistoryEntry {
+  return {
+    kind: 'snapshot',
+    clips: clips.map((c) => ({ ...c })),
+    tracks: tracks.map((t) => ({ ...t })),
+  }
+}
+
+function pushHistoryFromMutation(
+  stack: HistoryEntry[],
+  before: { clips: Clip[]; tracks: Track[] },
+  after: { clips: Clip[]; tracks: Track[] },
+  longFormMode: boolean,
+): HistoryEntry[] {
+  if (longFormMode) {
+    const patch = computeTimelinePatch(before.clips, after.clips, before.tracks, after.tracks)
+    return pushToHistory(stack, { kind: 'diff', patch })
+  }
+  return pushToHistory(stack, snapshotEntry(before.clips, before.tracks))
+}
+
+function fullClipSource(s: {
+  longFormMode: boolean
+  allClips: Clip[]
+  clips: Clip[]
+}): Clip[] {
+  return fullTimelineClips(s)
+}
+
+function applyClipMutation(
+  s: {
+    longFormMode: boolean
+    allClips: Clip[]
+    clips: Clip[]
+    scrollX: number
+    viewportWidthPx: number
+    pixelsPerSecond: number
+  },
+  mutator: (clips: Clip[]) => Clip[],
+  tracks?: Track[],
+): Partial<{
+  clips: Clip[]
+  allClips: Clip[]
+  tracks: Track[]
+}> {
+  return mutateFullClipList(s, mutator, tracks)
+}
+
+function applyHistoryEntry(
+  entry: HistoryEntry,
+  current: { clips: Clip[]; tracks: Track[] },
+  direction: 'undo' | 'redo',
+): { clips: Clip[]; tracks: Track[] } {
+  if (entry.kind === 'snapshot') {
+    return {
+      clips: entry.clips.map((c) => ({ ...c })),
+      tracks: entry.tracks.map((t) => ({ ...t })),
+    }
+  }
+  const patchDir = direction === 'undo' ? 'inverse' : 'forward'
+  return applyTimelinePatch(current.clips, current.tracks, entry.patch, patchDir)
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -381,6 +500,11 @@ export const useTimelineStore = create<TimelineState>()(
       snapIndicatorTime: null,
       lastEditAction:    null,
       timelineVersion:   0,
+      longFormMode:      false,
+      allClips:          [],
+      directorTimelineId: null,
+      viewportWidthPx:   1200,
+      totalDurationSec:  0,
       undoStack:         [],
       redoStack:         [],
       _pendingSnapshot:  null,
@@ -420,6 +544,9 @@ export const useTimelineStore = create<TimelineState>()(
           redoStack: [],
           _pendingSnapshot: null,
           lastEditAction: null,
+          longFormMode: false,
+          allClips: [],
+          totalDurationSec: dur,
         })
       },
 
@@ -427,9 +554,15 @@ export const useTimelineStore = create<TimelineState>()(
         const { tracks, clips } = apiTimelineToStore(data)
         const prevPlayhead = get().playheadTime
         syncStyleTransferFromTimeline(data)
+        const lf = configureLongForm(clips)
+        const totalDurationSec =
+          data.global_settings?.duration ??
+          timelineDurationSeconds(clips)
         set({
           tracks,
           clips,
+          ...lf,
+          totalDurationSec,
           playheadTime: options?.preservePlayhead ? prevPlayhead : 0,
           selectedClipIds: [],
           undoStack: [],
@@ -438,6 +571,9 @@ export const useTimelineStore = create<TimelineState>()(
           lastEditAction: null,
           timelineVersion: get().timelineVersion + 1,
         })
+        if (lf.longFormMode) {
+          get().refreshVisibleWindow(get().viewportWidthPx)
+        }
       },
 
       loadDemoData: () =>
@@ -451,6 +587,9 @@ export const useTimelineStore = create<TimelineState>()(
           redoStack:         [],
           _pendingSnapshot:  null,
           lastEditAction:    null,
+          longFormMode:      false,
+          allClips:          [],
+          totalDurationSec:  timelineDurationSeconds(INITIAL_CLIPS),
         }),
 
       resetTimeline: () =>
@@ -464,6 +603,9 @@ export const useTimelineStore = create<TimelineState>()(
           redoStack:         [],
           _pendingSnapshot:  null,
           lastEditAction:    null,
+          longFormMode:      false,
+          allClips:          [],
+          totalDurationSec:  0,
         }),
 
       setPlayheadTime: (t) => {
@@ -480,14 +622,105 @@ export const useTimelineStore = create<TimelineState>()(
 
       // ── Zoom / scroll ──────────────────────────────────────────────────────
 
-      setPixelsPerSecond: (pps) => set({ pixelsPerSecond: clampPPS(pps) }),
+      setPixelsPerSecond: (pps) => {
+        set({ pixelsPerSecond: clampPPS(pps) })
+        const s = get()
+        if (s.longFormMode) s.refreshVisibleWindow(s.viewportWidthPx)
+      },
 
-      zoomIn:  () => set((s) => ({ pixelsPerSecond: clampPPS(s.pixelsPerSecond * 1.5) })),
-      zoomOut: () => set((s) => ({ pixelsPerSecond: clampPPS(s.pixelsPerSecond / 1.5) })),
-      zoomToFit: (viewportWidthPx, durationSec) =>
-        set({ pixelsPerSecond: computeFitPixelsPerSecond(viewportWidthPx, durationSec) }),
+      zoomIn: () => {
+        set((s) => ({ pixelsPerSecond: clampPPS(s.pixelsPerSecond * 1.5) }))
+        const s = get()
+        if (s.longFormMode) s.refreshVisibleWindow(s.viewportWidthPx)
+      },
 
-      setScrollX: (x) => set({ scrollX: Math.max(0, x) }),
+      zoomOut: () => {
+        set((s) => ({ pixelsPerSecond: clampPPS(s.pixelsPerSecond / 1.5) }))
+        const s = get()
+        if (s.longFormMode) s.refreshVisibleWindow(s.viewportWidthPx)
+      },
+
+      zoomToFit: (viewportWidthPx, durationSec) => {
+        set({ pixelsPerSecond: computeFitPixelsPerSecond(viewportWidthPx, durationSec) })
+        const s = get()
+        if (s.longFormMode) s.refreshVisibleWindow(viewportWidthPx)
+      },
+
+      setScrollX: (x) => {
+        set({ scrollX: Math.max(0, x) })
+        const s = get()
+        if (s.longFormMode) {
+          s.refreshVisibleWindow(s.viewportWidthPx)
+        }
+      },
+
+      refreshVisibleWindow: (viewportWidthPx) => {
+        const s = get()
+        const source = s.longFormMode && s.allClips.length > 0 ? s.allClips : s.clips
+        const window = computeVisibleTimeWindow(s.scrollX, viewportWidthPx, s.pixelsPerSecond)
+        const visible = filterClipsToWindow(source, window)
+        set({ clips: visible, viewportWidthPx, allClips: s.longFormMode ? source : [] })
+      },
+
+      setDirectorTimelineId: (id) => set({ directorTimelineId: id }),
+
+      syncDirectorWindow: async (viewportWidthPx, fps?: number) => {
+        const s = get()
+        if (!s.longFormMode || !s.directorTimelineId) return
+        s.refreshVisibleWindow(viewportWidthPx)
+        const directorFps =
+          fps ??
+          useDirectorStore.getState().timeline?.fps ??
+          30
+        const window = computeVisibleTimeWindow(
+          s.scrollX,
+          viewportWidthPx,
+          s.pixelsPerSecond,
+        )
+        const { startFrame, endFrame } = framesFromTimeWindow(window, directorFps)
+        const { data } = await fetchDirectorTimelineWindow(
+          s.directorTimelineId,
+          startFrame,
+          endFrame,
+        )
+        if (!data?.timeline) return
+        useDirectorStore.getState().applyWindowSlice(
+          data.timeline as import('@/types/director').DirectorTimeline,
+          startFrame,
+          endFrame,
+        )
+      },
+
+      getFullClips: () => fullClipSource(get()),
+
+      commitClipsUpdate: (mutator, options) =>
+        set((s) => {
+          const source = fullClipSource(s)
+          const nextAll = mutator(source)
+          const mutation = applyClipMutation(s, () => nextAll, options?.tracks)
+          const patch: Partial<TimelineState> = {
+            ...mutation,
+            ...(options?.lastEditAction !== undefined
+              ? { lastEditAction: options.lastEditAction }
+              : {}),
+            ...(options?.selectedClipIds !== undefined
+              ? { selectedClipIds: options.selectedClipIds }
+              : {}),
+          }
+          if (options?.recordUndo) {
+            patch.undoStack = pushHistoryFromMutation(
+              s.undoStack,
+              { clips: source, tracks: s.tracks },
+              {
+                clips: nextAll,
+                tracks: options?.tracks ?? s.tracks,
+              },
+              s.longFormMode,
+            )
+            patch.redoStack = []
+          }
+          return patch
+        }),
 
       // ── Selection ──────────────────────────────────────────────────────────
 
@@ -516,20 +749,29 @@ export const useTimelineStore = create<TimelineState>()(
       // ── Drag lifecycle ─────────────────────────────────────────────────────
 
       beginEdit: () =>
-        set((s) => ({
-          _pendingSnapshot: {
-            clips:  s.clips.map((c) => ({ ...c })),
-            tracks: s.tracks.map((t) => ({ ...t })),
-          },
-        })),
+        set((s) => {
+          const source = fullClipSource(s)
+          return {
+            _pendingSnapshot: {
+              clips: source.map((c) => ({ ...c })),
+              tracks: s.tracks.map((t) => ({ ...t })),
+            },
+          }
+        }),
 
       endEdit: (actionLabel) =>
         set((s) => {
           if (!s._pendingSnapshot) return { lastEditAction: actionLabel }
+          const source = fullClipSource(s)
           return {
-            undoStack:       pushToHistory(s.undoStack, s._pendingSnapshot),
-            redoStack:       [],
-            lastEditAction:  actionLabel,
+            undoStack: pushHistoryFromMutation(
+              s.undoStack,
+              s._pendingSnapshot,
+              { clips: source, tracks: s.tracks },
+              s.longFormMode,
+            ),
+            redoStack: [],
+            lastEditAction: actionLabel,
             _pendingSnapshot: null,
           }
         }),
@@ -537,64 +779,68 @@ export const useTimelineStore = create<TimelineState>()(
       // ── Live mutations (called during drag) ────────────────────────────────
 
       moveClip: (clipId, newStartTime) =>
-        set((s) => ({
-          clips: s.clips.map((c) =>
-            c.id === clipId ? { ...c, startTime: clampTime(newStartTime) } : c
+        set((s) => applyClipMutation(s, (clips) =>
+          clips.map((c) =>
+            c.id === clipId ? { ...c, startTime: clampTime(newStartTime) } : c,
           ),
-        })),
+        )),
 
       trimClipStart: (clipId, newStartTime, newDuration) =>
-        set((s) => ({
-          clips: s.clips.map((c) =>
+        set((s) => applyClipMutation(s, (clips) =>
+          clips.map((c) =>
             c.id === clipId
               ? {
                   ...c,
                   startTime: clampTime(newStartTime),
                   duration: Math.max(CLIP_MIN_DURATION, newDuration),
                 }
-              : c
+              : c,
           ),
-        })),
+        )),
 
       trimClipEnd: (clipId, newDuration) =>
-        set((s) => ({
-          clips: s.clips.map((c) =>
+        set((s) => applyClipMutation(s, (clips) =>
+          clips.map((c) =>
             c.id === clipId
               ? { ...c, duration: Math.max(CLIP_MIN_DURATION, newDuration) }
-              : c
+              : c,
           ),
-        })),
+        )),
 
       // ── Instant edits (push to history internally) ─────────────────────────
 
       splitClip: (clipId, splitTime) =>
         set((s) => {
-          const clip = s.clips.find((c) => c.id === clipId)
+          const source = fullClipSource(s)
+          const clip = source.find((c) => c.id === clipId)
           if (!clip) return {}
           const end = clip.startTime + clip.duration
-          // Split time must be strictly inside the clip
           if (splitTime <= clip.startTime + CLIP_MIN_DURATION) return {}
           if (splitTime >= end - CLIP_MIN_DURATION) return {}
 
           const left: Clip = {
             ...clip,
-            id:       `${clip.id}_L${Date.now()}`,
+            id: `${clip.id}_L${Date.now()}`,
             duration: splitTime - clip.startTime,
           }
           const right: Clip = {
             ...clip,
-            id:        `${clip.id}_R${Date.now()}`,
+            id: `${clip.id}_R${Date.now()}`,
             startTime: splitTime,
-            duration:  end - splitTime,
+            duration: end - splitTime,
           }
-          const newClips = s.clips
-            .filter((c) => c.id !== clipId)
-            .concat([left, right])
+          const newAll = source.filter((c) => c.id !== clipId).concat([left, right])
+          const mutation = applyClipMutation(s, () => newAll)
 
           return {
-            clips:          newClips,
-            undoStack:      pushToHistory(s.undoStack, { clips: s.clips, tracks: s.tracks }),
-            redoStack:      [],
+            ...mutation,
+            undoStack: pushHistoryFromMutation(
+              s.undoStack,
+              { clips: source, tracks: s.tracks },
+              { clips: newAll, tracks: s.tracks },
+              s.longFormMode,
+            ),
+            redoStack: [],
             lastEditAction: 'Split clip',
           }
         }),
@@ -602,33 +848,41 @@ export const useTimelineStore = create<TimelineState>()(
       deleteSelectedClips: () =>
         set((s) => {
           if (s.selectedClipIds.length === 0) return {}
-          const captionIds = s.clips
+          const source = fullClipSource(s)
+          const captionIds = source
             .filter((c) => s.selectedClipIds.includes(c.id) && c.trackId === 'captions')
             .map((c) => c.id)
           if (captionIds.length > 0) removeCaptionsByClipIds(captionIds)
+          const newAll = source.filter((c) => !s.selectedClipIds.includes(c.id))
           return {
-            clips:          s.clips.filter((c) => !s.selectedClipIds.includes(c.id)),
+            ...applyClipMutation(s, () => newAll),
             selectedClipIds: [],
-            undoStack:      pushToHistory(s.undoStack, { clips: s.clips, tracks: s.tracks }),
-            redoStack:      [],
+            undoStack: pushHistoryFromMutation(
+              s.undoStack,
+              { clips: source, tracks: s.tracks },
+              { clips: newAll, tracks: s.tracks },
+              s.longFormMode,
+            ),
+            redoStack: [],
             lastEditAction: `Deleted ${s.selectedClipIds.length} clip${s.selectedClipIds.length > 1 ? 's' : ''}`,
           }
         }),
 
       duplicateClip: (clipId) =>
         set((s) => {
-          const clip = s.clips.find((c) => c.id === clipId)
+          const source = fullClipSource(s)
+          const clip = source.find((c) => c.id === clipId)
           if (!clip) return {}
           const copy: Clip = {
             ...clip,
-            id:        `${clipId}_dup_${Date.now()}`,
+            id: `${clipId}_dup_${Date.now()}`,
             startTime: clip.startTime + clip.duration + 0.1,
-            label:     `${clip.label} (copy)`,
+            label: `${clip.label} (copy)`,
           }
 
           let nextTracks = s.tracks
           if (isFamilyTrack(clip.trackId, OVERLAY_FAMILY.prefix) && clip.type === 'overlay') {
-            const alloc = allocateDedicatedTrack(s.tracks, s.clips, OVERLAY_FAMILY)
+            const alloc = allocateDedicatedTrack(s.tracks, source, OVERLAY_FAMILY)
             nextTracks = alloc.tracks
             copy.trackId = alloc.trackId
             if (copy.effects) {
@@ -639,17 +893,22 @@ export const useTimelineStore = create<TimelineState>()(
               )
             }
           } else if (isFamilyTrack(clip.trackId, IMAGES_FAMILY.prefix)) {
-            const alloc = allocateDedicatedTrack(s.tracks, s.clips, IMAGES_FAMILY)
+            const alloc = allocateDedicatedTrack(s.tracks, source, IMAGES_FAMILY)
             nextTracks = alloc.tracks
             copy.trackId = alloc.trackId
           }
 
+          const newAll = [...source, copy]
           return {
-            tracks:         nextTracks,
-            clips:          [...s.clips, copy],
+            ...applyClipMutation(s, () => newAll, nextTracks),
             selectedClipIds: [copy.id],
-            undoStack:      pushToHistory(s.undoStack, { clips: s.clips, tracks: s.tracks }),
-            redoStack:      [],
+            undoStack: pushHistoryFromMutation(
+              s.undoStack,
+              { clips: source, tracks: s.tracks },
+              { clips: newAll, tracks: nextTracks },
+              s.longFormMode,
+            ),
+            redoStack: [],
             lastEditAction: 'Duplicated clip',
           }
         }),
@@ -697,10 +956,12 @@ export const useTimelineStore = create<TimelineState>()(
 
       updateOverlayClip: (clipId, patch) =>
         set((s) => ({
-          clips: s.clips.map((c) =>
-            c.id === clipId
-              ? { ...c, effects: { ...c.effects, ...patch } }
-              : c
+          ...applyClipMutation(s, (clips) =>
+            clips.map((c) =>
+              c.id === clipId
+                ? { ...c, effects: { ...c.effects, ...patch } }
+                : c,
+            ),
           ),
           lastEditAction: 'Moved overlay',
         })),
@@ -710,14 +971,35 @@ export const useTimelineStore = create<TimelineState>()(
       undo: () =>
         set((s) => {
           if (s.undoStack.length === 0) return {}
-          const prev     = s.undoStack[s.undoStack.length - 1]
-          const newUndo  = s.undoStack.slice(0, -1)
-          const newRedo  = [...s.redoStack, { clips: s.clips, tracks: s.tracks }]
+          const entry = s.undoStack[s.undoStack.length - 1]
+          const newUndo = s.undoStack.slice(0, -1)
+          const source = fullClipSource(s)
+          const applied = applyHistoryEntry(
+            entry,
+            { clips: source, tracks: s.tracks },
+            'undo',
+          )
+          const redoEntry: HistoryEntry = s.longFormMode && entry.kind === 'diff'
+            ? entry
+            : snapshotEntry(source, s.tracks)
+          const windowed = s.longFormMode
+            ? {
+                allClips: applied.clips,
+                clips: filterClipsToWindow(
+                  applied.clips,
+                  computeVisibleTimeWindow(
+                    s.scrollX,
+                    s.viewportWidthPx,
+                    s.pixelsPerSecond,
+                  ),
+                ),
+              }
+            : { clips: applied.clips }
           return {
-            clips:         prev.clips,
-            tracks:        prev.tracks,
-            undoStack:     newUndo,
-            redoStack:     newRedo,
+            ...windowed,
+            tracks: applied.tracks,
+            undoStack: newUndo,
+            redoStack: [...s.redoStack, redoEntry],
             lastEditAction: null,
           }
         }),
@@ -725,14 +1007,35 @@ export const useTimelineStore = create<TimelineState>()(
       redo: () =>
         set((s) => {
           if (s.redoStack.length === 0) return {}
-          const next    = s.redoStack[s.redoStack.length - 1]
+          const entry = s.redoStack[s.redoStack.length - 1]
           const newRedo = s.redoStack.slice(0, -1)
-          const newUndo = pushToHistory(s.undoStack, { clips: s.clips, tracks: s.tracks })
+          const source = fullClipSource(s)
+          const applied = applyHistoryEntry(
+            entry,
+            { clips: source, tracks: s.tracks },
+            'redo',
+          )
+          const undoEntry: HistoryEntry = s.longFormMode && entry.kind === 'diff'
+            ? entry
+            : snapshotEntry(source, s.tracks)
+          const windowed = s.longFormMode
+            ? {
+                allClips: applied.clips,
+                clips: filterClipsToWindow(
+                  applied.clips,
+                  computeVisibleTimeWindow(
+                    s.scrollX,
+                    s.viewportWidthPx,
+                    s.pixelsPerSecond,
+                  ),
+                ),
+              }
+            : { clips: applied.clips }
           return {
-            clips:         next.clips,
-            tracks:        next.tracks,
-            undoStack:     newUndo,
-            redoStack:     newRedo,
+            ...windowed,
+            tracks: applied.tracks,
+            undoStack: pushToHistory(s.undoStack, undoEntry),
+            redoStack: newRedo,
             lastEditAction: null,
           }
         }),

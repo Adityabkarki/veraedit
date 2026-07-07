@@ -5,11 +5,12 @@
  * Visible only when useDirectorEngine is enabled for the project.
  */
 
-import { useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useDirectorStore } from '@/stores/directorStore'
 import { useUIStore } from '@/stores/uiStore'
 import { useAssetStore } from '@/stores/assetStore'
 import { usePlayerStore } from '@/stores/playerStore'
+import { fetchDirectorTimelineTriggers } from '@/lib/directorApi'
 import {
   DIRECTOR_PILLARS,
   entryForTrigger,
@@ -26,6 +27,7 @@ export function DirectorAutoEditPanel({ projectId }: DirectorAutoEditPanelProps)
   const {
     useDirectorEngine,
     timeline,
+    timelineId,
     compiling,
     compileError,
     hasManualOverrides,
@@ -130,18 +132,20 @@ export function DirectorAutoEditPanel({ projectId }: DirectorAutoEditPanelProps)
       </div>
 
       <div className="flex-1 overflow-y-auto min-h-0 p-4 space-y-4">
-        <TriggerSection
+        <PaginatedTriggerSection
           title="On timeline"
-          triggers={realized}
+          status="realized"
+          timelineId={timelineId}
           timeline={timeline}
-          projectId={projectId}
+          fallbackTriggers={realized}
           onDelete={(entryId) => applyOverride(projectId, { action: 'delete_entry', entry_id: entryId })}
         />
-        <TriggerSection
+        <PaginatedTriggerSection
           title="Held back"
-          triggers={suppressed}
+          status="suppressed"
+          timelineId={timelineId}
           timeline={timeline}
-          projectId={projectId}
+          fallbackTriggers={suppressed}
           onPromote={(triggerId) =>
             applyOverride(projectId, { action: 'promote_trigger', trigger_id: triggerId })
           }
@@ -156,26 +160,105 @@ export function DirectorAutoEditPanel({ projectId }: DirectorAutoEditPanelProps)
   )
 }
 
+function PaginatedTriggerSection({
+  title,
+  status,
+  timelineId,
+  timeline,
+  fallbackTriggers,
+  onDelete,
+  onPromote,
+}: {
+  title: string
+  status: 'realized' | 'suppressed'
+  timelineId: string | null
+  timeline: ReturnType<typeof useDirectorStore.getState>['timeline']
+  fallbackTriggers: TriggerLogEntry[]
+  onDelete?: (entryId: string) => void
+  onPromote?: (triggerId: string) => void
+}) {
+  const [triggers, setTriggers] = useState<TriggerLogEntry[]>(fallbackTriggers)
+  const [total, setTotal] = useState(fallbackTriggers.length)
+  const [cursor, setCursor] = useState(0)
+  const [hasMore, setHasMore] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const usePagination = Boolean(timelineId) && fallbackTriggers.length > 50
+
+  useEffect(() => {
+    setTriggers(fallbackTriggers)
+    setTotal(fallbackTriggers.length)
+    setCursor(fallbackTriggers.length)
+    setHasMore(false)
+  }, [fallbackTriggers, timelineId])
+
+  const loadPage = useCallback(
+    async (nextCursor: number, append: boolean) => {
+      if (!timelineId || !usePagination) return
+      setLoading(true)
+      const { data } = await fetchDirectorTimelineTriggers(timelineId, {
+        cursor: nextCursor,
+        limit: 50,
+        status,
+      })
+      setLoading(false)
+      if (!data) return
+      setTriggers((prev) => (append ? [...prev, ...data.triggers] : data.triggers))
+      setTotal(data.total)
+      setCursor(data.nextCursor ?? data.total)
+      setHasMore(data.hasMore)
+    },
+    [timelineId, status, usePagination],
+  )
+
+  useEffect(() => {
+    if (usePagination && timelineId) {
+      void loadPage(0, false)
+    }
+  }, [usePagination, timelineId, loadPage])
+
+  return (
+    <TriggerSection
+      title={title}
+      triggers={triggers}
+      totalCount={usePagination ? total : triggers.length}
+      timeline={timeline}
+      loading={loading}
+      hasMore={usePagination && hasMore}
+      onLoadMore={() => loadPage(cursor, true)}
+      onDelete={onDelete}
+      onPromote={onPromote}
+    />
+  )
+}
+
 function TriggerSection({
   title,
   triggers,
+  totalCount,
   timeline,
+  loading,
+  hasMore,
+  onLoadMore,
   onDelete,
   onPromote,
 }: {
   title: string
   triggers: TriggerLogEntry[]
+  totalCount?: number
   timeline: ReturnType<typeof useDirectorStore.getState>['timeline']
-  projectId: string
+  loading?: boolean
+  hasMore?: boolean
+  onLoadMore?: () => void
   onDelete?: (entryId: string) => void
   onPromote?: (triggerId: string) => void
 }) {
-  if (!triggers.length) return null
+  if (!triggers.length && !loading) return null
+  const countLabel = totalCount ?? triggers.length
 
   return (
     <section data-testid={`trigger-section-${title.toLowerCase().replace(/\s+/g, '-')}`}>
       <h3 className="text-[10px] uppercase tracking-wide text-text-disabled font-semibold mb-2">
-        {title} ({triggers.length})
+        {title} ({countLabel})
       </h3>
       <ul className="space-y-2">
         {triggers.map((trigger) => {
@@ -246,6 +329,17 @@ function TriggerSection({
           )
         })}
       </ul>
+      {hasMore && onLoadMore && (
+        <button
+          type="button"
+          data-testid={`load-more-triggers-${title.toLowerCase().replace(/\s+/g, '-')}`}
+          disabled={loading}
+          onClick={onLoadMore}
+          className="mt-2 w-full px-3 py-1.5 rounded-lg border border-bg-overlay text-[10px] text-text-secondary hover:text-text-primary disabled:opacity-50"
+        >
+          {loading ? 'Loading…' : 'Load more triggers'}
+        </button>
+      )}
     </section>
   )
 }
